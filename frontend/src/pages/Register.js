@@ -10,7 +10,7 @@ const Register = () => {
     password: '',
     confirmPassword: ''
   });
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -22,56 +22,67 @@ const Register = () => {
         return alert("Mật khẩu xác nhận không khớp!");
     }
     try {
-      await axios.post('http://localhost:5000/api/register', formData);
+      // await axios.post('http://localhost:5000/api/register', formData);
       alert("Đăng ký thành công! Hãy đăng nhập.");
-      navigate('/login');
+      // navigate('/login');
     } catch (err) {
-      alert(err.response?.data?.message || "Lỗi đăng ký");
+      alert("Lỗi đăng ký");
     }
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-left register-bg">
-        <div className="overlay">
-          <div className="brand">THE WANDERER</div>
-          <h1>Join the World's Greatest Wanderlust Community</h1>
-          <div className="avatars-group" style={{display: 'flex', alignItems: 'center', gap: '10px', marginTop: '20px'}}>
-             <small>Join 50k+ explorers sharing their journeys</small>
-          </div>
+    <div className="auth-wrapper">
+      {/* Cột trái: Hình ảnh */}
+      <div className="auth-side-image register-bg">
+        <div className="auth-overlay">
+          <div className="auth-badge">THE WANDERER</div>
+          <h1 className="auth-hero-text">Join the World's Greatest Wanderlust Community</h1>
+          <p className="auth-sub-text">Join 50k+ explorers sharing their journeys</p>
         </div>
       </div>
 
-      <div className="auth-right">
-        <div className="auth-form">
-          <h2 style={{color: '#ff4d4d', fontSize: '28px', marginBottom: '10px'}}>Create Your Account</h2>
-          <p className="subtitle">Start your next adventure today.</p>
+      {/* Cột phải: Form đăng ký */}
+      <div className="auth-side-form">
+        <div className="form-container">
+          <h2 className="form-title">Create Your Account</h2>
+          <p className="form-subtitle">Start your next adventure today.</p>
           
-          <div className="upload-section" style={{textAlign: 'center', margin: '20px 0'}}>
-            <div className="upload-circle" style={{width: '60px', height: '60px', background: '#eee', borderRadius: '50%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyCenter: 'center', cursor: 'pointer'}}>
+          <div className="upload-section">
+            <div className="upload-circle">
               📷
             </div>
-            <p style={{fontSize: '12px', marginTop: '5px', fontWeight: 'bold'}}>UPLOAD PHOTO</p>
+            <p className="upload-label">UPLOAD PHOTO</p>
           </div>
 
           <form onSubmit={handleRegister}>
-            <div className="input-group">
+            <div className="form-group">
               <input name="username" type="text" placeholder="Username" onChange={handleChange} required />
             </div>
-            <div className="input-group">
+            
+            <div className="form-group">
               <input name="email" type="email" placeholder="Email Address" onChange={handleChange} required />
             </div>
-            <div className="input-group">
+            
+            <div className="form-group">
               <input name="password" type="password" placeholder="Password" onChange={handleChange} required />
             </div>
-            <div className="input-group">
+            
+            <div className="form-group">
               <input name="confirmPassword" type="password" placeholder="Confirm Password" onChange={handleChange} required />
             </div>
-            <div className="terms-check" style={{fontSize: '12px', marginBottom: '20px'}}>
-              <input type="checkbox" required /> <span>I agree to the Terms & Privacy</span>
+            
+            <div className="form-row">
+              <label className="checkbox-label">
+                <input type="checkbox" required /> 
+                <span>I agree to the <span className="forgot-link">Terms & Privacy</span></span>
+              </label>
             </div>
-            <button type="submit" className="btn-primary">Create Account</button>
-            <p className="footer-text">Already have an account? <Link to="/login">Log in</Link></p>
+            
+            <button type="submit" className="btn-auth-submit">Create Account</button>
+            
+            <div className="auth-switch">
+              Already have an account? <a href="/login" style={{color: '#cf1322', fontWeight: 800, textDecoration: 'none'}}>Log in</a>
+            </div>
           </form>
         </div>
       </div>

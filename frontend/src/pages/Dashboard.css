@@ -1,0 +1,80 @@
+.dash-v2-root {
+    background-color: #f7f9fa;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: #1a1a1a;
+}
+
+/* Navbar */
+.dash-v2-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 30px;
+    background: white;
+    border-bottom: 1px solid #eee;
+    position: sticky; top: 0; z-index: 1000;
+}
+.v2-nav-left { display: flex; align-items: center; gap: 30px; }
+.v2-brand { font-weight: 900; color: #cf1322; font-size: 18px; }
+.v2-search {
+    background: #f0f2f5; padding: 6px 15px; border-radius: 8px;
+    display: flex; align-items: center; width: 350px;
+}
+.v2-search input { border: none; background: transparent; outline: none; margin-left: 10px; width: 100%; font-size: 13px; }
+.v2-nav-center { display: flex; gap: 30px; font-weight: 600; font-size: 13px; color: #666; }
+.v2-nav-center .active { color: #cf1322; border-bottom: 2px solid #cf1322; padding-bottom: 20px; margin-bottom: -20px; }
+.v2-btn-create { background: #cf1322; color: white; border: none; padding: 8px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+.v2-user-profile { width: 32px; height: 32px; background: #ffe7ba; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd; }
+
+/* Main Layout */
+.dash-v2-main { display: grid; grid-template-columns: 240px 1fr 400px; gap: 20px; padding: 20px 30px; max-width: 1700px; margin: 0 auto; }
+
+/* Sidebar */
+.v2-sidebar-header { margin-bottom: 20px; }
+.v2-sidebar-header h3 { font-size: 18px; margin-bottom: 4px; }
+.v2-sidebar-header p { font-size: 12px; color: #888; }
+.v2-menu-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 15px;
+    border-radius: 10px; font-weight: 600; font-size: 14px; color: #555; cursor: pointer; transition: 0.2s;
+}
+.v2-menu-item:hover { background: white; color: #cf1322; }
+.v2-menu-item.active { background: white; color: #cf1322; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+
+/* Feed Area */
+.v2-chips-container { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px; }
+.v2-chip {
+    white-space: nowrap; background: white; border: 1px solid #eee; padding: 6px 14px;
+    border-radius: 20px; font-size: 10px; font-weight: 800; color: #777; cursor: pointer;
+}
+.v2-chip.active { background: #b5f5ec; color: #006d75; border-color: #b5f5ec; }
+
+.v2-post-card { background: white; border-radius: 15px; display: flex; margin-bottom: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+.v2-post-vote { background: #fafafa; width: 50px; display: flex; flex-direction: column; align-items: center; padding: 20px 0; border-right: 1px solid #f0f0f0; }
+.v2-arrow { color: #ccc; cursor: pointer; font-size: 16px; }
+.v2-vote-count { font-weight: 800; font-size: 14px; margin: 6px 0; }
+.v2-post-main { flex: 1; padding: 20px; }
+.v2-post-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+.v2-post-user { display: flex; gap: 12px; align-items: center; }
+.v2-avatar-sm { width: 32px; height: 32px; background: #ffd8bf; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.v2-user-info h4 { font-size: 15px; margin: 0; }
+.v2-user-info p { font-size: 11px; color: #0077b6; margin: 0; font-weight: 700; }
+.v2-post-bookmark { color: #ccc; cursor: pointer; }
+
+.v2-post-image { position: relative; border-radius: 12px; overflow: hidden; margin-bottom: 15px; }
+.v2-post-image img { width: 100%; max-height: 400px; object-fit: cover; }
+.v2-img-tag { position: absolute; bottom: 15px; left: 15px; background: rgba(0,0,0,0.4); color: white; padding: 4px 10px; border-radius: 5px; font-size: 10px; font-weight: bold; backdrop-filter: blur(5px); }
+
+.v2-post-desc { font-size: 13.5px; line-height: 1.6; color: #444; margin-bottom: 15px; }
+.v2-post-footer { display: flex; gap: 20px; font-size: 12px; font-weight: 700; color: #999; border-top: 1px solid #f5f5f5; padding-top: 15px; }
+
+/* Right Map */
+.v2-map-panel { height: calc(100vh - 100px); position: sticky; top: 80px; }
+.v2-map-container { background: #eee; height: 100%; border-radius: 20px; overflow: hidden; position: relative; border: 1px solid #ddd; }
+.v2-map-image { height: 100%; position: relative; }
+.v2-map-image img { height: 100%; width: 100%; object-fit: cover; opacity: 0.8; }
+.v2-map-search-overlay { position: absolute; top: 15px; left: 15px; right: 15px; background: white; padding: 10px 15px; border-radius: 10px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.v2-map-marker { position: absolute; width: 12px; height: 12px; background: #cf1322; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+.v2-map-controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; }
+.v2-m-btn { width: 35px; height: 35px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.v2-m-btn.loc { background: #cf1322; color: white; }
