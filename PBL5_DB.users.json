@@ -1,0 +1,57 @@
+[{
+  "_id": {
+    "$oid": "69a6a04e15ce3ee972697b54"
+  },
+  "username": "Thanh Binh",
+  "email": "binh@gmail.com",
+  "password": "$2b$10$6Z31FkKMj7x7rW2P0yubbOiahnYeArV2DgJEAFtVJ6pM9q4uegXqW",
+  "role": "user",
+  "followers": [],
+  "following": [],
+  "savedLocations": [],
+  "createdAt": {
+    "$date": "2026-03-03T08:48:14.927Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-03T08:48:14.927Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69a6aab3f94c3b59bd44abac"
+  },
+  "username": "Truyen",
+  "email": "truyen@gmail.com",
+  "password": "$2b$10$Ln9LKDtv/46FyJTQOm28wOUPKjE6B.nxUT4q9dnPvsYt9tpuXVGj2",
+  "role": "admin",
+  "followers": [],
+  "following": [],
+  "savedLocations": [],
+  "createdAt": {
+    "$date": "2026-03-03T09:32:35.948Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-03T09:32:35.948Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69c0bd4de151bc730adea06b"
+  },
+  "username": "Nam Quan",
+  "email": "quan@gmail.com",
+  "password": "$2b$10$AYKMjYCzE78keVhzWSSouOr7Y/b41kWyt988JiT6bhm3KKqqacZL2",
+  "role": "user",
+  "followers": [],
+  "following": [],
+  "savedLocations": [],
+  "createdAt": {
+    "$date": "2026-03-23T04:10:53.135Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-23T04:10:53.135Z"
+  },
+  "__v": 0
+}]
