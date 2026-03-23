@@ -1,16 +1,33 @@
 const express = require("express");
-const router = express.Router({ mergeParams: true }); // mergeParams để lấy postId từ parent route
+const router  = express.Router({ mergeParams: true });
 const commentController = require("../controllers/commentController");
-// const { protect } = require("../middleware/auth");
+const { protect, optionalAuth, requireOwnerOrAdmin } = require("../middleware/auth");
+const Comment = require("../models/Comment");
 
-// Lấy comments của 1 post  →  GET /api/posts/:postId/comments
-router.get("/", commentController.getComments);
+// Xem comment — ai cũng xem được
+router.get("/", optionalAuth, commentController.getComments);
 
-// Thêm comment  →  POST /api/posts/:postId/comments
-router.post("/", commentController.addComment); // thêm protect nếu cần auth
+// Thêm comment — phải đăng nhập (viewer cũng comment được)
+router.post("/", protect, commentController.addComment);
 
-// Sửa / xóa comment  →  PUT|DELETE /api/posts/:postId/comments/:id
-router.put("/:id",    commentController.updateComment);
-router.delete("/:id", commentController.deleteComment);
+// Sửa comment — chỉ chủ comment
+router.put("/:id",
+  protect,
+  requireOwnerOrAdmin(async (req) => {
+    const c = await Comment.findById(req.params.id);
+    return c?.author;
+  }),
+  commentController.updateComment
+);
+
+// Xóa comment — chủ comment hoặc admin
+router.delete("/:id",
+  protect,
+  requireOwnerOrAdmin(async (req) => {
+    const c = await Comment.findById(req.params.id);
+    return c?.author;
+  }),
+  commentController.deleteComment
+);
 
 module.exports = router;

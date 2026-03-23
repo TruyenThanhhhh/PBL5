@@ -13,6 +13,7 @@ const postSchema = new mongoose.Schema(
     // ✅ thêm mới
     averageRating: { type: Number, default: 0 },
     totalReviews:  { type: Number, default: 0 },
+    isHidden: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

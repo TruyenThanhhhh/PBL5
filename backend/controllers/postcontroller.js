@@ -55,9 +55,14 @@ exports.deleteImage = async (req, res) => {
 exports.getPosts = async (req, res) => {
   try {
     const { location, category } = req.query;
+
     let filter = {};
+
     if (location) filter.location = location;
     if (category) filter.category = category;
+
+    // ✅ Thêm vào đây
+    if (req.user?.role !== "admin") filter.isHidden = false;
 
     const posts = await Post.find(filter)
       .populate("createdBy", "name email")
@@ -83,6 +88,44 @@ exports.likePost = async (req, res) => {
     post.likes.push(req.user.id);
     await post.save();
     res.json({ message: "Post liked successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ✏️ SỬA BÀI
+exports.updatePost = async (req, res) => {
+  try {
+    const { title, description, location, category, images } = req.body;
+    const post = await Post.findByIdAndUpdate(
+      req.params.id,
+      { title, description, location, category, images },
+      { new: true, runValidators: true }
+    );
+    res.json({ message: "Cập nhật thành công", post });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 🗑️ XÓA BÀI
+exports.deletePost = async (req, res) => {
+  try {
+    await Post.findByIdAndDelete(req.params.id);
+    res.json({ message: "Đã xóa bài" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 👁️ ẨN / HIỆN BÀI (admin only)
+exports.toggleVisibility = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Không tìm thấy bài" });
+    post.isHidden = !post.isHidden;
+    await post.save();
+    res.json({ message: post.isHidden ? "Đã ẩn bài" : "Đã hiện bài", isHidden: post.isHidden });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
