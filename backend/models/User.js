@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
     bio: String,
     role: {
       type: String,
-      enum: ["user", "host", "admin"],
+      enum: ["user", "admin"],
       default: "user"
     },
     followers: [
