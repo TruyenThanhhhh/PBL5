@@ -18,13 +18,15 @@ exports.uploadImages = async (req, res) => {
 // 📝 CREATE POST (giờ nhận images là mảng URL từ Cloudinary)
 exports.createPost = async (req, res) => {
   try {
-    const { title, description, location, category, images } = req.body;
+    const { title, description, location, category, images, price } = req.body;
+    const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
 
     const newPost = new Post({
       title,
       description,
       location,
       category,
+      price: normalizedPrice,
       images: images || [], // mảng URL string
       createdBy: req.user?.id || null,
     });
@@ -96,10 +98,11 @@ exports.likePost = async (req, res) => {
 // ✏️ SỬA BÀI
 exports.updatePost = async (req, res) => {
   try {
-    const { title, description, location, category, images } = req.body;
+    const { title, description, location, category, images, price } = req.body;
+    const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const post = await Post.findByIdAndUpdate(
       req.params.id,
-      { title, description, location, category, images },
+      { title, description, location, category, images, price: normalizedPrice },
       { new: true, runValidators: true }
     );
     res.json({ message: "Cập nhật thành công", post });

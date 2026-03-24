@@ -187,3 +187,6 @@ app.put("/api/admin/users/:id/role", authMiddleware, requireAdmin, async (req, r
 app.listen(process.env.PORT || 5000, () => {
   console.log(`Server running on port ${process.env.PORT || 5000}`);
 });
+
+const chatRoutes = require("./routes/chatRoutes");
+app.use("/api/chat", chatRoutes);
