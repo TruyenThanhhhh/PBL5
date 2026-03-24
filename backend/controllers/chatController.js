@@ -1,10 +1,18 @@
 const Groq = require("groq-sdk");
 const Post = require("../models/Post");
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const groqApiKey = process.env.GROQ_API_KEY;
+if (!groqApiKey || groqApiKey.trim() === '' || groqApiKey.includes('your_groq_api_key_here')) {
+  console.error('GROQ_API_KEY không được thiết lập đúng. Kiểm tra file .env.');
+}
+const groq = new Groq({ apiKey: groqApiKey });
 
 exports.chat = async (req, res) => {
   try {
+    if (!groqApiKey || groqApiKey.trim()==='') {
+      return res.status(500).json({ message: 'GROQ_API_KEY chưa cấu hình. Vui lòng cập nhật .env.' });
+    }
+    console.log('GROQ_API_KEY hiện tại:', groqApiKey ? groqApiKey.slice(0, 4) + '...' + groqApiKey.slice(-4) : '---');
     const { message, history = [] } = req.body;
     if (!message) return res.status(400).json({ message: "Thiếu nội dung" });
 
