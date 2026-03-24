@@ -69,6 +69,7 @@ main{padding:36px 40px 44px}
 .author-av{width:24px;height:24px;border-radius:50%;background:var(--terra);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
 .card-stats{display:flex;gap:12px;font-size:12px;color:var(--muted)}
 .stat{display:flex;align-items:center;gap:4px;cursor:pointer;transition:.2s}
+.stat.like-btn.liked{color:#e63946;transform:scale(1.1)}
 .stat:hover{color:var(--terra)}
 .rating{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--gold);font-weight:500}
 
@@ -113,13 +114,22 @@ main{padding:36px 40px 44px}
 .detail-reviews{margin-top:18px}
 .detail-reviews h4{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--brown);margin-bottom:10px}
 .review-list{display:flex;flex-direction:column;gap:10px}
-.review-item{border:1px solid var(--sand);border-radius:12px;padding:10px 12px;background:#fffefb}
-.review-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.review-item{background:transparent;border:none;padding:6px 0;}
+.review-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .review-author{font-size:13px;font-weight:600;color:var(--brown2)}
+.review-date{font-size:11px;color:var(--muted);margin-left:8px;}
 .review-rating{font-size:12px;color:var(--gold);font-weight:600}
-.review-content{margin-top:4px;font-size:13px;color:var(--brown2);line-height:1.6}
-.review-actions{margin-top:6px;display:flex;gap:8px}
-.reply-btn{border:none;background:transparent;color:var(--terra);font-size:12px;cursor:pointer;padding:0}
+.review-content{margin:3px 0 2px;font-size:13px;color:var(--brown2);line-height:1.5}
+.review-actions{display:flex;gap:8px;font-size:12px}
+.reply-btn{border:none;background:transparent;color:var(--terra);cursor:pointer;padding:0}
+.comment-action-buttons button{border:none;background:transparent;color:#b34747;cursor:pointer;padding:0;font-size:12px;margin-left:8px}
+.comment-edit-box{background:transparent;border:1px solid var(--sand);border-radius:10px;padding:8px;}
+.comment-edit-input{width:100%;min-height:60px;resize:vertical;border:1px solid var(--sand);border-radius:8px;padding:6px 8px;font-size:13px}
+.rating-editor{margin:6px 0}
+.rating-editor .star-btn{border:none;background:transparent;color:#ccbca6;font-size:18px;margin-right:2px;cursor:pointer;transition:.15s;}
+.rating-editor .star-btn.active{color:var(--gold);transform:scale(1.2);}
+.rating-editor .star-btn:hover{color:var(--gold);transform:scale(1.3);}
+
 .reply-box{margin-top:8px;padding-top:8px;border-top:1px dashed var(--sand)}
 .reply-input{width:100%;min-height:60px;resize:vertical;border:1.5px solid var(--sand);border-radius:10px;padding:8px 10px;font-family:var(--sans);font-size:12px;background:var(--white);outline:none}
 .reply-input:focus{border-color:var(--terra);box-shadow:0 0 0 3px rgba(196,98,45,.08)}
@@ -234,6 +244,7 @@ main{padding:36px 40px 44px}
         </div>
       </div>
       <div class="review-list" id="detailReviewList"></div>
+      <div class="review-pagination" id="detailReviewPagination" style="text-align:center;padding:10px 0"></div>
     </div>
   </div>
 </div>
@@ -246,9 +257,16 @@ const postCache = new Map();
 let currentDetailPostId = null;
 let selectedReviewRating = 0;
 let activeReplyCommentId = null;
+let editingCommentId = null;
+let editingCommentContent = '';
+let editingCommentRating = 0;
 let detailMapInstance = null;
 let detailMapMarker = null;
 const detailGeoCache = new Map();
+
+let commentPage = 1;
+const commentLimit = 5;
+let commentTotal = 0;
 
 // Guard
 if(!token || !user){ location.href='auth.html'; }
@@ -312,8 +330,13 @@ function renderCard(p){
     'dia-danh':'📍 Địa danh','am-thuc':'🍜 Ẩm thực',
     'khach-san':'🏨 Khách sạn','cafe':'☕ Café','giai-tri':'🎡 Giải trí'
   };
-  const stars = p.averageRating ? '★'.repeat(Math.round(p.averageRating))+'☆'.repeat(5-Math.round(p.averageRating)) : '';
+  const rawAvg = Number(p.averageRating) || 0;
+  const displayRating = p.totalReviews > 0
+    ? Math.min(5, Math.max(1, Math.round(rawAvg || 1)))
+    : 0;
+  const stars = displayRating ? '★'.repeat(displayRating) + '☆'.repeat(5 - displayRating) : '';
   const authorName = p.createdBy?.username || p.createdBy?.name || 'Ẩn danh';
+  const likedByUser = token && p.likes?.some((id) => id.toString() === user?._id);
   return `
   <div class="card" onclick="viewPost('${p._id}')">
     ${img}
@@ -321,7 +344,7 @@ function renderCard(p){
       <div class="card-cat">${catLabel[p.category]||p.category}</div>
       <div class="card-title">${p.title}</div>
       <div class="card-loc">📍 ${p.location}</div>
-      <div class="card-price">💵 ${formatPrice(p.price)}</div>
+      <div class="card-price">💵 ${formatPrice(p.priceRange || p.price)}</div>
       <div class="card-desc">${p.description}</div>
       <div class="card-footer">
         <div class="card-author">
@@ -330,8 +353,8 @@ function renderCard(p){
         </div>
         <div class="card-stats">
           ${stars ? `<span class="rating"><span class="stars">${stars}</span> ${p.averageRating}</span>` : ''}
-          <span class="stat" onclick="likePost(event,'${p._id}',this)">❤️ ${p.likes?.length||0}</span>
-          <span class="stat">💬 ${p.totalReviews||0}</span>
+          <span class="stat like-btn ${likedByUser ? 'liked' : ''}" data-post-id="${p._id}" onclick="likePost(event,'${p._id}',this)">❤️ ${p.likes?.length||0}</span>
+          <span class="stat comment-count">💬 ${p.totalReviews||0}</span>
         </div>
       </div>
     </div>
@@ -357,12 +380,58 @@ function loadMore(){ loadPosts(false); }
 async function likePost(e, postId, el){
   e.stopPropagation();
   if(!token){ showToast('Đăng nhập để thích bài!','error'); return; }
+
+  const likedEl = el;
+  const counterEl = likedEl;
+
+  // Update UI instant giữa hiểu trạng thái
+  likedEl.classList.add('disabled');
+
   try{
-    const res = await fetch(`${BASE}/api/posts/like/${postId}`,{method:'PUT',headers:{Authorization:`Bearer ${token}`}});
+    const res = await fetch(`${BASE}/api/posts/like/${postId}`,{
+      method:'PUT',
+      headers:{Authorization:`Bearer ${token}`}
+    });
     const data = await res.json();
-    if(res.ok) showToast('Đã thích! ❤️');
-    else showToast(data.message,'error');
-  } catch{ showToast('Lỗi kết nối','error'); }
+
+    if(!res.ok){
+      showToast(data.message || 'Lỗi khi cập nhật like','error');
+      return;
+    }
+
+    // Cập nhật count + trạng thái từ backend
+    const isLiked = Boolean(data.liked);
+    const count = Number(data.likesCount || 0);
+
+    // Cập nhật tất cả phần tử like tương ứng post
+    document.querySelectorAll(`[data-post-id="${postId}"]`).forEach(elm=>{
+      elm.textContent = `❤️ ${count}`;
+      elm.classList.toggle('liked', isLiked);
+    });
+
+    // Cập nhật detail view nếu đang mở
+    if(currentDetailPostId === postId){
+      document.getElementById('detailLikes').textContent = `❤️ ${count}`;
+      const p = postCache.get(postId);
+      if(p){
+        p.likes = isLiked ? [...(p.likes||[]), user._id] : (p.likes||[]).filter(id=>id.toString() !== user._id);
+      }
+    }
+
+    if (isLiked) showToast('Đã thích! ❤️');
+    else showToast('Đã bỏ thích');
+
+    // Đồng bộ totalReviews + averageRating nếu có
+    if(data.totalReviews != null && currentDetailPostId === postId){
+      const p = postCache.get(postId);
+      if(p){ p.totalReviews = data.totalReviews; p.averageRating = data.averageRating; renderPostDetail(p); }
+    }
+
+  }catch{
+    showToast('Lỗi kết nối','error');
+  } finally {
+    likedEl.classList.remove('disabled');
+  }
 }
 
 
@@ -388,11 +457,15 @@ function renderPostDetail(p){
   document.getElementById('detailCat').textContent = catLabel[p.category] || p.category || '—';
   document.getElementById('detailTitle').textContent = p.title || '—';
   document.getElementById('detailLocation').textContent = `📍 ${p.location || '—'}`;
-  document.getElementById('detailPrice').textContent = `💵 ${formatPrice(p.price)}`;
+  document.getElementById('detailPrice').textContent = `💵 ${formatPrice(p.priceRange || p.price)}`;
   document.getElementById('detailAuthor').textContent = `👤 ${authorName}`;
   document.getElementById('detailDate').textContent = `🗓️ ${dt}`;
   document.getElementById('detailLikes').textContent = `❤️ ${p.likes?.length || 0}`;
-  document.getElementById('detailRating').textContent = p.averageRating ? `⭐ ${p.averageRating}/5` : '⭐ Chưa có';
+  const rawAvg = Number(p.averageRating) || 0;
+  const displayAvg = p.totalReviews > 0
+    ? Math.min(5, Math.max(1, Math.round(rawAvg || 1)))
+    : 0;
+  document.getElementById('detailRating').textContent = displayAvg ? `⭐ ${displayAvg}/5` : '⭐ Chưa có';
   document.getElementById('detailReviews').textContent = `💬 ${p.totalReviews || 0} đánh giá`;
   document.getElementById('detailDesc').textContent = p.description || '—';
   renderDetailImages(p.images || []);
@@ -479,17 +552,29 @@ function changeDetailImage(src, el){
   if(el) el.classList.add('active');
 }
 
-async function loadPostReviews(postId){
+async function loadPostReviews(postId, page = 1){
   try{
+    commentPage = page;
     const headers = token ? { Authorization:`Bearer ${token}` } : {};
-    const res = await fetch(`${BASE}/api/posts/${postId}/comments?limit=5`, { headers });
+    const res = await fetch(`${BASE}/api/posts/${postId}/comments?page=${page}&limit=${commentLimit}`, { headers });
     const data = await res.json();
     const comments = Array.isArray(data?.comments) ? data.comments : [];
+    const totalReviews = Number(data?.pagination?.total ?? comments.length);
+    commentTotal = totalReviews;
     const list = document.getElementById('detailReviewList');
+    const p = postCache.get(postId);
+    if(p){
+      p.totalReviews = totalReviews;
+      postCache.set(postId,p);
+      if(currentDetailPostId === postId) renderPostDetail(p);
+    }
+
     if(!comments.length){
       list.innerHTML = `<div class="review-empty">Chưa có đánh giá nào cho địa điểm này.</div>`;
+      document.getElementById('detailReviewPagination').innerHTML = '';
       return;
     }
+
     list.innerHTML = comments.map(c=>{
       const author = c.author?.username || 'Người dùng';
       const rating = c.rating ? `⭐ ${c.rating}/5` : '';
@@ -498,6 +583,28 @@ async function loadPostReviews(postId){
       const replyHtml = replies.length
         ? `<div class="replies">${replies.map(r=>`<div class="reply-item"><div class="reply-author">${r.author?.username || 'Người dùng'}</div><div class="reply-content">${r.content || ''}</div></div>`).join('')}</div>`
         : '';
+
+      const isMine = user && c.author && ((c.author._id || c.author.id || c.author).toString ? (c.author._id || c.author.id || c.author).toString() : c.author) === user._id;
+      const isEditing = editingCommentId === c._id;
+
+      const editSection = isEditing
+        ? `<div class="review-form" style="margin-top:8px;padding:8px;">
+             <div class="review-form-title">Sửa đánh giá</div>
+             <div class="review-stars" id="editReviewStars-${c._id}">
+               ${[1,2,3,4,5].map(i=>`<button type="button" class="star-btn ${editingCommentRating>=i?'active':''}" onclick="setEditingCommentRating(${i})">★</button>`).join('')}
+             </div>
+             <textarea class="review-text" id="editCommentInput-${c._id}" style="min-height:70px;">${editingCommentContent}</textarea>
+             <div class="review-form-actions" style="margin-top:6px;">
+               <button class="review-submit" onclick="submitEditComment('${c._id}')">Lưu</button>
+               <button class="review-submit" style="background:#999;margin-left:6px;" onclick="cancelEditComment()">Hủy</button>
+             </div>
+           </div>`
+        : '';
+
+      const actionButtons = !isEditing && isMine
+        ? `<button class="reply-btn" onclick="openEditComment('${c._id}', '${encodeURIComponent(content)}', ${c.rating||0})">✏️ Sửa</button> <button class="reply-btn" onclick="deleteComment('${c._id}')">🗑️ Xóa</button>`
+        : '';
+
       const replyBox = activeReplyCommentId === c._id
         ? `<div class="reply-box">
              <textarea class="reply-input" id="replyInput-${c._id}" placeholder="Nhập phản hồi của bạn..."></textarea>
@@ -507,27 +614,44 @@ async function loadPostReviews(postId){
              </div>
            </div>`
         : '';
+
+      const dateText = c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }) : '';
       return `<div class="review-item">
-        <div class="review-top"><span class="review-author">${author}</span><span class="review-rating">${rating}</span></div>
-        <div class="review-content">${content}</div>
-        <div class="review-actions"><button class="reply-btn" onclick="openReplyBox('${c._id}')">↩ Trả lời</button></div>
+        <div class="review-top"><span class="review-author">${author}</span><span class="review-date">${dateText}</span><span class="review-rating">${rating}</span></div>
+        <div class="review-content">${isEditing ? '' : content}</div>
+        ${editSection}
+        <div class="review-actions"><button class="reply-btn" onclick="openReplyBox('${c._id}')">↩ Trả lời</button>${actionButtons}</div>
         ${replyBox}
         ${replyHtml}
       </div>`;
     }).join('');
+
+    // Pagination control
+    const totalPages = Math.max(1, Math.ceil(commentTotal / commentLimit));
+    const pageEl = document.getElementById('detailReviewPagination');
+    if(totalPages > 1){
+      pageEl.innerHTML = `
+        <button ${page<=1? 'disabled':''} onclick="loadPostReviews('${postId}', ${Math.max(1, page-1)})">‹ Trước</button>
+        <span>Trang ${page}/${totalPages}</span>
+        <button ${page>=totalPages? 'disabled':''} onclick="loadPostReviews('${postId}', ${Math.min(totalPages, page+1)})">Tiếp ›</button>
+      `;
+    } else {
+      pageEl.innerHTML = '';
+    }
   }catch{
     document.getElementById('detailReviewList').innerHTML = `<div class="review-empty">Không tải được đánh giá. Vui lòng thử lại.</div>`;
+    document.getElementById('detailReviewPagination').innerHTML = '';
   }
 }
 
 function openReplyBox(commentId){
   activeReplyCommentId = commentId;
-  loadPostReviews(currentDetailPostId);
+  loadPostReviews(currentDetailPostId, commentPage);
 }
 
 function cancelReplyBox(){
   activeReplyCommentId = null;
-  loadPostReviews(currentDetailPostId);
+  loadPostReviews(currentDetailPostId, commentPage);
 }
 
 async function submitReply(commentId){
@@ -547,10 +671,92 @@ async function submitReply(commentId){
       return;
     }
     activeReplyCommentId = null;
-    await loadPostReviews(currentDetailPostId);
+    await loadPostReviews(currentDetailPostId, commentPage);
     showToast('Đã gửi trả lời');
   }catch{
     showToast('Không kết nối được server','error');
+  }
+}
+
+function openEditComment(commentId, encodedContent, rating){
+  editingCommentId = commentId;
+  editingCommentContent = decodeURIComponent(encodedContent || '');
+  editingCommentRating = Number(rating) || 0;
+  loadPostReviews(currentDetailPostId, commentPage);
+}
+
+function setEditingCommentRating(value){
+  editingCommentRating = value;
+  const starButtons = document.querySelectorAll(`#editReviewStars-${editingCommentId} .star-btn`);
+  starButtons.forEach((btn, idx)=>btn.classList.toggle('active', idx < value));
+}
+
+
+function cancelEditComment(){
+  editingCommentId = null;
+  editingCommentContent = '';
+  editingCommentRating = 0;
+  loadPostReviews(currentDetailPostId, commentPage);
+}
+
+async function submitEditComment(commentId){
+  const input = document.getElementById(`editCommentInput-${commentId}`);
+  const content = input?.value?.trim() || '';
+  if(!content){ showToast('Nội dung trống', 'error'); return; }
+  if(editingCommentRating < 1 || editingCommentRating > 5){ showToast('Chọn sao hợp lệ', 'error'); return; }
+
+  try{
+    const res = await fetch(`${BASE}/api/posts/${currentDetailPostId}/comments/${commentId}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+      body: JSON.stringify({ content, rating: editingCommentRating })
+    });
+    const data = await res.json();
+    if(!res.ok){ showToast(data?.message || 'Không thể sửa comment','error'); return; }
+
+    // Đồng bộ post statistics
+    if(data.post){
+      const p = postCache.get(currentDetailPostId) || {};
+      p.averageRating = data.post.averageRating;
+      p.totalReviews = data.post.totalReviews;
+      postCache.set(currentDetailPostId, p);
+      renderPostDetail(p);
+      loadPosts(true);
+    }
+
+    editingCommentId = null;
+    editingCommentContent = '';
+    editingCommentRating = 0;
+    await loadPostReviews(currentDetailPostId, commentPage);
+    showToast('Đã cập nhật đánh giá');
+  }catch{
+    showToast('Lỗi kết nối','error');
+  }
+}
+
+async function deleteComment(commentId){
+  if(!confirm('Xác nhận xóa đánh giá này?')) return;
+  try{
+    const res = await fetch(`${BASE}/api/posts/${currentDetailPostId}/comments/${commentId}`,{
+      method:'DELETE',
+      headers:{Authorization:`Bearer ${token}`}
+    });
+    const data = await res.json();
+    if(!res.ok){ showToast(data?.message || 'Không thể xóa','error'); return; }
+
+    if(data.post){
+      const p = postCache.get(currentDetailPostId) || {};
+      p.averageRating = data.post.averageRating;
+      p.totalReviews = data.post.totalReviews;
+      postCache.set(currentDetailPostId, p);
+      renderPostDetail(p);
+      loadPosts(true);
+    }
+
+    await loadPostReviews(currentDetailPostId);
+    showToast('Đã xóa đánh giá');
+  }catch{
+    showToast('Lỗi kết nối','error');
   }
 }
 
@@ -590,12 +796,24 @@ async function submitReview(){
       return;
     }
 
-    const p = postCache.get(currentDetailPostId);
-    if(p){
-      p.totalReviews = (p.totalReviews || 0) + 1;
-      p.averageRating = p.averageRating || selectedReviewRating;
+    // Backend trả về post đã cập nhật (averageRating, totalReviews)
+    const updatedPost = data?.post;
+    if(updatedPost){
+      const p = postCache.get(currentDetailPostId) || {};
+      p.averageRating = updatedPost.averageRating;
+      p.totalReviews = updatedPost.totalReviews;
+      postCache.set(currentDetailPostId, p);
       renderPostDetail(p);
+    } else {
+      // fallback increment local
+      const p = postCache.get(currentDetailPostId);
+      if(p){
+        p.totalReviews = (p.totalReviews || 0) + 1;
+        p.averageRating = p.averageRating || selectedReviewRating;
+        renderPostDetail(p);
+      }
     }
+
     resetReviewForm();
     await loadPostReviews(currentDetailPostId);
     showToast('Đã gửi đánh giá thành công');
@@ -614,8 +832,24 @@ function closePostDetail(e){
 }
 
 function formatPrice(price){
-  if(!Number.isFinite(Number(price)) || Number(price) < 0) return 'Chưa cập nhật';
-  return `${Number(price).toLocaleString('vi-VN')} VND`;
+  if(price === null || price === undefined || (typeof price === 'string' && price.trim()==='')){
+    return 'Chưa cập nhật';
+  }
+
+  if(typeof price === 'string'){
+    const text = price.trim();
+    if(/^\d+[\d.,]*$/.test(text)){
+      const num = Number(text.replace(/[.,]/g,''));
+      if(Number.isFinite(num)) return `${num.toLocaleString('vi-VN')} VND`;
+    }
+    return text;
+  }
+
+  if(typeof price === 'number' && Number.isFinite(price) && price >= 0){
+    return `${price.toLocaleString('vi-VN')} VND`;
+  }
+
+  return 'Chưa cập nhật';
 }
 
 function doLogout(){

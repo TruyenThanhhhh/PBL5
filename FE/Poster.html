@@ -158,7 +158,25 @@ nav .spacer{flex:1}
         <option value="giai-tri">🎡 Giải trí</option>
       </select>
     </div>
-    <div class="field"><label>Giá tham khảo (VND)</label><input id="fPrice" type="number" min="0" step="1000" placeholder="Ví dụ: 250000"/></div>
+    <div class="field"><label>Mức giá tham khảo</label>
+      <select id="fPriceRange">
+        <option value="">Chọn khoảng giá</option>
+        <optgroup label="VND">
+          <option value="Dưới 200.000 VND">Dưới 200.000 VND</option>
+          <option value="200.000 - 500.000 VND">200.000 - 500.000 VND</option>
+          <option value="500.000 - 1.000.000 VND">500.000 - 1.000.000 VND</option>
+          <option value="1.000.000 - 2.000.000 VND">1.000.000 - 2.000.000 VND</option>
+          <option value="Trên 2.000.000 VND">Trên 2.000.000 VND</option>
+        </optgroup>
+        <optgroup label="USD">
+          <option value="Dưới 10 USD">Dưới 10 USD</option>
+          <option value="10 - 25 USD">10 - 25 USD</option>
+          <option value="25 - 50 USD">25 - 50 USD</option>
+          <option value="50 - 100 USD">50 - 100 USD</option>
+          <option value="Trên 100 USD">Trên 100 USD</option>
+        </optgroup>
+      </select>
+    </div>
     <div class="field"><label>Link ảnh (tuỳ chọn)</label><input id="fImage" placeholder="https://example.com/image.jpg"/></div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Huỷ</button>
@@ -213,6 +231,10 @@ async function loadMyPosts(){
       const badge = p.isHidden
         ? `<span class="badge-hidden">🙈 Đang ẩn</span>`
         : `<span class="badge-visible">✅ Hiển thị</span>`;
+      const rawAvg = Number(p.averageRating) || 0;
+      const displayRating = p.totalReviews > 0
+        ? Math.min(5, Math.max(1, Math.round(rawAvg || 1)))
+        : 0;
       return `
       <div class="post-row">
         ${thumb}
@@ -221,9 +243,9 @@ async function loadMyPosts(){
           <div class="post-meta">
             <span>📍 ${p.location}</span>
             <span>🏷️ ${p.category}</span>
-            <span>💵 ${formatPrice(p.price)}</span>
+            <span>💵 ${formatPrice(p.priceRange || p.price)}</span>
             <span>❤️ ${p.likes?.length||0} lượt thích</span>
-            <span>⭐ ${p.averageRating||0} (${p.totalReviews||0} đánh giá)</span>
+            <span>⭐ ${displayRating} (${p.totalReviews||0} đánh giá)</span>
           </div>
         </div>
         <div class="post-actions">
@@ -240,12 +262,12 @@ async function loadMyPosts(){
 function openModal(post=null){
   editingId = post?._id || null;
   document.getElementById('modalTitle').textContent = post ? 'Chỉnh sửa bài' : 'Đăng bài mới';
-  document.getElementById('fTitle').value    = post?.title || '';
-  document.getElementById('fDesc').value     = post?.description || '';
-  document.getElementById('fLocation').value = post?.location || '';
-  document.getElementById('fCategory').value = post?.category || '';
-  document.getElementById('fPrice').value    = Number.isFinite(post?.price) ? post.price : '';
-  document.getElementById('fImage').value    = post?.images?.[0] || '';
+  document.getElementById('fTitle').value      = post?.title || '';
+  document.getElementById('fDesc').value       = post?.description || '';
+  document.getElementById('fLocation').value   = post?.location || '';
+  document.getElementById('fCategory').value   = post?.category || '';
+  document.getElementById('fPriceRange').value = post?.priceRange || (Number.isFinite(post?.price) ? mapPriceToRange(post.price) : '');
+  document.getElementById('fImage').value      = post?.images?.[0] || '';
   document.getElementById('modalAlert').className = 'alert';
   document.getElementById('submitBtn').textContent = post ? 'Lưu thay đổi' : 'Đăng bài';
   document.getElementById('overlay').classList.add('show');
@@ -278,16 +300,17 @@ async function deletePost(id, btn){
 async function submitPost(){
   const title    = document.getElementById('fTitle').value.trim();
   const desc     = document.getElementById('fDesc').value.trim();
-  const location = document.getElementById('fLocation').value;
-  const category = document.getElementById('fCategory').value;
-  const priceRaw = document.getElementById('fPrice').value;
-  const image    = document.getElementById('fImage').value.trim();
-  const price    = priceRaw === '' ? null : Number(priceRaw);
+  const location   = document.getElementById('fLocation').value;
+  const category   = document.getElementById('fCategory').value;
+  const priceRange = document.getElementById('fPriceRange').value;
+  const image      = document.getElementById('fImage').value.trim();
 
   if(!title||!desc||!location||!category){
     showModalAlert('Vui lòng điền đầy đủ thông tin'); return;
   }
-  if(priceRaw !== '' && (!Number.isFinite(price) || price < 0)){
+
+  // Giá có thể để trống (không bắt buộc); nếu chọn thì dựa trên giá trị select.
+  if(priceRange && priceRange.length > 120){
     showModalAlert('Giá không hợp lệ'); return;
   }
 
@@ -295,7 +318,7 @@ async function submitPost(){
   btn.innerHTML = '<span class="spinner"></span>Đang lưu...';
   btn.disabled = true;
 
-  const body = { title, description:desc, location, category, price, images: image ? [image] : [] };
+  const body = { title, description:desc, location, category, priceRange: priceRange || null, images: image ? [image] : [] };
   const url  = editingId ? `${BASE}/api/posts/${editingId}` : `${BASE}/api/posts`;
   const method = editingId ? 'PUT' : 'POST';
 
@@ -323,9 +346,35 @@ function showSection(s){
   if(s==='new') openModal();
 }
 
+function mapPriceToRange(price){
+  const p = Number(price);
+  if(!Number.isFinite(p) || p < 0) return '';
+  if(p < 200000) return 'Dưới 200.000 VND';
+  if(p <= 500000) return '200.000 - 500.000 VND';
+  if(p <= 1000000) return '500.000 - 1.000.000 VND';
+  if(p <= 2000000) return '1.000.000 - 2.000.000 VND';
+  return 'Trên 2.000.000 VND';
+}
+
 function formatPrice(price){
-  if(!Number.isFinite(Number(price)) || Number(price) < 0) return 'Chưa cập nhật';
-  return `${Number(price).toLocaleString('vi-VN')} VND`;
+  if(price === null || price === undefined || (typeof price === 'string' && price.trim()==='')){
+    return 'Chưa cập nhật';
+  }
+
+  if(typeof price === 'string'){
+    const text = price.trim();
+    if(/^\d+[\d.,]*$/.test(text)){
+      const num = Number(text.replace(/[.,]/g,''));
+      if(Number.isFinite(num)) return `${num.toLocaleString('vi-VN')} VND`;
+    }
+    return text;
+  }
+
+  if(typeof price === 'number' && Number.isFinite(price) && price >= 0){
+    return `${price.toLocaleString('vi-VN')} VND`;
+  }
+
+  return 'Chưa cập nhật';
 }
 
 function showToast(msg, type='success'){
