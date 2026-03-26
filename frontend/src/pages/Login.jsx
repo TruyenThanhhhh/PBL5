@@ -1,23 +1,60 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff, User } from 'lucide-react';
+import { Lock, Eye, EyeOff, User, Loader2 } from 'lucide-react';
 
 export default function Login() {
-  const [showPassword, setShowPassword] = useState(false);
-  
-  // Khởi tạo hàm chuyển hướng của React Router
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
 
-  const handleLogin = (e) => {
+  const [identifier, setIdentifier] = useState(''); 
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // Chỗ này sau này bạn sẽ gọi API gửi request lên Backend.
-    // Nếu API trả về đăng nhập thành công thì gọi dòng dưới:
-    navigate('/dashboard');
+    setMessage({ type: '', text: '' });
+    setIsLoading(true);
+
+    try {
+      console.log("Đang gọi API Login...");
+      const response = await fetch('http://localhost:5000/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identifier: identifier,
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Login Successfully!' });
+        
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('username', data.username);
+
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1000);
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Error: Incorrect Username/Email or Password!' });
+      }
+    } catch (error) {
+      console.error("Lỗi Network:", error);
+      // Hướng dẫn người dùng F12 nếu vẫn lỗi
+      setMessage({ type: 'error', text: 'Vẫn lỗi mạng. Hãy ấn F12, chọn tab Console, chụp dòng chữ màu đỏ gửi lại nhé!' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen bg-white font-sans w-full">
-      {/* Cột trái - Hình nền & Giới thiệu */}
       <div className="hidden lg:flex w-[45%] bg-gradient-to-br from-[#8a7a5e] to-[#544d3c] p-12 flex-col justify-between">
         <div>
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest">
@@ -39,13 +76,18 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Cột phải - Form Đăng nhập */}
       <div className="w-full lg:w-[55%] flex flex-col items-center justify-center p-8 overflow-y-auto">
         <div className="w-full max-w-[380px]">
           <div className="mb-10 text-center lg:text-left">
             <h2 className="text-3xl font-bold text-[#f44336] mb-2">Welcome Back</h2>
             <p className="text-gray-500 text-[13px] font-medium">Please enter your details to sign in</p>
           </div>
+
+          {message.text && (
+            <div className={`mb-5 p-3.5 rounded-xl text-[13px] font-bold ${message.type === 'error' ? 'bg-red-50 text-[#f44336] border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+              {message.text}
+            </div>
+          )}
 
           <form className="space-y-4" onSubmit={handleLogin}>
             <div>
@@ -57,8 +99,10 @@ export default function Login() {
                 <input
                   type="text"
                   required
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                  placeholder="e.g. wanderer@travel.com"
+                  placeholder="e.g. wanderer@travel.com or username"
                 />
               </div>
             </div>
@@ -72,6 +116,8 @@ export default function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-10 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
                   placeholder="••••••••"
                 />
@@ -90,14 +136,14 @@ export default function Login() {
                 <input
                   id="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-[#00897b] focus:ring-[#00897b] border-gray-300 rounded cursor-pointer"
+                  className="h-4 w-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-[12px] text-gray-600 font-medium cursor-pointer">
                   Remember me
                 </label>
               </div>
               <div className="text-[12px]">
-                <a href="#" className="font-semibold text-[#00897b] hover:text-[#00796b]">
+                <a href="#" className="font-semibold text-[#f44336] hover:text-[#d32f2f]">
                   Forgot password?
                 </a>
               </div>
@@ -105,9 +151,14 @@ export default function Login() {
 
             <button
               type="submit"
-              className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f44336] transition-all"
+              disabled={isLoading}
+              className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f44336] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Login
+              {isLoading ? (
+                <><Loader2 className="animate-spin mr-2" size={18} /> Logging in...</>
+              ) : (
+                "Login"
+              )}
             </button>
           </form>
 
@@ -154,9 +205,6 @@ export default function Login() {
                 Sign up
               </Link>
             </p>
-            <button className="text-[12px] font-bold text-gray-500 hover:text-gray-800 flex items-center justify-center w-full gap-1">
-              Continue as Guest <span className="text-lg leading-none">&rarr;</span>
-            </button>
           </div>
         </div>
       </div>

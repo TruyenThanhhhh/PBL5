@@ -62,7 +62,7 @@ export default function Register() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Đăng ký thành công! Đang chuyển hướng...' });
+        setMessage({ type: 'success', text: 'Register Successfully! Welcome!' });
         // Chuyển về trang login sau 2 giây
         setTimeout(() => {
           navigate('/login');
