@@ -6,23 +6,23 @@ const { protect, optionalAuth, requirePoster, requireAdmin, requireOwnerOrAdmin 
 const Post    = require("../models/Post");
 const commentRoutes = require("./commentRoutes");
 
-// Upload ảnh — chỉ poster/admin
+// 🖼️ Upload ảnh — TẤT CẢ user đã đăng nhập đều được upload
 router.post("/upload-images",
-  protect, requirePoster,
+  protect, 
   upload.array("images", 5),
   postController.uploadImages
 );
 
-// Xóa ảnh — chỉ poster/admin
-router.delete("/image", protect, requirePoster, postController.deleteImage);
+// 🗑️ Xóa ảnh — TẤT CẢ user đã đăng nhập đều được xóa ảnh của họ
+router.delete("/image", protect, postController.deleteImage);
 
-// Tạo bài — chỉ poster/admin
+// 📝 Tạo bài — TẤT CẢ user đã đăng nhập đều được đăng bài
 router.post("/", protect, postController.createPost);
 
-// Xem bài — ai cũng xem được, nếu login thì biết user là ai
+// 📄 Xem bài — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);
 
-// Sửa bài — chủ bài hoặc admin
+// ✏️ Sửa bài — chủ bài hoặc admin
 router.put("/:id",
   protect,
   requireOwnerOrAdmin(async (req) => {
@@ -32,7 +32,7 @@ router.put("/:id",
   postController.updatePost
 );
 
-// Xóa bài — chủ bài hoặc admin
+// 🗑️ Xóa bài — chủ bài hoặc admin
 router.delete("/:id",
   protect,
   requireOwnerOrAdmin(async (req) => {
@@ -42,13 +42,13 @@ router.delete("/:id",
   postController.deletePost
 );
 
-// Ẩn/hiện bài — chỉ admin
+// 👁️ ẨN/hiện bài — chỉ admin
 router.patch("/:id/toggle-visibility", protect, requireAdmin, postController.toggleVisibility);
 
-// Like — phải đăng nhập (viewer cũng like được)
+// ❤️ Like — phải đăng nhập (viewer cũng like được)
 router.put("/like/:id", protect, postController.likePost);
 
-// Comments
+// 💬 Comments
 router.use("/:postId/comments", commentRoutes);
 
 module.exports = router;
