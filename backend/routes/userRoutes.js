@@ -1,30 +1,35 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/userController");
-// Nếu bạn có file upload.js trong middleware thì bỏ comment dòng dưới, 
-// nếu không có thì comment lại hoặc xóa đi nhé.
 const upload = require("../middleware/upload"); 
 
+// Đảm bảo import đúng middleware auth của bạn
+const { protect, requireAdmin } = require("../middleware/auth"); 
+
 // ==========================================
-// 🚀 AUTH ROUTES (ĐÂY LÀ PHẦN BẠN ĐANG THIẾU)
+// 🚀 AUTH ROUTES
 // ==========================================
-// API Đăng ký (Có xử lý file ảnh avatar)
 router.post("/register", upload.single("avatar"), userController.registerUser);
-
-// API Đăng nhập (DÒNG NÀY GIẢI QUYẾT LỖI 404 CỦA BẠN)
 router.post("/login", userController.loginUser); 
+
 // ==========================================
+// 🛡️ ROUTES QUẢN LÝ QUYỀN POSTER (Đây là phần bạn đang thiếu)
+// ==========================================
+// 1. Viewer gửi request xin quyền (Cần token)
+router.post("/request-poster", protect, userController.requestPosterRole);
 
-// Feed cá nhân  →  GET /api/users/feed
-router.get("/feed", userController.getFeed);
+// 2. Admin xem danh sách đang chờ
+router.get("/admin/pending-requests", protect, requireAdmin, userController.getPendingRequests);
 
-// Follow / unfollow  →  PUT /api/users/follow/:id
-router.put("/follow/:id", userController.toggleFollow);
+// 3. Admin duyệt yêu cầu
+router.post("/admin/approve-request", protect, requireAdmin, userController.approveRoleRequest);
 
-// Danh sách followers/following  →  GET /api/users/:id/follow-info
+// ==========================================
+// 👤 CÁC TÍNH NĂNG CƠ BẢN
+// ==========================================
+router.get("/feed", protect, userController.getFeed);
+router.put("/follow/:id", protect, userController.toggleFollow);
 router.get("/:id/follow-info", userController.getFollowers);
-
-// Profile + bài đăng  →  GET /api/users/:id/profile
 router.get("/:id/profile", userController.getUserProfile);
 
 module.exports = router;

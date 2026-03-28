@@ -17,7 +17,7 @@ router.post("/upload-images",
 router.delete("/image", protect, requirePoster, postController.deleteImage);
 
 // Tạo bài — chỉ poster/admin
-router.post("/", protect, requirePoster, postController.createPost);
+router.post("/", protect, postController.createPost);
 
 // Xem bài — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);

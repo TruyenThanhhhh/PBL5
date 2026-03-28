@@ -1,19 +1,25 @@
 import React from 'react';
+import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom'; 
 import { 
   Bell, MessageSquare, Home, Compass, TrendingUp, 
   Bookmark, Settings, MoreHorizontal, ArrowUp, 
   ArrowDown, Share2
 } from 'lucide-react';
 
-export default function Profile() {
-  // Hàm xử lý chuyển trang khi click vào bài viết
+// 🚀 Tách phần giao diện chính ra một Component con
+function ProfileContent() {
+  const navigate = useNavigate(); // Khởi tạo hàm chuyển trang an toàn
+
   const handlePostClick = () => {
-    window.location.href = '/post-detail';
+    navigate('/post-detail');
   };
 
-  // Hàm chặn chuyển trang khi click vào các nút tương tác
   const handleActionClick = (e) => {
     e.stopPropagation();
+  };
+
+  const handleSettingsClick = () => {
+    navigate('/settings'); 
   };
 
   return (
@@ -21,17 +27,17 @@ export default function Profile() {
       {/* NAVBAR */}
       <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100">
         <div className="flex items-center gap-8 w-1/4">
-          <a href="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight">
+          <button onClick={() => navigate('/dashboard')} className="text-[#f44336] font-extrabold text-xl tracking-tight">
             The Wanderer
-          </a>
+          </button>
         </div>
 
         <div className="flex-1 flex justify-center">
           <nav className="hidden md:flex items-center gap-8 text-[14px] font-bold text-gray-500">
-            <a href="#" className="text-[#f44336] border-b-2 border-[#f44336] py-4 -mb-[17px]">Posts</a>
-            <a href="#" className="hover:text-gray-900 transition-colors py-4">Media</a>
-            <a href="#" className="hover:text-gray-900 transition-colors py-4">About</a>
-            <a href="#" className="hover:text-gray-900 transition-colors py-4">Map</a>
+            <button className="text-[#f44336] border-b-2 border-[#f44336] py-4 -mb-[17px]">Posts</button>
+            <button className="hover:text-gray-900 transition-colors py-4">Media</button>
+            <button className="hover:text-gray-900 transition-colors py-4">About</button>
+            <button className="hover:text-gray-900 transition-colors py-4">Map</button>
           </nav>
         </div>
 
@@ -63,26 +69,27 @@ export default function Profile() {
           </div>
 
           <nav className="space-y-1 text-[14px] font-bold text-gray-600 mb-6">
-            <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+            <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <Home size={20} strokeWidth={2} /> Home
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+            </button>
+            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <Compass size={20} strokeWidth={2} /> Explore
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+            </button>
+            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <TrendingUp size={20} strokeWidth={2} /> Trending
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+            </button>
+            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <Bookmark size={20} strokeWidth={2} /> Saved
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 bg-white text-[#f44336] shadow-sm rounded-xl transition-all">
-              <Settings size={20} strokeWidth={2.5} /> Settings
-            </a>
+            </button>
+            
+            <button onClick={handleSettingsClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all text-left">
+              <Settings size={20} strokeWidth={2} /> Settings
+            </button>
           </nav>
 
-          <a href="/upload" className="w-full bg-[#f44336] text-white text-[14px] font-bold py-3.5 rounded-xl hover:bg-[#e53935] shadow-md shadow-red-500/20 transition-colors block text-center">
+          <button onClick={() => navigate('/upload')} className="w-full bg-[#f44336] text-white text-[14px] font-bold py-3.5 rounded-xl hover:bg-[#e53935] shadow-md shadow-red-500/20 transition-colors block text-center">
             Create Post
-          </a>
+          </button>
         </aside>
 
         {/* CENTER CONTENT */}
@@ -110,7 +117,7 @@ export default function Profile() {
                   <button className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors">
                     Edit Profile
                   </button>
-                  <button className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 transition-colors">
+                  <button onClick={handleSettingsClick} className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 transition-colors inline-block">
                     <Settings size={18} strokeWidth={2.5} />
                   </button>
                 </div>
@@ -149,7 +156,7 @@ export default function Profile() {
             <button className="flex-1 py-2 hover:bg-gray-50 rounded-lg transition-colors">Map</button>
           </div>
 
-          {/* POST 1 - Toàn bộ vùng div có thể click */}
+          {/* POST 1 */}
           <div 
             onClick={handlePostClick}
             className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 hover:shadow-md transition-all cursor-pointer group"
@@ -199,7 +206,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* POST 2 - Toàn bộ vùng div có thể click */}
+          {/* POST 2 */}
           <div 
             onClick={handlePostClick}
             className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 hover:shadow-md transition-all cursor-pointer group"
@@ -301,4 +308,23 @@ export default function Profile() {
       </main>
     </div>
   );
+}
+
+// 🛡️ LỚP BỌC AN TOÀN (SAFE WRAPPER)
+export default function Profile() {
+  // Kiểm tra xem component có đang nằm trong Router không
+  // (tránh lỗi khi bấm Preview trực tiếp trong Canvas)
+  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
+
+  if (!hasRouter) {
+    // Nếu không có Router (như khi Preview), tự động bọc thẻ BrowserRouter
+    return (
+      <BrowserRouter>
+        <ProfileContent />
+      </BrowserRouter>
+    );
+  }
+
+  // Nếu đã có Router (khi chạy trong App.jsx), render bình thường
+  return <ProfileContent />;
 }

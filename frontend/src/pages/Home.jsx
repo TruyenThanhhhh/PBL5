@@ -29,14 +29,12 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-2 ml-4">
-            {/* Đã thay thế icon bằng nút Login theo yêu cầu */}
             <Link 
               to="/login" 
               className="text-[13px] font-bold text-gray-700 hover:text-[#ff4d4f] px-4 py-2 transition-colors"
             >
               Login
             </Link>
-            {/* Nút Sign up trỏ tới Register */}
             <Link 
               to="/register" 
               className="bg-[#ff4d4f] text-white text-[13px] font-bold py-2 px-6 rounded-full hover:bg-[#e04345] shadow-sm transition-colors"

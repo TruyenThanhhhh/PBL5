@@ -1,4 +1,4 @@
-const User = require("../models/user");
+const User = require("../models/User"); // <-- Đã sửa chữ 'U' viết hoa
 const Post = require("../models/Post");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -15,7 +15,6 @@ const normalizeRole = (role) => {
 exports.registerUser = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
-    console.log("📝 Register request:", { username, email, role });
 
     const exists = await User.findOne({ email });
     if (exists) {
@@ -32,7 +31,6 @@ exports.registerUser = async (req, res) => {
       avatarUrl = req.file.path; 
     }
 
-    // Lưu chính xác những gì người dùng nhập vào, loại bỏ khoảng trắng thừa ở 2 đầu
     const newUser = await User.create({
       username: username.trim(),
       email: email.trim(), 
@@ -41,15 +39,13 @@ exports.registerUser = async (req, res) => {
       avatar: avatarUrl,
     });
 
-    console.log("✅ User created:", newUser.username);
     res.status(201).json({ message: "Đăng ký thành công", userId: newUser._id, role: assignedRole });
   } catch (error) {
-    console.error("❌ Register Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// 🚀 ĐĂNG NHẬP (Phân biệt rõ chữ hoa chữ thường)
+// 🚀 ĐĂNG NHẬP (Khớp chính xác chữ hoa/chữ thường)
 exports.loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -61,7 +57,7 @@ exports.loginUser = async (req, res) => {
     const cleanIdentifier = identifier.trim();
     console.log("➡️ Đang thử đăng nhập với tài khoản:", cleanIdentifier);
 
-    // 1. Tìm user bằng email HOẶC username (Khớp chính xác 100% chữ hoa/chữ thường)
+    // Tìm user bằng email HOẶC username
     const user = await User.findOne({
       $or: [
         { email: cleanIdentifier }, 
@@ -70,18 +66,16 @@ exports.loginUser = async (req, res) => {
     });
 
     if (!user) {
-      console.log("❌ Lỗi: Không tìm thấy Username hoặc Email (Sai chữ hoa/thường hoặc không tồn tại).");
       return res.status(400).json({ message: "Tài khoản không tồn tại!" });
     }
 
-    // 2. Kiểm tra mật khẩu
+    // Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log("❌ Lỗi: Sai mật khẩu của user:", user.username);
       return res.status(400).json({ message: "Sai mật khẩu!" });
     }
 
-    // 3. Tạo Token
+    // Tạo Token
     const normalizedRole = normalizeRole(user.role);
     const token = jwt.sign(
       { id: user._id, role: normalizedRole },
@@ -89,14 +83,17 @@ exports.loginUser = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    console.log("✅ Đăng nhập thành công:", user.username);
+    console.log(`✅ Đăng nhập thành công: ${user.username} | Quyền: ${user.role}`);
 
+    // Gửi kèm 'role' và 'roleRequestStatus' về cho Frontend
     res.json({ 
       message: "Đăng nhập thành công", 
       token, 
       userId: user._id,
       username: user.username,
-      avatar: user.avatar
+      avatar: user.avatar,
+      role: user.role,
+      roleRequestStatus: user.roleRequestStatus
     });
 
   } catch (error) {
@@ -207,6 +204,63 @@ exports.getUserProfile = async (req, res) => {
       .limit(20);
 
     res.json({ user, posts });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==========================================
+// 🛡️ TÍNH NĂNG: XIN LÊN QUYỀN POSTER
+// ==========================================
+exports.requestPosterRole = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    if (user.role === "poster" || user.role === "admin") {
+      return res.status(400).json({ message: "Bạn đã có quyền đăng bài rồi." });
+    }
+
+    if (user.roleRequestStatus === "pending") {
+      return res.status(400).json({ message: "Yêu cầu của bạn đang chờ duyệt." });
+    }
+
+    user.roleRequestStatus = "pending";
+    await user.save();
+
+    res.json({ message: "Đã gửi yêu cầu thành công.", status: "pending" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.approveRoleRequest = async (req, res) => {
+  try {
+    const { userId, action } = req.body; 
+    
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    if (action === "approve") {
+      user.role = "poster";
+      user.roleRequestStatus = "approved";
+    } else if (action === "reject") {
+      user.roleRequestStatus = "rejected";
+    } else {
+      return res.status(400).json({ message: "Action không hợp lệ" });
+    }
+
+    await user.save();
+    res.json({ message: `Đã ${action} user ${user.username}`, user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getPendingRequests = async (req, res) => {
+  try {
+    const users = await User.find({ roleRequestStatus: "pending" }).select("username email createdAt");
+    res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

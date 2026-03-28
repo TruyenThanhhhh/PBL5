@@ -17,14 +17,13 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      console.log("Đang gọi API Login...");
       const response = await fetch('http://localhost:5000/api/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          identifier: identifier,
+          identifier: identifier.trim(),
           password: password,
         }),
       });
@@ -32,22 +31,32 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Login Successfully!' });
+        setMessage({ type: 'success', text: 'Đăng nhập thành công!' });
         
+        // Bắt chính xác role từ Backend trả về
+        const userRole = data.role ? data.role.toLowerCase() : 'viewer';
+
         localStorage.setItem('token', data.token);
         localStorage.setItem('userId', data.userId);
         localStorage.setItem('username', data.username);
+        localStorage.setItem('role', userRole);
+        localStorage.setItem('roleRequestStatus', data.roleRequestStatus || 'none');
 
+        // CHUYỂN HƯỚNG THEO ROLE
         setTimeout(() => {
-          navigate('/dashboard');
+          if (userRole === 'admin') {
+            navigate('/admin'); // Chuyển thẳng tới Admin Panel
+          } else {
+            navigate('/dashboard'); // Chuyển về trang thường
+          }
         }, 1000);
+        
       } else {
-        setMessage({ type: 'error', text: data.message || 'Error: Incorrect Username/Email or Password!' });
+        setMessage({ type: 'error', text: data.message || 'Sai thông tin đăng nhập!' });
       }
     } catch (error) {
       console.error("Lỗi Network:", error);
-      // Hướng dẫn người dùng F12 nếu vẫn lỗi
-      setMessage({ type: 'error', text: 'Vẫn lỗi mạng. Hãy ấn F12, chọn tab Console, chụp dòng chữ màu đỏ gửi lại nhé!' });
+      setMessage({ type: 'error', text: 'Lỗi Mạng: Không thể kết nối Backend.' });
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +79,7 @@ export default function Login() {
           </p>
         </div>
         <div className="text-white/50 text-[11px] flex gap-4 font-medium tracking-wide">
-          <span>© 2024 The Wanderer</span>
+          <span>© 2026 The Wanderer</span>
           <span className="cursor-pointer hover:text-white transition-colors">Terms</span>
           <span className="cursor-pointer hover:text-white transition-colors">Privacy</span>
         </div>

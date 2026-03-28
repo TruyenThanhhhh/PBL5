@@ -15,9 +15,9 @@ const normalizeRole = (role) => {
   return r;
 };
 
-// 🛠️ SỬA LỖI MẠNG Ở ĐÂY: Cấu hình CORS mở cửa cho Frontend (Vite)
+// Cấu hình CORS mở cửa cho Frontend (Vite)
 app.use(cors({
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"], // Cho phép Vite truy cập
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173"], 
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
@@ -32,7 +32,8 @@ mongoose
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.log("❌ MongoDB Error:", err));
 
-const User = require("./models/user"); 
+// 🛠️ SỬA LỖI Ở ĐÂY: Viết hoa chữ 'U' cho khớp chuẩn với file models/User.js
+const User = require("./models/User"); 
 
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
@@ -90,7 +91,6 @@ app.put("/api/change-password", authMiddleware, async (req, res) => {
 // ─── Start ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-// 🛠️ SỬA LỖI MẠNG Ở ĐÂY: Ép chạy trên 0.0.0.0 thay vì ::1 (IPv6)
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running perfectly on http://localhost:${PORT}`);
 });

@@ -1,33 +1,33 @@
 const Post = require("../models/Post");
 const { cloudinary } = require("../config/cloudinary");
 
-// 🖼️ UPLOAD IMAGES (dùng riêng hoặc gọi trước createPost)
 exports.uploadImages = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Không có file nào được upload" });
     }
-
-    const urls = req.files.map((file) => file.path); // Cloudinary trả về URL trong file.path
+    const urls = req.files.map((file) => file.path);
     res.json({ urls });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 📝 CREATE POST (giờ nhận images là mảng URL từ Cloudinary)
 exports.createPost = async (req, res) => {
   try {
-    const { title, description, location, category, images, price } = req.body;
+    // Đã thêm lat và lng vào đây
+    const { title, description, location, category, images, price, lat, lng } = req.body;
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
 
     const newPost = new Post({
-      title,
+      title: title || "Cập nhật mới",
       description,
-      location,
-      category,
+      location: location || "Chưa rõ vị trí",
+      category: category || "General",
       price: normalizedPrice,
-      images: images || [], // mảng URL string
+      images: images || [], 
+      lat: lat || null, // ✅ ĐÃ SỬA: Lưu vĩ độ
+      lng: lng || null, // ✅ ĐÃ SỬA: Lưu kinh độ
       createdBy: req.user?.id || null,
     });
 
@@ -42,10 +42,9 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// 🗑️ DELETE IMAGE khỏi Cloudinary (optional nhưng nên có)
 exports.deleteImage = async (req, res) => {
   try {
-    const { publicId } = req.body; // ví dụ: "travel-app/posts/abc123"
+    const { publicId } = req.body; 
     await cloudinary.uploader.destroy(publicId);
     res.json({ message: "Xóa ảnh thành công" });
   } catch (error) {
@@ -53,21 +52,18 @@ exports.deleteImage = async (req, res) => {
   }
 };
 
-// 📄 GET POSTS + FILTER (giữ nguyên)
 exports.getPosts = async (req, res) => {
   try {
     const { location, category } = req.query;
-
     let filter = {};
 
     if (location) filter.location = location;
     if (category) filter.category = category;
-
-    // ✅ Thêm vào đây
     if (req.user?.role !== "admin") filter.isHidden = false;
 
     const posts = await Post.find(filter)
-      .populate("createdBy", "name email")
+      // ✅ ĐÃ SỬA: Trả thêm role để Frontend biết ai là Admin, ai là User
+      .populate("createdBy", "username email avatar role") 
       .sort({ createdAt: -1 });
 
     res.json(posts);
@@ -76,7 +72,6 @@ exports.getPosts = async (req, res) => {
   }
 };
 
-// ❤️ LIKE POST (giữ nguyên)
 exports.likePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -95,7 +90,6 @@ exports.likePost = async (req, res) => {
   }
 };
 
-// ✏️ SỬA BÀI
 exports.updatePost = async (req, res) => {
   try {
     const { title, description, location, category, images, price } = req.body;
@@ -111,7 +105,6 @@ exports.updatePost = async (req, res) => {
   }
 };
 
-// 🗑️ XÓA BÀI
 exports.deletePost = async (req, res) => {
   try {
     await Post.findByIdAndDelete(req.params.id);
@@ -121,7 +114,6 @@ exports.deletePost = async (req, res) => {
   }
 };
 
-// 👁️ ẨN / HIỆN BÀI (admin only)
 exports.toggleVisibility = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
