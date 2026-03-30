@@ -13,11 +13,19 @@ exports.uploadImages = async (req, res) => {
   }
 };
 
+// postController.js (Cập nhật hàm createPost)
 exports.createPost = async (req, res) => {
   try {
-    // Đã thêm lat và lng vào đây
-    const { title, description, location, category, images, price, lat, lng } = req.body;
-    const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
+    const { title, description, location, category, images, price, lat, lng, postType } = req.body;
+
+    const normalizedPrice =
+      Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
+    let finalPostType = "regular";
+    if (postType === "promotional") {
+      if (req.user?.role === "poster" || req.user?.role === "admin") {
+        finalPostType = "promotional";
+      }
+    }
 
     const newPost = new Post({
       title: title || "Cập nhật mới",
@@ -25,9 +33,10 @@ exports.createPost = async (req, res) => {
       location: location || "Chưa rõ vị trí",
       category: category || "General",
       price: normalizedPrice,
-      images: images || [], 
-      lat: lat || null, // ✅ ĐÃ SỬA: Lưu vĩ độ
-      lng: lng || null, // ✅ ĐÃ SỬA: Lưu kinh độ
+      images: images || [],
+      lat: lat || null,
+      lng: lng || null,
+      postType: finalPostType,
       createdBy: req.user?.id || null,
     });
 

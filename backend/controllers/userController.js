@@ -1,4 +1,4 @@
-const User = require("../models/User"); // <-- Đã sửa chữ 'U' viết hoa
+const User = require("../models/user"); // <-- Đã sửa chữ 'U' viết hoa
 const Post = require("../models/Post");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
