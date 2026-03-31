@@ -18,8 +18,8 @@ exports.addComment = async (req, res) => {
       parentComment: parentComment || null,
     });
 
-    // Cập nhật averageRating trên Post nếu có rating
-    if (!parentComment && rating) {
+    // Cập nhật averageRating và tổng số comment cho Post nếu là comment gốc
+    if (!parentComment) {
       await recalcRating(postId);
     }
 
@@ -76,10 +76,11 @@ exports.updateComment = async (req, res) => {
 
     const { content, rating } = req.body;
     if (content) comment.content = content;
-    if (rating && !comment.parentComment) comment.rating = rating;
+    if (content) comment.content = content;
+    if (!comment.parentComment && rating !== undefined) comment.rating = rating;
     await comment.save();
 
-    if (rating && !comment.parentComment) {
+    if (!comment.parentComment) {
       await recalcRating(comment.post);
     }
 
@@ -109,18 +110,26 @@ exports.deleteComment = async (req, res) => {
   }
 };
 
-// 🔢 Hàm tính lại averageRating (dùng nội bộ)
+// 🔢 Hàm tính lại averageRating và comment tổng (dùng nội bộ)
 async function recalcRating(postId) {
   const result = await Comment.aggregate([
     { $match: { post: postId, rating: { $ne: null } } },
     { $group: { _id: "$post", avg: { $avg: "$rating" }, count: { $sum: 1 } } },
   ]);
 
-  const avg   = result[0]?.avg   ?? 0;
-  const count = result[0]?.count ?? 0;
+  const totalCommentResult = await Comment.aggregate([
+    { $match: { post: postId, parentComment: null } },
+    { $group: { _id: "$post", count: { $sum: 1 } } },
+  ]);
+
+  const avg = result[0]?.avg ?? 0;
+  const ratingCount = result[0]?.count ?? 0;
+  const commentCount = totalCommentResult[0]?.count ?? 0;
 
   await Post.findByIdAndUpdate(postId, {
     averageRating: Math.round(avg * 10) / 10, // làm tròn 1 chữ số thập phân
-    totalReviews: count,
+    totalReviews: commentCount, // hiển thị số comment gốc
+    // Nếu cần, có thể lưu rating count ở trường khác sau này
+    // ratingCount: ratingCount,
   });
 }
