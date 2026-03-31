@@ -133,11 +133,18 @@ exports.likePost = async (req, res) => {
     const alreadyLiked = post.likes.some(
       (userId) => userId.toString() === req.user.id
     );
-    if (alreadyLiked) return res.status(400).json({ message: "Already liked" });
+
+    if (alreadyLiked) {
+      post.likes = post.likes.filter(
+        (userId) => userId.toString() !== req.user.id
+      );
+      await post.save();
+      return res.json({ message: "Post unliked successfully", liked: false });
+    }
 
     post.likes.push(req.user.id);
     await post.save();
-    res.json({ message: "Post liked successfully" });
+    res.json({ message: "Post liked successfully", liked: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
