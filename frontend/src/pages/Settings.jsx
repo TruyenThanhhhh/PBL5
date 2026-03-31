@@ -7,14 +7,44 @@ import {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('creator'); // Tạm mở sẵn tab Creator cho dễ test
+  const [activeTab, setActiveTab] = useState('profile');
   const [requestStatus, setRequestStatus] = useState('none');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  const [profileData, setProfileData] = useState({ username: '', bio: '', avatar: '', cover: '' });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [coverPreview, setCoverPreview] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+
   useEffect(() => {
     const status = localStorage.getItem('roleRequestStatus') || 'none';
     setRequestStatus(status);
+
+    const loadProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Không tải được profile');
+        const data = await res.json();
+        setProfileData({
+          username: data.username || '',
+          bio: data.bio || '',
+          avatar: data.avatar || '',
+          cover: data.cover || ''
+        });
+        setAvatarPreview(data.avatar || '');
+        setCoverPreview(data.cover || '');
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadProfile();
   }, []);
 
   const handleRequestPoster = async () => {
@@ -56,6 +86,78 @@ export default function Settings() {
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    setProfileMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setProfileMessage('Vui lòng đăng nhập để cập nhật profile');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('username', profileData.username);
+      formData.append('bio', profileData.bio);
+      if (avatarFile) formData.append('avatar', avatarFile);
+      if (coverFile) formData.append('cover', coverFile);
+
+      const res = await fetch('http://localhost:5000/api/profile', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+
+      console.log('[API] PUT /api/profile response status', res.status);
+      const text = await res.text();
+      let result;
+
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        result = { message: text };
+      }
+
+      if (!res.ok) {
+        const errorText = result.message ||
+          (typeof result.error === 'string' ? result.error :
+            (result.error && result.error.message ? result.error.message : null)) ||
+          'Không lưu profile được';
+        if (res.status === 401) {
+          throw new Error(`${errorText}. Vui lòng đăng nhập lại.`);
+        }
+        throw new Error(errorText);
+      }
+
+      const data = result;
+      setProfileMessage('Cập nhật profile thành công');
+      setProfileData(prev => ({ ...prev, ...result.user }));
+      setAvatarPreview(result.user.avatar || avatarPreview);
+      setCoverPreview(result.user.cover || coverPreview);
+
+      if (result.user.username) localStorage.setItem('username', result.user.username);
+      if (result.user.avatar) localStorage.setItem('avatar', result.user.avatar);
+    } catch (error) {
+      setProfileMessage(error.message || 'Lỗi khi lưu profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
@@ -158,44 +260,72 @@ export default function Settings() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div className="relative mb-16">
-                  <div className="h-32 bg-[#2a3042] rounded-xl flex items-end justify-end p-4">
-                    <button className="bg-white text-gray-700 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-gray-50">
-                      <Camera size={14} /> Edit Cover
-                    </button>
+                <div className="relative mb-16 overflow-hidden rounded-xl">
+                  <img
+                    src={coverPreview || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'}
+                    alt="Cover"
+                    className="w-full h-32 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/25 flex items-end justify-end p-4">
+                    <label className="bg-white text-gray-700 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer hover:bg-gray-100">
+                      <Camera size={14} /> Thay Ảnh Bìa
+                      <input type="file" accept="image/*" onChange={handleCoverChange} className="hidden" />
+                    </label>
                   </div>
-                  <div className="absolute -bottom-10 left-6 relative">
-                    <img 
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" 
-                      className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-sm"
+                </div>
+
+                <div className="absolute -mt-14 ml-6 z-10">
+                  <div className="relative">
+                    <img
+                      src={avatarPreview || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
                       alt="Avatar"
+                      className="w-28 h-28 rounded-full border-4 border-white object-cover bg-white shadow-sm"
                     />
-                    <button className="absolute bottom-0 right-0 bg-[#f44336] text-white p-1.5 rounded-full border-2 border-white hover:bg-[#d32f2f]">
-                      <Edit2 size={12} strokeWidth={3} />
+                    <label className="absolute bottom-0 right-0 bg-[#f44336] text-white p-2 rounded-full border-2 border-white hover:bg-[#d32f2f] cursor-pointer">
+                      <Edit2 size={14} strokeWidth={3} />
+                      <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-16 mt-2">
+                  <div className="grid grid-cols-2 gap-5 mb-5">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Tên hiển thị</label>
+                      <input
+                        type="text"
+                        value={profileData.username}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, username: e.target.value }))}
+                        className="w-full bg-[#f4f4f5] border-transparent rounded-lg px-4 py-3 text-[13px] font-bold text-gray-800 focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Bio</label>
+                      <input
+                        type="text"
+                        value={profileData.bio}
+                        onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
+                        placeholder="Viết một vài dòng về bạn"
+                        className="w-full bg-[#f4f4f5] border-transparent rounded-lg px-4 py-3 text-[13px] font-medium text-gray-700 focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {profileMessage && (
+                    <p className={`mb-4 text-sm font-bold ${profileMessage.includes('thành công') ? 'text-green-600' : 'text-red-600'}`}>
+                      {profileMessage}
+                    </p>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isSavingProfile}
+                      className="bg-[#f44336] text-white text-[13px] font-bold px-6 py-2.5 rounded-full hover:bg-[#e53935] shadow-md shadow-red-500/20 transition-all disabled:opacity-50"
+                    >
+                      {isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
                     </button>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-5 mb-5">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
-                    <input type="text" defaultValue="Alex Rivera" className="w-full bg-[#f4f4f5] border-transparent rounded-lg px-4 py-3 text-[13px] font-bold text-gray-800 focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Username</label>
-                    <input type="text" defaultValue="@alex_wander" className="w-full bg-[#f4f4f5] border-transparent rounded-lg px-4 py-3 text-[13px] font-bold text-gray-800 focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white" />
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Bio</label>
-                  <textarea rows="3" defaultValue="Digital nomad exploring the world, one hidden gem at a time. Obsessed with Nordic architecture and street food in Hanoi." className="w-full bg-[#f4f4f5] border-transparent rounded-lg px-4 py-3 text-[13px] font-medium text-gray-700 focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white resize-none"></textarea>
-                </div>
-
-                <div className="flex justify-end">
-                  <button className="bg-[#f44336] text-white text-[13px] font-bold px-6 py-2.5 rounded-full hover:bg-[#e53935] shadow-md shadow-red-500/20 transition-all">
-                    Save Changes
-                  </button>
                 </div>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom'; 
 import { 
   Bell, MessageSquare, Home, Compass, TrendingUp, 
@@ -9,6 +9,14 @@ import {
 // 🚀 Tách phần giao diện chính ra một Component con
 function ProfileContent() {
   const navigate = useNavigate(); // Khởi tạo hàm chuyển trang an toàn
+  const [profile, setProfile] = useState({
+    username: '',
+    bio: '',
+    avatar: '',
+    cover: ''
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const handlePostClick = () => {
     navigate('/post-detail');
@@ -19,8 +27,49 @@ function ProfileContent() {
   };
 
   const handleSettingsClick = () => {
-    navigate('/settings'); 
+    navigate('/settings');
   };
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Chưa đăng nhập');
+        const res = await fetch('http://localhost:5000/api/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Không tải được profile');
+        }
+        const data = await res.json();
+        setProfile({
+          username: data.username || '',
+          bio: data.bio || '',
+          avatar: data.avatar || '',
+          cover: data.cover || ''
+        });
+      } catch (err) {
+        setError(err.message || 'Lỗi load profile');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">Đang tải profile...</div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12">
@@ -96,19 +145,19 @@ function ProfileContent() {
         <section className="flex-1 max-w-[650px]">
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 mb-6">
             <div className="h-[220px] w-full bg-gray-200 relative">
-              <img 
-                src="https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80" 
-                alt="Cover" 
+              <img
+                src={profile.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'}
+                alt="Cover"
                 className="w-full h-full object-cover"
               />
             </div>
-            
+
             <div className="px-6 pb-6 relative">
               <div className="flex justify-between items-end mb-4">
                 <div className="relative -mt-16 z-10">
-                  <img 
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" 
-                    alt="Jane Wanderlust" 
+                  <img
+                    src={profile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'}
+                    alt={profile.username || 'Avatar'}
                     className="w-32 h-32 rounded-full border-4 border-white object-cover bg-white shadow-sm"
                   />
                 </div>
@@ -124,11 +173,10 @@ function ProfileContent() {
               </div>
 
               <div>
-                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">Jane Wanderlust</h1>
-                <p className="text-[13px] font-medium text-gray-500 mb-4">@wanderlust_jane</p>
+                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username || 'Traveler'}</h1>
+                <p className="text-[13px] font-medium text-gray-500 mb-4">@{(profile.username || 'unknown').toLowerCase().replace(/\s+/g, '_')}</p>
                 <p className="text-[14px] text-gray-700 leading-relaxed font-medium mb-6">
-                  Full-time nomad & storyteller. Finding the hidden gems in every city. <br/>
-                  Currently exploring the coastal villages of Portugal. 🗼🗺️
+                  {profile.bio || 'Bạn chưa cập nhật thông tin cá nhân.'}
                 </p>
 
                 <div className="flex gap-8 border-t border-gray-100 pt-5">

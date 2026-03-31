@@ -149,7 +149,7 @@ function RealMapViewer({ lat, lng, role, location }) {
 function DashboardContent() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
-  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'viewer' });
+  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'viewer', avatar: '' });
   
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
   const [pickedCoords, setPickedCoords] = useState(null);
@@ -168,7 +168,10 @@ function DashboardContent() {
   const [replyInputs, setReplyInputs] = useState({});
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [replyingTo, setReplyingTo] = useState({ parentId: null, childUsername: null });
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
   const [likingPosts, setLikingPosts] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, postId: null, commentId: null });
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -182,7 +185,8 @@ function DashboardContent() {
     const userId = localStorage.getItem('userId') || '';
     // Nếu không có user, dùng tên mặc định thay vì đá văng về login gây lỗi ở môi trường xem trước
     const username = localStorage.getItem('username') || 'Khách Xem Trước';
-    setCurrentUser({ userId, username, role: String(userRole).toLowerCase() });
+    const avatar = localStorage.getItem('avatar') || '';
+    setCurrentUser({ userId, username, role: String(userRole).toLowerCase(), avatar });
     loadLeafletAssets().catch(() => {});
     fetchPosts();
   }, [navigate]);
@@ -230,6 +234,8 @@ function DashboardContent() {
         if (res.ok) {
           const data = await res.json();
           setCommentsData(prev => ({ ...prev, [postId]: Array.isArray(data.comments) ? data.comments : [] }));
+          const commentCount = Array.isArray(data.comments) ? data.comments.length : 0;
+          setPosts(prev => prev.map((post) => post._id === postId ? { ...post, totalReviews: commentCount } : post));
         } else {
           setCommentsData(prev => ({ ...prev, [postId]: [] }));
         }
@@ -238,6 +244,19 @@ function DashboardContent() {
       } finally {
         setIsFetchingComments(prev => ({ ...prev, [postId]: false }));
       }
+    }
+  };
+
+  const refreshComments = async (postId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
+      if (!res.ok) throw new Error('Không thể tải bình luận');
+      const data = await res.json();
+      const newComments = Array.isArray(data.comments) ? data.comments : [];
+      setCommentsData(prev => ({ ...prev, [postId]: newComments }));
+      setPosts(prev => prev.map((post) => post._id === postId ? { ...post, totalReviews: newComments.length } : post));
+    } catch (error) {
+      setCommentsData(prev => ({ ...prev, [postId]: [] }));
     }
   };
 
@@ -268,11 +287,7 @@ function DashboardContent() {
         } else {
           setCommentInputs(prev => ({ ...prev, [postId]: '' }));
         }
-        const refreshRes = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          setCommentsData(prev => ({ ...prev, [postId]: Array.isArray(data.comments) ? data.comments : [] }));
-        }
+        await refreshComments(postId);
       } else {
         throw new Error('Lỗi gửi bình luận');
       }
@@ -280,6 +295,89 @@ function DashboardContent() {
       showToast('error', error.message || 'Lỗi mạng!');
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (postId, commentId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập để xóa bình luận.');
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Không thể xóa bình luận');
+      }
+
+      showToast('success', 'Đã xóa bình luận');
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+        setEditingCommentContent('');
+      }
+      await refreshComments(postId);
+    } catch (error) {
+      showToast('error', error.message || 'Lỗi khi xóa bình luận');
+    }
+  };
+
+  const showDeleteConfirm = (postId, commentId) => {
+    setDeleteConfirm({ open: true, postId, commentId });
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ open: false, postId: null, commentId: null });
+  };
+
+  const confirmDeleteComment = async () => {
+    const { postId, commentId } = deleteConfirm;
+    if (!postId || !commentId) {
+      cancelDelete();
+      return;
+    }
+    await handleDeleteComment(postId, commentId);
+    cancelDelete();
+  };
+
+
+  const startEditComment = (commentId, content) => {
+    setEditingCommentId(commentId);
+    setEditingCommentContent(content || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  };
+
+  const saveEditComment = async (postId, commentId) => {
+    if (!editingCommentContent || !editingCommentContent.trim()) {
+      return showToast('error', 'Nội dung bình luận không được để trống.');
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập để sửa bình luận.');
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content: editingCommentContent })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Không thể cập nhật bình luận');
+      }
+
+      showToast('success', 'Đã cập nhật bình luận');
+      cancelEditComment();
+      await refreshComments(postId);
+    } catch (error) {
+      showToast('error', error.message || 'Lỗi khi cập nhật bình luận');
     }
   };
 
@@ -368,12 +466,21 @@ function DashboardContent() {
         throw new Error(data.message || 'Không thể thả tim bài viết');
       }
 
+      const data = await res.json();
       setPosts((prev) =>
-        prev.map((post) =>
-          post._id === postId
-            ? { ...post, likes: [...(Array.isArray(post.likes) ? post.likes : []), 'liked'] }
-            : post
-        )
+        prev.map((post) => {
+          if (post._id !== postId) return post;
+          const existingLikes = Array.isArray(post.likes) ? [...post.likes] : [];
+          const userLiked = existingLikes.some((userId) => userId?.toString() === currentUser.userId);
+
+          if (data.liked) {
+            const updatedLikes = userLiked ? existingLikes : [...existingLikes, currentUser.userId];
+            return { ...post, likes: updatedLikes };
+          }
+
+          const updatedLikes = existingLikes.filter((userId) => userId?.toString() !== currentUser.userId);
+          return { ...post, likes: updatedLikes };
+        })
       );
     } catch (error) {
       showToast('error', error.message || 'Đã xảy ra lỗi khi thả tim');
@@ -486,6 +593,19 @@ function DashboardContent() {
         </div>
       )}
 
+      {deleteConfirm.open && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-gray-200">
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">Xác nhận xóa bình luận</h3>
+            <p className="text-sm text-gray-700 mb-5">Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.</p>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={cancelDelete} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Hủy</button>
+              <button type="button" onClick={confirmDeleteComment} className="px-4 py-2 rounded-lg bg-[#f44336] text-white hover:bg-[#e22d41]">Xóa</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-6 sticky top-0 z-50 shadow-sm">
         <div className="w-1/4">
           <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight">The Wanderer</Link>
@@ -498,7 +618,7 @@ function DashboardContent() {
         <div className="w-1/4 flex items-center justify-end gap-5">
           <button type="button" className="text-gray-500 hover:text-gray-900"><Bell size={22} strokeWidth={2} /></button>
           <Link to="/profile" className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-200">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Me" className="w-full h-full object-cover" />
+            <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Me" className="w-full h-full object-cover" />
           </Link>
         </div>
       </header>
@@ -518,7 +638,7 @@ function DashboardContent() {
             </div>
             <div className="flex gap-3 mb-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Avatar" />
+                <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
               </div>
               <textarea 
                 placeholder={currentUser.role === 'admin' ? "Phát thông báo hệ thống..." : "Chia sẻ địa điểm bạn vừa khám phá..."}
@@ -686,14 +806,19 @@ function DashboardContent() {
                     })()}
 
                     <div className="flex items-center gap-6 pt-3 border-t border-gray-50">
-                      <button
-                        type="button"
-                        onClick={() => handleLikePost(post._id)}
-                        disabled={likingPosts[post._id]}
-                        className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold disabled:opacity-50"
-                      >
-                        <Heart size={20} strokeWidth={2.5} /> {Array.isArray(post.likes) ? post.likes.length : 0}
-                      </button>
+                      {(() => {
+                        const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleLikePost(post._id)}
+                            disabled={likingPosts[post._id]}
+                            className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 hover:text-[#f44336]'} transition-colors text-[13px] font-bold disabled:opacity-50`}
+                          >
+                            <Heart size={20} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> {Array.isArray(post.likes) ? post.likes.length : 0}
+                          </button>
+                        );
+                      })()}
                       <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
                         <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || 'Bình luận'}
                       </button>
@@ -706,7 +831,7 @@ function DashboardContent() {
                       <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300">
                         <div className="flex gap-3 mb-6">
                           <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
-                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Avatar" className="w-full h-full object-cover" />
+                            <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 relative">
                             <input 
@@ -727,42 +852,85 @@ function DashboardContent() {
                           <div className="flex justify-center py-4"><Loader2 size={24} className="animate-spin text-[#f44336]" /></div>
                         ) : (
                           <div className="space-y-5">
-                            {Array.isArray(commentsData[post._id]) && commentsData[post._id].map(comment => (
-                              <div key={comment._id || Math.random().toString()} className="text-[13px]">
-                                <div className="flex gap-3 group">
-                                  <img src={comment.author?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80"} alt="avt" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100" />
-                                  <div className="flex-1">
-                                    <div className="bg-[#f4f4f5] px-4 py-2.5 rounded-2xl rounded-tl-none inline-block">
-                                      <p className="font-bold text-gray-900 mb-0.5 text-[12px]">{comment.author?.username}</p>
-                                      <p className="text-gray-800 whitespace-pre-wrap">{comment.content}</p>
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
-                                      <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                      <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
+                            {Array.isArray(commentsData[post._id]) && commentsData[post._id].map(comment => {
+                              const isCommentAuthor = comment.author?._id?.toString() === currentUser.userId;
+                              return (
+                                <div key={comment._id || Math.random().toString()} className="text-[13px]">
+                                  <div className="flex gap-3 group">
+                                    <img src={comment.author?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80"} alt="avt" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100" />
+                                    <div className="flex-1">
+                                      {editingCommentId === comment._id ? (
+                                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+                                          <textarea
+                                            value={editingCommentContent}
+                                            onChange={(e) => setEditingCommentContent(e.target.value)}
+                                            className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
+                                            rows={3}
+                                          />
+                                          <div className="mt-2 flex justify-between items-center">
+                                            <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                            <button onClick={() => saveEditComment(post._id, comment._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="bg-[#f4f4f5] px-4 py-2.5 rounded-2xl rounded-tl-none inline-block">
+                                          <p className="font-bold text-gray-900 mb-0.5 text-[12px]">{comment.author?.username}</p>
+                                          <p className="text-gray-800 whitespace-pre-wrap">{comment.content}</p>
+                                        </div>
+                                      )}
+
+                                      <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
+                                        <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
+                                        <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
+                                        {isCommentAuthor && (
+                                          <>
+                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(comment._id, comment.content)}>Sửa</button>
+                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, comment._id)}>Xóa</button>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
 
                                 {Array.isArray(comment.replies) && comment.replies.length > 0 && (
                                   <div className="mt-3 ml-[44px] space-y-4 border-l-2 border-gray-100 pl-4 relative">
-                                    {comment.replies.map(reply => (
+                                    {comment.replies.map((reply) => (
                                       <div key={reply._id || Math.random().toString()} className="flex gap-2">
                                         <img src={reply.author?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80"} alt="avt" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
                                         <div className="flex-1">
                                           <div className="bg-white border border-gray-100 shadow-sm px-3 py-2 rounded-2xl rounded-tl-none inline-block">
                                             <p className="font-bold text-gray-900 mb-0.5 text-[12px]">{reply.author?.username}</p>
-                                            {typeof reply.content === 'string' && reply.content.startsWith('@') ? (
-                                                <p className="text-gray-800 whitespace-pre-wrap">
-                                                  <span className="text-[#00897b] font-bold mr-1">{reply.content.split(' ')[0]}</span>
-                                                  <span>{reply.content.substring(reply.content.indexOf(' ') + 1)}</span>
-                                                </p>
-                                              ) : (
-                                                <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
-                                              )}
+                                            {editingCommentId === reply._id ? (
+                                              <div>
+                                                <textarea
+                                                  value={editingCommentContent}
+                                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                                  className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
+                                                  rows={3}
+                                                />
+                                                <div className="mt-2 flex justify-between items-center">
+                                                  <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                                  <button onClick={() => saveEditComment(post._id, reply._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
+                                                </div>
+                                              </div>
+                                            ) : typeof reply.content === 'string' && reply.content.startsWith('@') ? (
+                                              <p className="text-gray-800 whitespace-pre-wrap">
+                                                <span className="text-[#00897b] font-bold mr-1">{reply.content.split(' ')[0]}</span>
+                                                <span>{reply.content.substring(reply.content.indexOf(' ') + 1)}</span>
+                                              </p>
+                                            ) : (
+                                              <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
+                                            )}
                                           </div>
                                           <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                             <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}</span>
                                             <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hồi</button>
+                                            {reply.author?._id?.toString() === currentUser.userId && (
+                                              <>
+                                                <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(reply._id, reply.content)}>Sửa</button>
+                                                <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, reply._id)}>Xóa</button>
+                                              </>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -789,7 +957,7 @@ function DashboardContent() {
                                   </div>
                                 )}
                               </div>
-                            ))}
+                            )})}
                             {(!commentsData[post._id] || commentsData[post._id].length === 0) && (
                               <div className="text-center py-6 text-gray-400 text-[13px] font-bold">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
                             )}
