@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import AdminPanel from './pages/AdminPanel';
 import Explore from './pages/Explore';
 import Community from './pages/Community';
+import GlobalChat from './components/GlobalChat';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
         {/* Nếu gõ sai link, tự động về Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <GlobalChat />
     </Router>
   );
 }

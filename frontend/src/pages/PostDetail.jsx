@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Search, Bell, Home, TrendingUp, Utensils, Plane, 
   Bed, Compass, Bookmark, MapPin, Star, CalendarPlus, 
@@ -6,8 +6,41 @@ import {
 } from 'lucide-react';
 
 export default function PostDetail() {
+  const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
+  const [votes, setVotes] = useState({ 'c1': { count: 42, userVote: null }, 'c2': { count: 12, userVote: null } });
+  const [savedPosts, setSavedPosts] = useState(false);
+  const [sortMethod, setSortMethod] = useState('Top');
+
+  const showToast = (type, message) => {
+    setToast({ open: true, message, type });
+    setTimeout(() => setToast({ open: false, message: '', type: 'info' }), 3000);
+  };
+
+  const handleVote = (commentId, type) => {
+    setVotes(prev => {
+      const current = prev[commentId];
+      if (current.userVote === type) {
+        // Hủy vote
+        return { ...prev, [commentId]: { count: type === 'up' ? current.count - 1 : current.count + 1, userVote: null } };
+      }
+      
+      let newCount = current.count;
+      if (type === 'up') newCount += current.userVote === 'down' ? 2 : 1;
+      if (type === 'down') newCount -= current.userVote === 'up' ? 2 : 1;
+      
+      return { ...prev, [commentId]: { count: newCount, userVote: type } };
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900 pb-16">
+    <div className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900 pb-16 relative">
+      {/* MOCK TOAST NOTIFICATION */}
+      {toast.open && (
+        <div className={`fixed bottom-6 right-6 z-[100] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${toast.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
+          <p className="text-[14px] font-bold max-w-[300px] leading-tight">{toast.message}</p>
+        </div>
+      )}
+
       {/* NAVBAR */}
       <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100">
         <div className="flex items-center gap-8 w-1/4">
@@ -27,15 +60,16 @@ export default function PostDetail() {
 
         <div className="flex items-center justify-end gap-6 w-1/4">
           <nav className="hidden lg:flex items-center gap-6 text-[13px] font-bold text-gray-500">
-            <a href="#" className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Explore</a>
-            <a href="#" className="hover:text-gray-900 transition-colors">Journals</a>
-            <a href="#" className="hover:text-gray-900 transition-colors">Community</a>
+            <button onClick={() => showToast('info', 'Trang Explore đang được phát triển.')} className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Explore</button>
+            <button onClick={() => showToast('info', 'Trang Journals đang được phát triển.')} className="hover:text-gray-900 transition-colors">Journals</button>
+            <button onClick={() => showToast('info', 'Trang Community đang được phát triển.')} className="hover:text-gray-900 transition-colors">Community</button>
           </nav>
           
           <div className="flex items-center gap-4">
-            <button className="text-gray-500 hover:text-gray-900 relative">
+            <button onClick={() => showToast('info', 'Không có thông báo mới.')} className="text-gray-500 hover:text-gray-900 relative">
               <Bell size={20} />
             </button>
+            <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900"><MessageSquare size={20} /></button>
             <a href="/profile" className="block cursor-pointer">
               <img 
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
@@ -61,26 +95,29 @@ export default function PostDetail() {
             <a href="/dashboard" className="flex items-center gap-3 px-4 py-3 bg-red-50 text-[#f44336] rounded-xl mb-2">
               <Home size={18} strokeWidth={2.5} /> Home
             </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+            <button onClick={() => showToast('info', 'Trang Popular đang được phát triển.')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
               <TrendingUp size={18} strokeWidth={2.5} /> Popular
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+            </button>
+            <button onClick={() => showToast('info', 'Trang Food đang được phát triển.')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
               <Utensils size={18} strokeWidth={2.5} /> Food
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+            </button>
+            <button onClick={() => showToast('info', 'Trang Travel đang được phát triển.')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
               <Plane size={18} strokeWidth={2.5} /> Travel
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+            </button>
+            <button onClick={() => showToast('info', 'Trang Hotels đang được phát triển.')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
               <Bed size={18} strokeWidth={2.5} /> Hotels
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+            </button>
+            <button onClick={() => showToast('info', 'Trang Experiences đang được phát triển.')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
               <Compass size={18} strokeWidth={2.5} /> Experiences
-            </a>
+            </button>
             
             <div className="pt-6 mt-6 border-t border-gray-100">
-              <a href="#" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+              <button onClick={() => {
+                setSavedPosts(!savedPosts);
+                showToast('info', !savedPosts ? 'Đã chuyển sang mục các bài viết đã lưu.' : 'Quay lại mục mặc định.');
+              }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${savedPosts ? 'bg-red-50 text-[#f44336]' : 'hover:bg-gray-50 hover:text-gray-900'}`}>
                 <Bookmark size={18} strokeWidth={2.5} /> Saved Posts
-              </a>
+              </button>
             </div>
           </nav>
         </aside>
@@ -119,9 +156,14 @@ export default function PostDetail() {
                 Elena Wild
               </div>
             </div>
-            <button className="flex items-center gap-2 bg-[#f44336] text-white text-[13px] font-bold px-5 py-2.5 rounded-xl hover:bg-[#e53935] transition-colors shadow-sm">
-              <CalendarPlus size={16} /> Add to travel plan
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="flex items-center gap-2 bg-gray-100 text-gray-700 text-[13px] font-bold px-5 py-2.5 rounded-xl hover:bg-gray-200 transition-colors shadow-sm">
+                <MessageSquare size={16} /> Nhắn tin
+              </button>
+              <button onClick={() => showToast('success', 'Đã thêm The Sapphire Lagoon vào Lịch trình du lịch của bạn!')} className="flex items-center gap-2 bg-[#f44336] text-white text-[13px] font-bold px-5 py-2.5 rounded-xl hover:bg-[#e53935] transition-colors shadow-sm">
+                <CalendarPlus size={16} /> Add to travel plan
+              </button>
+            </div>
           </div>
 
           {/* Featured Image */}
@@ -181,7 +223,7 @@ export default function PostDetail() {
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Coordinates</p>
                   <p className="text-[13px] font-extrabold text-gray-900">17.7333° S, 168.3273° E</p>
                 </div>
-                <button className="text-[12px] font-bold text-[#00897b] hover:text-[#00796b]">Open in Maps</button>
+                <button onClick={() => showToast('success', 'Mở Google Maps cho tọa độ: 17.7333° S, 168.3273° E')} className="text-[12px] font-bold text-[#00897b] hover:text-[#00796b]">Open in Maps</button>
               </div>
             </div>
           </div>
@@ -189,8 +231,15 @@ export default function PostDetail() {
           {/* Discussion Section */}
           <div className="mb-8 flex items-center justify-between">
             <h3 className="text-xl font-black text-gray-900">Discussion (24)</h3>
-            <div className="flex items-center gap-1 text-[12px] font-bold text-gray-500 cursor-pointer">
-              Sort by: Top <ChevronDown size={14} />
+            <div 
+              className="flex items-center gap-1 text-[12px] font-bold text-gray-500 cursor-pointer hover:text-gray-900"
+              onClick={() => {
+                const newSort = sortMethod === 'Top' ? 'Newest' : 'Top';
+                setSortMethod(newSort);
+                showToast('info', `Đã sắp xếp bình luận theo: ${newSort}`);
+              }}
+            >
+              Sort by: {sortMethod} <ChevronDown size={14} />
             </div>
           </div>
 
@@ -218,9 +267,9 @@ export default function PostDetail() {
             <div className="flex gap-4">
               {/* Upvote Column */}
               <div className="flex flex-col items-center text-gray-400 w-8">
-                <button className="hover:text-[#f44336]"><ArrowUp size={20} /></button>
-                <span className="text-[12px] font-bold text-gray-700 my-1">42</span>
-                <button className="hover:text-[#f44336]"><ArrowDown size={20} /></button>
+                <button onClick={() => handleVote('c1', 'up')} className={votes.c1.userVote === 'up' ? 'text-[#f44336]' : 'hover:text-[#f44336]'}><ArrowUp size={20} /></button>
+                <span className={`text-[12px] font-bold my-1 ${votes.c1.userVote ? 'text-[#f44336]' : 'text-gray-700'}`}>{votes.c1.count}</span>
+                <button onClick={() => handleVote('c1', 'down')} className={votes.c1.userVote === 'down' ? 'text-[#00897b]' : 'hover:text-[#00897b]'}><ArrowDown size={20} /></button>
               </div>
 
               {/* Comment Body */}
@@ -234,16 +283,16 @@ export default function PostDetail() {
                 </p>
                 <div className="flex gap-4 text-[11px] font-bold text-gray-500 mb-4">
                   <button className="hover:text-gray-800">Reply</button>
-                  <button className="hover:text-gray-800">Share</button>
-                  <button className="hover:text-gray-800">Report</button>
+                  <button onClick={() => showToast('success', 'Đã lưu đường dẫn liên kết của bình luận này')} className="hover:text-gray-800">Share</button>
+                  <button onClick={() => showToast('error', 'Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét bình luận này.')} className="hover:text-gray-800">Report</button>
                 </div>
 
                 {/* Reply */}
                 <div className="pl-4 border-l-2 border-red-100 flex gap-4 mt-4">
                   <div className="flex flex-col items-center text-gray-400 w-6">
-                    <button className="hover:text-[#f44336]"><ArrowUp size={16} /></button>
-                    <span className="text-[11px] font-bold text-gray-700 my-0.5">12</span>
-                    <button className="hover:text-[#f44336]"><ArrowDown size={16} /></button>
+                    <button onClick={() => handleVote('c2', 'up')} className={votes.c2.userVote === 'up' ? 'text-[#f44336]' : 'hover:text-[#f44336]'}><ArrowUp size={16} /></button>
+                    <span className={`text-[11px] font-bold my-0.5 ${votes.c2.userVote ? 'text-[#f44336]' : 'text-gray-700'}`}>{votes.c2.count}</span>
+                    <button onClick={() => handleVote('c2', 'down')} className={votes.c2.userVote === 'down' ? 'text-[#00897b]' : 'hover:text-[#00897b]'}><ArrowDown size={16} /></button>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -324,7 +373,7 @@ export default function PostDetail() {
             <p className="text-[12px] font-medium text-gray-600 mb-5 leading-relaxed">
               This location is part of Elena's "Hidden Gems of Oceania" collection.
             </p>
-            <button className="w-full bg-white text-[#f44336] text-[13px] font-bold py-2.5 rounded-xl border border-red-100 hover:bg-red-50 transition-colors shadow-sm flex items-center justify-center gap-2">
+            <button onClick={() => showToast('info', 'Đang tải lịch trình chi tiết...')} className="w-full bg-white text-[#f44336] text-[13px] font-bold py-2.5 rounded-xl border border-red-100 hover:bg-red-50 transition-colors shadow-sm flex items-center justify-center gap-2">
               <Compass size={16} /> View full itinerary
             </button>
           </div>
@@ -339,7 +388,7 @@ export default function PostDetail() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-5">
               <p className="text-[9px] font-extrabold text-white/80 uppercase tracking-widest mb-1">Promoted Experience</p>
               <h3 className="text-[16px] font-bold text-white leading-tight mb-4">Private Lagoon Sunset Cruise</h3>
-              <button className="bg-white/20 backdrop-blur-md text-white border border-white/30 text-[12px] font-bold py-2 rounded-lg hover:bg-white/30 transition-colors">
+              <button onClick={() => showToast('success', 'Chuyển hướng đến trang đối tác để xác nhận thanh toán $120')} className="bg-white/20 backdrop-blur-md text-white border border-white/30 text-[12px] font-bold py-2 rounded-lg hover:bg-white/30 transition-colors">
                 Book from $120
               </button>
             </div>

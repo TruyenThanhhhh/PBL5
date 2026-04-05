@@ -8,7 +8,6 @@ import {
 export default function Settings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
-  const [requestStatus, setRequestStatus] = useState('none');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -21,9 +20,6 @@ export default function Settings() {
   const [profileMessage, setProfileMessage] = useState('');
 
   useEffect(() => {
-    const status = localStorage.getItem('roleRequestStatus') || 'none';
-    setRequestStatus(status);
-
     const loadProfile = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -47,41 +43,6 @@ export default function Settings() {
     loadProfile();
   }, []);
 
-  const handleRequestPoster = async () => {
-    setIsLoading(true);
-    setMessage('');
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/users/request-poster', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      // 🛡️ Bắt lỗi 404 (Thiếu Route) cực kỳ chặt chẽ
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await response.json();
-        if (response.ok) {
-          setRequestStatus('pending');
-          localStorage.setItem('roleRequestStatus', 'pending');
-          setMessage('Your request has been sent to the Admin successfully!');
-        } else {
-          setMessage(data.message || 'Failed to send request.');
-        }
-      } else {
-        // Nếu backend trả về HTML thay vì JSON -> Chắc chắn 100% thiếu Route hoặc Middleware bị lỗi
-        setMessage('Lỗi Backend: Không tìm thấy Route /request-poster (Lỗi 404). Hãy kiểm tra file userRoutes.js!');
-      }
-    } catch (error) {
-      console.error(error);
-      setMessage('Network error. Không kết nối được với server.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -226,19 +187,7 @@ export default function Settings() {
               <Palette size={18} strokeWidth={2.5} /> Appearance
             </button>
 
-            {/* TAB XIN LÊN QUYỀN POSTER */}
-            <div className="pt-4 mt-4 border-t border-gray-200">
-              <button 
-                onClick={() => setActiveTab('creator')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left ${activeTab === 'creator' ? 'bg-red-50 text-[#f44336]' : 'hover:bg-white text-gray-700'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Camera size={18} strokeWidth={2.5} /> Creator Program
-                </div>
-                {requestStatus === 'pending' && <span className="w-2 h-2 rounded-full bg-yellow-400"></span>}
-                {requestStatus === 'approved' && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
-              </button>
-            </div>
+
           </nav>
 
           <div className="border-t border-gray-200 pt-6">
@@ -331,72 +280,6 @@ export default function Settings() {
             </div>
           )}
 
-          {/* TAB CREATOR PROGRAM */}
-          {activeTab === 'creator' && (
-            <div className="animate-in fade-in duration-300">
-              <div className="mb-6">
-                <h2 className="text-xl font-black text-gray-900">Creator Program</h2>
-                <p className="text-[13px] text-gray-500 font-medium">Request permission to post your own travel journals.</p>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-                {requestStatus === 'none' && (
-                  <>
-                    <div className="w-16 h-16 bg-red-50 text-[#f44336] rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Camera size={32} strokeWidth={2} />
-                    </div>
-                    <h3 className="text-lg font-black text-gray-900 mb-2">Become a Poster</h3>
-                    <p className="text-[13px] text-gray-600 font-medium mb-8 max-w-md mx-auto leading-relaxed">
-                      Upgrade your account to start sharing your own places, photos, and itineraries with the community. You can also post promoted experiences.
-                    </p>
-                    
-                    {/* Báo lỗi cực kỳ chi tiết ở đây */}
-                    {message && (
-                      <div className={`mb-6 p-4 rounded-xl text-[13px] font-bold text-left ${message.includes('Lỗi Backend') ? 'bg-red-50 text-[#f44336] border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                        <AlertCircle className="inline-block mr-2" size={16} />
-                        {message}
-                      </div>
-                    )}
-                    
-                    <button 
-                      onClick={handleRequestPoster}
-                      disabled={isLoading}
-                      className="bg-[#f44336] text-white text-[14px] font-bold px-8 py-3 rounded-full hover:bg-[#e53935] shadow-md shadow-red-500/20 transition-all disabled:opacity-50"
-                    >
-                      {isLoading ? 'Sending Request...' : 'Send Request to Admin'}
-                    </button>
-                  </>
-                )}
-
-                {requestStatus === 'pending' && (
-                  <>
-                    <div className="w-16 h-16 bg-yellow-50 text-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Clock size={32} strokeWidth={2} />
-                    </div>
-                    <h3 className="text-lg font-black text-gray-900 mb-2">Application Pending</h3>
-                    <p className="text-[13px] text-gray-600 font-medium max-w-md mx-auto leading-relaxed">
-                      Your request to become a Poster is currently being reviewed by our administrators. This usually takes 24-48 hours.
-                    </p>
-                  </>
-                )}
-
-                {requestStatus === 'approved' && (
-                  <>
-                    <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle size={32} strokeWidth={2} />
-                    </div>
-                    <h3 className="text-lg font-black text-gray-900 mb-2">You are a Poster!</h3>
-                    <p className="text-[13px] text-gray-600 font-medium mb-6 max-w-md mx-auto leading-relaxed">
-                      Congratulations! You now have full access to create posts, upload photos, and share your journey.
-                    </p>
-                    <button onClick={() => navigate('/upload')} className="inline-block bg-gray-900 text-white text-[13px] font-bold px-6 py-2.5 rounded-full hover:bg-black transition-all">
-                      Create Your First Post
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
         </section>
       </main>
     </div>

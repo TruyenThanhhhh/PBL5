@@ -128,7 +128,7 @@ exports.getPosts = async (req, res) => {
 exports.likePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    if (!post) return res.status(404).json({ message: 'Post not found' });
 
     const alreadyLiked = post.likes.some(
       (userId) => userId.toString() === req.user.id
@@ -139,12 +139,27 @@ exports.likePost = async (req, res) => {
         (userId) => userId.toString() !== req.user.id
       );
       await post.save();
-      return res.json({ message: "Post unliked successfully", liked: false });
+      return res.json({ message: 'Post unliked successfully', liked: false });
     }
 
     post.likes.push(req.user.id);
     await post.save();
-    res.json({ message: "Post liked successfully", liked: true });
+
+    // Gử thông báo Like real-time
+    try {
+      const { createAndEmitNotification } = require('./notificationController');
+      await createAndEmitNotification(req.io, req.connectedUsers, {
+        recipient: post.createdBy,
+        sender: req.user.id,
+        type: 'like',
+        post: post._id,
+        content: 'đã thích bài viết của bạn.'
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr.message);
+    }
+
+    res.json({ message: 'Post liked successfully', liked: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

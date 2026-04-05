@@ -5,6 +5,8 @@ import {
   MapPin, Image as ImageIcon, Send, ShieldAlert,
   Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot
 } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
+import SavePostButton from '../components/SavePostButton';
 
 let leafletAssetsPromise = null;
 const loadLeafletAssets = async () => {
@@ -149,7 +151,7 @@ function RealMapViewer({ lat, lng, role, location }) {
 function DashboardContent() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
-  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'viewer', avatar: '' });
+  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
   const [pickedCoords, setPickedCoords] = useState(null);
@@ -181,7 +183,7 @@ function DashboardContent() {
   const [openPostMenuId, setOpenPostMenuId] = useState(null);
 
   useEffect(() => {
-    const userRole = localStorage.getItem('role') || 'viewer';
+    const userRole = localStorage.getItem('role') || 'user';
     const userId = localStorage.getItem('userId') || '';
     // Nếu không có user, dùng tên mặc định thay vì đá văng về login gây lỗi ở môi trường xem trước
     const username = localStorage.getItem('username') || 'Khách Xem Trước';
@@ -616,7 +618,8 @@ function DashboardContent() {
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
-          <button type="button" className="text-gray-500 hover:text-gray-900"><Bell size={22} strokeWidth={2} /></button>
+          <NotificationBell />
+          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900"><MessageSquare size={22} strokeWidth={2} /></button>
           <Link to="/profile" className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-200">
             <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Me" className="w-full h-full object-cover" />
           </Link>
@@ -705,11 +708,25 @@ function DashboardContent() {
                   <div className="p-6">
                     <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full overflow-hidden border-2 ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}>
+                        <div 
+                          className={`w-10 h-10 rounded-full overflow-hidden border-2 cursor-pointer hover:ring-2 hover:ring-red-200 transition-all ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}
+                          onClick={() => {
+                            if (post.createdBy && post.createdBy._id !== currentUser.userId) {
+                              window.dispatchEvent(new CustomEvent('openChat', { detail: { userId: post.createdBy._id } }));
+                            }
+                          }}
+                        >
                           <img src={post.createdBy?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
                         </div>
                         <div>
-                          <h3 className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5">
+                          <h3 
+                            className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5 cursor-pointer hover:underline"
+                            onClick={() => {
+                              if (post.createdBy && post.createdBy._id !== currentUser.userId) {
+                                window.dispatchEvent(new CustomEvent('openChat', { detail: { userId: post.createdBy._id } }));
+                              }
+                            }}
+                          >
                             {post.createdBy?.username || "Ẩn danh"} 
                             {isAdmin && <CheckCircle size={14} className="text-[#f44336]" />}
                           </h3>
@@ -822,7 +839,8 @@ function DashboardContent() {
                       <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
                         <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || 'Bình luận'}
                       </button>
-                      <button type="button" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
+                      <SavePostButton postId={post._id} postImage={post.images?.[0]} />
+                      <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
                         <Share2 size={20} strokeWidth={2.5} />
                       </button>
                     </div>
@@ -978,11 +996,11 @@ function DashboardContent() {
             <div className="space-y-4">
               <div>
                 <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">Biển</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
+                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Văn Hóa</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
+                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
               </div>
             </div>
           </div>

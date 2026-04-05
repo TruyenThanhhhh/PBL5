@@ -3,8 +3,9 @@ import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom
 import { 
   Bell, MessageSquare, Home, Compass, TrendingUp, 
   Bookmark, Settings, MoreHorizontal, ArrowUp, 
-  ArrowDown, Share2
+  ArrowDown, Share2, FolderHeart, Trash2, Loader2
 } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
 
 // 🚀 Tách phần giao diện chính ra một Component con
 function ProfileContent() {
@@ -17,6 +18,9 @@ function ProfileContent() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('posts');
+  const [collections, setCollections] = useState([]);
+  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
 
   const handlePostClick = () => {
     navigate('/post-detail');
@@ -59,6 +63,28 @@ function ProfileContent() {
     loadProfile();
   }, []);
 
+  const fetchCollections = async () => {
+    setIsLoadingCollections(true);
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('http://localhost:5000/api/collections', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setCollections(await res.json());
+    } catch (err) { console.error(err); }
+    setIsLoadingCollections(false);
+  };
+
+  const handleDeleteCollection = async (colId, e) => {
+    e.stopPropagation();
+    const token = localStorage.getItem('token');
+    await fetch(`http://localhost:5000/api/collections/${colId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setCollections(prev => prev.filter(c => c._id !== colId));
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">Đang tải profile...</div>
@@ -91,10 +117,8 @@ function ProfileContent() {
         </div>
 
         <div className="flex items-center justify-end gap-5 w-1/4">
-          <button className="text-gray-500 hover:text-gray-900 relative">
-            <Bell size={22} strokeWidth={2} />
-          </button>
-          <button className="text-gray-500 hover:text-gray-900">
+          <NotificationBell />
+          <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900">
             <MessageSquare size={22} strokeWidth={2} />
           </button>
         </div>
@@ -198,13 +222,67 @@ function ProfileContent() {
           </div>
 
           <div className="bg-white rounded-xl p-2 flex text-center text-[13px] font-bold text-gray-500 mb-6 shadow-sm border border-gray-100">
-            <button className="flex-1 py-2 text-[#f44336] bg-red-50 rounded-lg">Posts</button>
-            <button className="flex-1 py-2 hover:bg-gray-50 rounded-lg transition-colors">Media</button>
-            <button className="flex-1 py-2 hover:bg-gray-50 rounded-lg transition-colors">About</button>
-            <button className="flex-1 py-2 hover:bg-gray-50 rounded-lg transition-colors">Map</button>
+            <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>Posts</button>
+            <button onClick={() => { setActiveTab('media'); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>Media</button>
+            <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>
+              🗂️ Bộ sưu tập
+            </button>
+            <button onClick={() => setActiveTab('about')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'about' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>About</button>
           </div>
 
-          {/* POST 1 */}
+          {/* COLLECTIONS TAB */}
+          {activeTab === 'collections' && (
+            <div className="animate-in fade-in">
+              {isLoadingCollections ? (
+                <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-[#f44336]" /></div>
+              ) : collections.length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center text-gray-400 gap-3">
+                  <FolderHeart size={44} className="opacity-40" />
+                  <p className="text-[14px] font-bold">Chưa có bộ sưu tập nào.</p>
+                  <p className="text-[12px] text-center">Hãy lưu bài viết vào bộ sưu tập từ màn hình chính!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {collections.map(col => (
+                    <div key={col._id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all group">
+                      {/* Cover */}
+                      <div className="h-[140px] bg-gradient-to-br from-red-50 to-orange-50 relative overflow-hidden">
+                        {col.posts?.length > 0 && col.posts[0]?.images?.length > 0 ? (
+                          <img src={col.posts[0].images[0]} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <FolderHeart size={36} className="text-[#f44336] opacity-40" />
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteCollection(col._id, e)}
+                          className="absolute top-2 right-2 w-7 h-7 bg-black/40 backdrop-blur text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <div className="p-3">
+                        <h4 className="text-[13px] font-extrabold text-gray-900 truncate">{col.name}</h4>
+                        <p className="text-[11px] text-gray-400 font-medium mt-0.5">{col.posts?.length || 0} bài viết</p>
+                        {/* Grid mini thumbnails */}
+                        {col.posts?.length > 1 && (
+                          <div className="flex gap-1 mt-2">
+                            {col.posts.slice(0, 3).map((p, i) => (
+                              p.images?.[0] && <img key={i} src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* POSTS TAB (default) */}
+          {activeTab !== 'collections' && (
+          <>
           <div 
             onClick={handlePostClick}
             className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 hover:shadow-md transition-all cursor-pointer group"
@@ -304,6 +382,8 @@ function ProfileContent() {
               </div>
             </div>
           </div>
+          </>
+          )}
         </section>
 
         {/* RIGHT SIDEBAR */}

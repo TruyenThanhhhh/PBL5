@@ -6,14 +6,62 @@ const jwt = require("jsonwebtoken");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const upload = require("./middleware/upload");
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  }
+});
+
+// Map theo dõi user online: userId -> socketId
+const connectedUsers = {};
+
+app.use((req, res, next) => {
+  req.io = io;
+  req.connectedUsers = connectedUsers;
+  next();
+});
+
+io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id);
+
+  // Người dùng đăng ký online
+  socket.on('registerUser', (userId) => {
+    if (userId) {
+      connectedUsers[userId] = socket.id;
+      console.log(`User ${userId} is online (socket: ${socket.id})`);
+    }
+  });
+
+  socket.on('joinConversation', (conversationId) => {
+    if (conversationId) {
+      socket.join(conversationId);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    // Xóa user khỏi connectedUsers khi ngắt kết nối
+    Object.keys(connectedUsers).forEach(userId => {
+      if (connectedUsers[userId] === socket.id) {
+        delete connectedUsers[userId];
+        console.log(`User ${userId} went offline`);
+      }
+    });
+  });
+});
+
 
 const normalizeRole = (role) => {
-  if (typeof role !== "string") return "viewer";
+  if (typeof role !== "string") return "user";
   const r = role.trim().toLowerCase();
-  if (r === "user") return "poster";
-  return r;
+  if (r === "admin") return "admin";
+  return "user";
 };
 
 // Cấu hình CORS mở cửa cho Frontend (Vite)
@@ -49,14 +97,20 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ─── Routes ────────────────────────────────────────────────
-const postRoutes = require("./routes/postRoutes");
-const userRoutes = require("./routes/userRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-const { requireAdmin } = require("./middleware/auth");
+const postRoutes = require('./routes/postRoutes');
+const userRoutes = require('./routes/userRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const messageRoutes = require('./routes/messageRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const collectionRoutes = require('./routes/collectionRoutes');
+const { requireAdmin } = require('./middleware/auth');
 
-app.use("/api/posts", postRoutes);
-app.use("/api/users", userRoutes);  
-app.use("/api/chat", chatRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/collections', collectionRoutes);
 
 // ─── Profile ───────────────────────────────────────────────
 app.get("/api/profile", authMiddleware, async (req, res) => {
@@ -144,6 +198,6 @@ app.put("/api/change-password", authMiddleware, async (req, res) => {
 // ─── Start ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running perfectly on http://localhost:${PORT}`);
 });

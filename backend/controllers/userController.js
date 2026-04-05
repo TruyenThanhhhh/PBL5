@@ -1,14 +1,14 @@
-const User = require("../models/user"); // <-- Đã sửa chữ 'U' viết hoa
+const User = require("../models/User");
 const Post = require("../models/Post");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 // Hàm hỗ trợ chuẩn hóa role
 const normalizeRole = (role) => {
-  if (typeof role !== "string") return "viewer";
+  if (typeof role !== "string") return "user";
   const r = role.trim().toLowerCase();
-  if (r === "user") return "poster";
-  return r;
+  if (r === "admin") return "admin";
+  return "user";
 };
 
 // 🚀 ĐĂNG KÝ TÀI KHOẢN
@@ -22,9 +22,7 @@ exports.registerUser = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const allowedRoles = ["viewer", "poster"];
-    const normalizedRole = normalizeRole(role);
-    const assignedRole = allowedRoles.includes(normalizedRole) ? normalizedRole : "viewer";
+    const assignedRole = "user";
 
     let avatarUrl = "";
     if (req.file && req.file.path) {
@@ -92,8 +90,7 @@ exports.loginUser = async (req, res) => {
       userId: user._id,
       username: user.username,
       avatar: user.avatar,
-      role: user.role,
-      roleRequestStatus: user.roleRequestStatus
+      role: user.role
     });
 
   } catch (error) {
@@ -130,9 +127,25 @@ exports.toggleFollow = async (req, res) => {
 
     await Promise.all([me.save(), target.save()]);
 
+    // Gử thông báo Follow real-time
+    if (!isFollowing) {
+      try {
+        const { createAndEmitNotification } = require('./notificationController');
+        await createAndEmitNotification(req.io, req.connectedUsers, {
+          recipient: targetId,
+          sender: myId,
+          type: 'follow',
+          post: null,
+          content: 'đã bắt đầu theo dõi bạn.'
+        });
+      } catch (notifErr) {
+        console.error('Notification error:', notifErr.message);
+      }
+    }
+
     res.json({
       following: !isFollowing,
-      message: isFollowing ? "Đã unfollow" : "Đã follow",
+      message: isFollowing ? 'Đã unfollow' : 'Đã follow',
       followersCount: target.followers.length,
     });
   } catch (error) {
@@ -209,59 +222,17 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// ==========================================
-// 🛡️ TÍNH NĂNG: XIN LÊN QUYỀN POSTER
-// ==========================================
-exports.requestPosterRole = async (req, res) => {
+// 👥 LẤY TẤT CẢ USER (Cho tính năng tìm kiếm chat)
+exports.getAllUsers = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User không tồn tại" });
-
-    if (user.role === "poster" || user.role === "admin") {
-      return res.status(400).json({ message: "Bạn đã có quyền đăng bài rồi." });
-    }
-
-    if (user.roleRequestStatus === "pending") {
-      return res.status(400).json({ message: "Yêu cầu của bạn đang chờ duyệt." });
-    }
-
-    user.roleRequestStatus = "pending";
-    await user.save();
-
-    res.json({ message: "Đã gửi yêu cầu thành công.", status: "pending" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.approveRoleRequest = async (req, res) => {
-  try {
-    const { userId, action } = req.body; 
-    
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User không tồn tại" });
-
-    if (action === "approve") {
-      user.role = "poster";
-      user.roleRequestStatus = "approved";
-    } else if (action === "reject") {
-      user.roleRequestStatus = "rejected";
-    } else {
-      return res.status(400).json({ message: "Action không hợp lệ" });
-    }
-
-    await user.save();
-    res.json({ message: `Đã ${action} user ${user.username}`, user });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-exports.getPendingRequests = async (req, res) => {
-  try {
-    const users = await User.find({ roleRequestStatus: "pending" }).select("username email createdAt");
+    // Chỉ lấy vài field cần thiết
+    const users = await User.find({ _id: { $ne: req.user._id } })
+      .select("username avatar email role")
+      .sort({ createdAt: -1 })
+      .limit(50); // Giới hạn 50 người mới nhất cho demo
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
