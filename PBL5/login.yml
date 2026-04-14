@@ -1,0 +1,24 @@
+info:
+  name: login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:5000/api/login
+  body:
+    type: json
+    data: |-
+      {
+        "email": "truyen@gmail.com",
+        "password": "123456"
+      }
+  auth:
+    type: bearer
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YTZhYWIzZjk0YzNiNTliZDQ0YWJhYyIsImlhdCI6MTc3MjU5MTk0MCwiZXhwIjoxNzcyNjc4MzQwfQ.ZCRMYgINKKGI3qMHVuCJJld8vVwTuaNMw4dtRMrdYcs
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
