@@ -83,7 +83,6 @@ exports.loginUser = async (req, res) => {
 
     console.log(`✅ Đăng nhập thành công: ${user.username} | Quyền: ${user.role}`);
 
-    // Gửi kèm 'role' và 'roleRequestStatus' về cho Frontend
     res.json({ 
       message: "Đăng nhập thành công", 
       token, 
@@ -99,35 +98,39 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// ➕ FOLLOW / UNFOLLOW USER
+// ➕ FOLLOW / UNFOLLOW USER (KẾT BẠN)
 exports.toggleFollow = async (req, res) => {
   try {
     const targetId = req.params.id;
     const myId = req.user.id;
 
     if (targetId === myId)
-      return res.status(400).json({ message: "Không thể follow chính mình" });
+      return res.status(400).json({ message: "Không thể tự kết bạn với chính mình" });
 
-    const [me, target] = await Promise.all([
-      User.findById(myId),
-      User.findById(targetId),
-    ]);
+    // Sử dụng findById để kiểm tra mà không dùng .save() để tránh Mongoose Validation Error do dữ liệu cũ
+    const me = await User.findById(myId);
+    const target = await User.findById(targetId);
 
     if (!target) return res.status(404).json({ message: "User không tồn tại" });
 
     const isFollowing = me.following.includes(targetId);
 
+    // SỬ DỤNG findByIdAndUpdate ĐỂ FIX LỖI VALIDATION "POSTER/VIEWER" CỦA MONGODB
     if (isFollowing) {
-      me.following.pull(targetId);
-      target.followers.pull(myId);
+      // Hủy yêu cầu (Unfollow)
+      await Promise.all([
+        User.findByIdAndUpdate(myId, { $pull: { following: targetId } }),
+        User.findByIdAndUpdate(targetId, { $pull: { followers: myId } })
+      ]);
     } else {
-      me.following.push(targetId);
-      target.followers.push(myId);
+      // Gửi yêu cầu (Follow)
+      await Promise.all([
+        User.findByIdAndUpdate(myId, { $addToSet: { following: targetId } }),
+        User.findByIdAndUpdate(targetId, { $addToSet: { followers: myId } })
+      ]);
     }
 
-    await Promise.all([me.save(), target.save()]);
-
-    // Gử thông báo Follow real-time
+    // Gửi thông báo Follow real-time
     if (!isFollowing) {
       try {
         const { createAndEmitNotification } = require('./notificationController');
@@ -136,7 +139,7 @@ exports.toggleFollow = async (req, res) => {
           sender: myId,
           type: 'follow',
           post: null,
-          content: 'đã bắt đầu theo dõi bạn.'
+          content: 'đã gửi một lời mời kết bạn / theo dõi bạn.'
         });
       } catch (notifErr) {
         console.error('Notification error:', notifErr.message);
@@ -145,8 +148,8 @@ exports.toggleFollow = async (req, res) => {
 
     res.json({
       following: !isFollowing,
-      message: isFollowing ? 'Đã unfollow' : 'Đã follow',
-      followersCount: target.followers.length,
+      message: isFollowing ? 'Đã thu hồi lời mời' : 'Đã gửi lời mời',
+      followersCount: isFollowing ? target.followers.length - 1 : target.followers.length + 1,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -222,17 +225,15 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// 👥 LẤY TẤT CẢ USER (Cho tính năng tìm kiếm chat)
+// 👥 LẤY TẤT CẢ USER (Cho tính năng tìm kiếm và kết bạn)
 exports.getAllUsers = async (req, res) => {
   try {
-    // Chỉ lấy vài field cần thiết
     const users = await User.find({ _id: { $ne: req.user._id } })
       .select("username avatar email role")
       .sort({ createdAt: -1 })
-      .limit(50); // Giới hạn 50 người mới nhất cho demo
+      .limit(50);
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
