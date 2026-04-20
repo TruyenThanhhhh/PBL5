@@ -10,12 +10,6 @@ import {
 // ==========================================
 // COMPONENT PHỤ TRỢ
 // ==========================================
-const NotificationBell = () => (
-  <button type="button" className="text-gray-500 hover:text-gray-900 transition-colors relative">
-    <Bell size={22} strokeWidth={2} />
-  </button>
-);
-
 const SavePostButton = ({ postId, postImage }) => (
   <button type="button" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold">
     <Bookmark size={20} strokeWidth={2.5} />
@@ -195,6 +189,61 @@ function DashboardContent() {
   ]);
 
   // ==============================================================
+  // STATE HỆ THỐNG THÔNG BÁO (NOTIFICATIONS - KÉO 100% TỪ DATABASE)
+  // ==============================================================
+  const [notifications, setNotifications] = useState([]);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const displayBadgeCount = unreadCount > 9 ? '9+' : unreadCount;
+
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(Array.isArray(data) ? data : []);
+      } else {
+        setNotifications([]);
+      }
+    } catch (error) {
+      setNotifications([]);
+    }
+  };
+
+  const handleReadNotification = async (notif) => {
+    setNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, isRead: true } : n));
+    setIsNotificationOpen(false);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://localhost:5000/api/notifications/${notif._id}/read`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${token}` }
+      }).catch(()=>{});
+    }
+
+    if (notif.type === 'message' && notif.sender) {
+      setIsUserChatOpen(true);
+      setSelectedChatUser(notif.sender);
+      setChatView('conversation');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://localhost:5000/api/notifications/read-all`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${token}` }
+      }).catch(()=>{});
+    }
+  };
+
+  // ==============================================================
   // STATE HỆ THỐNG BẠN BÈ VÀ CHAT
   // ==============================================================
   const [allUsers, setAllUsers] = useState([]); 
@@ -209,14 +258,10 @@ function DashboardContent() {
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [userMessageInput, setUserMessageInput] = useState('');
   const [userMessages, setUserMessages] = useState({}); 
-  const [currentConversationId, setCurrentConversationId] = useState(null); // Quản lý ID cuộc hội thoại
+  const [currentConversationId, setCurrentConversationId] = useState(null);
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
 
-  // ==============================================================
-  // TẢI DỮ LIỆU TỪ DATABASE
-  // ==============================================================
-  
   const fetchAllUsers = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -234,7 +279,7 @@ function DashboardContent() {
           return newUsers;
         });
       }
-    } catch (error) { console.error('Lỗi API lấy users:', error); }
+    } catch (error) {}
   };
 
   const fetchFriendData = async () => {
@@ -269,19 +314,15 @@ function DashboardContent() {
           });
         }
       }
-    } catch (error) { console.error('Lỗi API lấy dữ liệu bạn bè:', error); }
+    } catch (error) {}
   };
 
-  // ==============================================================
-  // FETCH LỊCH SỬ TIN NHẮN TỪ DATABASE (CẬP NHẬT THEO CƠ CHẾ CONVERSATION)
-  // ==============================================================
   const fetchChatHistory = async (targetUserId) => {
     const token = localStorage.getItem('token');
     const currentUserId = localStorage.getItem('userId');
     if (!token || !targetUserId) return;
     
     try {
-      // 1. Tạo hoặc lấy thông tin Cuộc hội thoại (Conversation)
       const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -290,9 +331,8 @@ function DashboardContent() {
 
       if (!convRes.ok) return;
       const conversation = await convRes.json();
-      setCurrentConversationId(conversation._id); // Lưu lại Id Cuộc trò chuyện
+      setCurrentConversationId(conversation._id); 
 
-      // 2. Lấy danh sách tin nhắn dựa trên Conversation ID
       const msgRes = await fetch(`http://localhost:5000/api/messages/${conversation._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -303,7 +343,7 @@ function DashboardContent() {
           const senderId = msg.sender?._id || msg.sender;
           return {
             sender: String(senderId) === String(currentUserId) ? 'me' : 'them',
-            text: msg.text // Sửa 'content' thành 'text' theo Model của bạn
+            text: msg.text 
           };
         });
         
@@ -312,9 +352,7 @@ function DashboardContent() {
           [targetUserId]: formattedMessages
         }));
       }
-    } catch (error) {
-      console.error('Lỗi lấy lịch sử tin nhắn:', error);
-    }
+    } catch (error) {}
   };
 
   useEffect(() => {
@@ -330,6 +368,7 @@ function DashboardContent() {
     if (userId) {
       fetchAllUsers();
       fetchFriendData();
+      fetchNotifications();
     }
 
     const handleOpenChat = (e) => {
@@ -346,7 +385,6 @@ function DashboardContent() {
     return () => window.removeEventListener('openChat', handleOpenChat);
   }, [navigate]);
 
-  // Tự động Load tin nhắn khi mở khung chat với một User cụ thể
   useEffect(() => {
     if (isUserChatOpen && chatView === 'conversation' && selectedChatUser) {
       fetchChatHistory(selectedChatUser._id);
@@ -358,10 +396,6 @@ function DashboardContent() {
     setTimeout(() => setNotification({ type: '', text: '' }), 5000);
   };
 
-  // ==============================================================
-  // ACTIONS BẠN BÈ
-  // ==============================================================
-  
   const handleAddFriend = async (userId) => {
     const strUserId = String(userId);
     const token = localStorage.getItem('token');
@@ -379,11 +413,9 @@ function DashboardContent() {
         showToast('success', 'Đã gửi lời mời kết bạn');
       } else {
         setSentRequests(prev => prev.filter(id => id !== strUserId));
-        showToast('error', data.message || 'Lỗi gửi yêu cầu');
       }
     } catch (error) {
       setSentRequests(prev => prev.filter(id => id !== strUserId));
-      showToast('error', 'Lỗi kết nối server');
     }
   };
 
@@ -433,7 +465,6 @@ function DashboardContent() {
     } catch (error) {
       setReceivedRequests(prev => [...prev, strUserId]);
       setFriends(prev => prev.filter(id => id !== strUserId));
-      showToast('error', 'Lỗi kết nối server');
     }
   };
 
@@ -814,16 +845,12 @@ function DashboardContent() {
     }
   };
 
-  // ==============================================================
-  // GỬI TIN NHẮN TỚI BACKEND
-  // ==============================================================
   const handleSendUserMessage = async () => {
     if (!userMessageInput.trim() || !selectedChatUser) return;
     const token = localStorage.getItem('token');
     const userId = String(selectedChatUser._id);
     const text = userMessageInput;
     
-    // UI Update (Optimistic)
     setUserMessages(prev => ({
       ...prev,
       [userId]: [...(prev[userId] || []), { sender: 'me', text }]
@@ -831,22 +858,18 @@ function DashboardContent() {
     setUserMessageInput('');
 
     try {
-      // Gọi API POST /api/messages/ (Kèm theo conversationId và text)
       await fetch('http://localhost:5000/api/messages/', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           receiverId: userId, 
-          text: text, // Trường 'text' để Backend hứng đúng
+          text: text, 
           conversationId: currentConversationId 
         })
       });
     } catch(err) { console.log(err) }
   };
 
-  // ==============================================================
-  // BỘ LỌC TÌM KIẾM VÀ ĐỀ XUẤT
-  // ==============================================================
   const currentUserIdStr = String(currentUser.userId);
 
   const searchResults = allUsers.filter(u => 
@@ -898,7 +921,71 @@ function DashboardContent() {
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
-          <NotificationBell />
+          
+          {/* =========================================
+              MENU THÔNG BÁO (NOTIFICATION BELL)
+          ========================================= */}
+          <div className="relative">
+            <button 
+              type="button" 
+              onClick={() => {
+                setIsNotificationOpen(!isNotificationOpen);
+                setIsFriendDropdownOpen(false); 
+                if (!isNotificationOpen) fetchNotifications();
+              }} 
+              className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isNotificationOpen ? 'text-[#f44336]' : ''}`}
+            >
+              <Bell size={22} strokeWidth={2} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white flex items-center justify-center min-w-[18px]">
+                  {displayBadgeCount}
+                </span>
+              )}
+            </button>
+
+            {isNotificationOpen && (
+              <div className="absolute right-0 top-10 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[110] animate-in slide-in-from-top-2 fade-in">
+                <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                  <h3 className="font-bold text-[14px] text-gray-900">Thông báo</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={handleMarkAllAsRead} 
+                      className="text-[11px] font-semibold text-[#f44336] hover:underline"
+                    >
+                      Đánh dấu đã đọc
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[350px] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                     <div className="p-6 text-center text-[12px] text-gray-500">
+                        Không có thông báo mới.
+                     </div>
+                  ) : (
+                     notifications.map(notif => (
+                       <div 
+                         key={notif._id} 
+                         onClick={() => handleReadNotification(notif)}
+                         className={`flex items-start gap-3 p-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.isRead ? 'bg-blue-50/30' : ''}`}
+                       >
+                         <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden border border-gray-200">
+                           {notif.sender?.avatar ? <img src={notif.sender.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <p className="text-[13px] text-gray-800 leading-tight">
+                             <span className="font-bold text-gray-900 mr-1">{notif.sender?.username}</span>
+                             {notif.content}
+                           </p>
+                           <p className="text-[11px] text-[#f44336] font-medium mt-1">Vừa xong</p>
+                         </div>
+                         {!notif.isRead && <div className="w-2.5 h-2.5 bg-[#f44336] rounded-full shrink-0 mt-1.5 shadow-sm"></div>}
+                       </div>
+                     ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           
           {/* =========================================
               MENU BẠN BÈ VÀ LỜI MỜI
@@ -908,7 +995,8 @@ function DashboardContent() {
               type="button" 
               onClick={() => {
                 setIsFriendDropdownOpen(!isFriendDropdownOpen);
-                if (!isFriendDropdownOpen) fetchFriendData(); // Fetch khi mở menu
+                setIsNotificationOpen(false); 
+                if (!isFriendDropdownOpen) fetchFriendData(); 
               }} 
               className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : ''}`}
             >
@@ -920,7 +1008,6 @@ function DashboardContent() {
             
             {isFriendDropdownOpen && (
               <div className="absolute right-0 top-10 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[110] animate-in slide-in-from-top-2 fade-in">
-                {/* Thanh tìm kiếm */}
                 <div className="p-3 border-b border-gray-100 bg-white">
                   <div className="relative">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -936,7 +1023,6 @@ function DashboardContent() {
 
                 <div className="max-h-[350px] overflow-y-auto pb-4">
                   {friendSearchQuery.trim() !== '' ? (
-                    /* KHI TÌM KIẾM */
                     <div className="px-2 pt-2">
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Kết quả tìm kiếm</p>
                       {searchResults.length === 0 ? (
@@ -971,7 +1057,6 @@ function DashboardContent() {
                       )}
                     </div>
                   ) : (
-                    /* LỜI MỜI & GỢI Ý */
                     <>
                       {receivedRequests.length > 0 && (
                         <div className="px-2 pt-3 pb-2 border-b border-gray-100">
@@ -1052,7 +1137,7 @@ function DashboardContent() {
       </header>
 
       {/* =========================================
-          WIDGET CHAT USER (CHỈ HIỂN THỊ BẠN BÈ)
+          WIDGET CHAT USER
       ========================================= */}
       {isUserChatOpen && (
         <div className="fixed right-6 top-[85px] z-[100] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">

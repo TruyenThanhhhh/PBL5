@@ -106,6 +106,7 @@ export default function NotificationBell() {
     if (type === 'like') return <Heart size={14} className="text-[#f44336]" fill="#f44336" />;
     if (type === 'comment') return <MessageSquare size={14} className="text-blue-500" />;
     if (type === 'follow') return <UserPlus size={14} className="text-green-500" />;
+    if (type === 'message') return <MessageSquare size={14} className="text-purple-500" />;
     return <Bell size={14} className="text-gray-400" />;
   };
 
@@ -122,11 +123,11 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={handleOpen}
-        className="relative text-gray-500 hover:text-gray-900 transition-colors"
+        className="relative text-gray-500 hover:text-gray-900 transition-colors p-2 hover:bg-gray-100 rounded-lg"
       >
         <Bell size={22} strokeWidth={2} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] bg-[#f44336] text-white text-[10px] font-black rounded-full flex items-center justify-center animate-bounce">
+          <span className="absolute top-0 right-0 min-w-[22px] h-[22px] bg-[#f44336] text-white text-[10px] font-black rounded-full flex items-center justify-center animate-pulse shadow-lg">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -135,8 +136,8 @@ export default function NotificationBell() {
       {isOpen && (
         <div className="absolute right-0 top-full mt-3 w-[360px] bg-white rounded-2xl shadow-2xl border border-gray-100 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[14px] font-black text-gray-900">Thông báo</h3>
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
+            <h3 className="text-[14px] font-black text-gray-900">Thông báo từ bạn bè</h3>
             <button type="button" onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-700">
               <X size={16} />
             </button>
@@ -147,13 +148,13 @@ export default function NotificationBell() {
             {notifications.length === 0 ? (
               <div className="py-12 flex flex-col items-center text-gray-400 gap-3">
                 <Bell size={36} className="opacity-40" />
-                <p className="text-[13px] font-medium">Chưa có thông báo nào</p>
+                <p className="text-[13px] font-medium">Chưa có thông báo nào từ bạn bè</p>
               </div>
             ) : (
               notifications.map((notif) => (
                 <div
                   key={notif._id}
-                  className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-red-50/40' : ''}`}
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-red-50/50 border-l-2 border-l-[#f44336]' : ''}`}
                 >
                   <div className="relative flex-shrink-0">
                     <img
@@ -161,14 +162,14 @@ export default function NotificationBell() {
                       alt="sender"
                       className="w-10 h-10 rounded-full object-cover border border-gray-100"
                     />
-                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                    <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
                       {getIcon(notif.type)}
                     </span>
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <p className="text-[13px] text-gray-800 leading-snug">
-                      <span className="font-bold">{notif.sender?.username}</span>{' '}
-                      {notif.content}
+                      <span className="font-bold text-gray-900">{notif.sender?.username}</span>{' '}
+                      <span className="text-gray-600">{notif.content}</span>
                     </p>
                     <p className="text-[11px] font-bold text-gray-400 mt-0.5">{timeAgo(notif.createdAt)}</p>
                   </div>
@@ -182,7 +183,7 @@ export default function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-100">
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
               <button
                 type="button"
                 onClick={async () => {
