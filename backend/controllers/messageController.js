@@ -92,6 +92,18 @@ exports.sendMessage = async (req, res) => {
     // Lấy thông tin user để emit
     const populatedMessage = await Message.findById(newMessage._id).populate("sender", "username avatar");
 
+    // Tạo thông báo tin nhắn cho mỗi người nhận
+    const { createAndEmitNotification } = require('./notificationController');
+    const otherParticipants = conversation.participants.filter(p => p.toString() !== senderId.toString());
+    for (const recipientId of otherParticipants) {
+      await createAndEmitNotification(req.io, req.connectedUsers, {
+        recipient: recipientId,
+        sender: senderId,
+        type: 'message',
+        content: `đã gửi cho bạn một tin nhắn: "${text.substring(0, 30)}${text.length > 30 ? '...' : ''}"`
+      });
+    }
+
     // Phát socket cho conversation room
     if (req.io) {
       req.io.to(conversation._id.toString()).emit("newMessage", populatedMessage);

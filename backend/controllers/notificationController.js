@@ -16,10 +16,20 @@ const createAndEmitNotification = async (io, connectedUsers, { recipient, sender
   return populated;
 };
 
-// GET /api/notifications - Lấy danh sách thông báo
+// GET /api/notifications - Lấy danh sách thông báo (từ bạn bè)
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    
+    // Lấy danh sách những người mà user đang theo dõi (bạn bè)
+    const friendIds = user.following || [];
+    
+    // Chỉ lấy thông báo từ bạn bè
+    const notifications = await Notification.find({ 
+      recipient: req.user.id,
+      sender: { $in: friendIds }
+    })
       .populate('sender', 'username avatar')
       .populate('post', 'title')
       .sort({ createdAt: -1 })
@@ -53,7 +63,18 @@ exports.markRead = async (req, res) => {
 // GET /api/notifications/unread-count
 exports.getUnreadCount = async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ recipient: req.user.id, isRead: false });
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    
+    // Lấy danh sách những người mà user đang theo dõi (bạn bè)
+    const friendIds = user.following || [];
+    
+    // Chỉ đếm thông báo chưa đọc từ bạn bè
+    const count = await Notification.countDocuments({ 
+      recipient: req.user.id, 
+      isRead: false,
+      sender: { $in: friendIds }
+    });
     res.json({ count });
   } catch (error) {
     res.status(500).json({ message: error.message });
