@@ -7,9 +7,6 @@ import {
   ShieldAlert, Image as ImageIcon, Check, Heart, Send, Maximize2
 } from 'lucide-react';
 
-// ==========================================
-// COMPONENT PHỤ TRỢ
-// ==========================================
 const NotificationBell = () => (
   <button type="button" className="text-gray-500 hover:text-gray-900 transition-colors relative">
     <Bell size={22} strokeWidth={2} />
@@ -25,7 +22,6 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
-// Hàm tạo Avatar mặc định nếu user chưa có ảnh
 const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
@@ -56,9 +52,6 @@ const loadLeafletAssets = async () => {
   await leafletAssetsPromise;
 };
 
-// ==========================================
-// BẢN ĐỒ CÁ NHÂN (PROFILE MAP)
-// ==========================================
 function ProfileMap({ posts, username }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -125,9 +118,6 @@ function ProfileMap({ posts, username }) {
   );
 }
 
-// ==========================================
-// GIAO DIỆN CHÍNH
-// ==========================================
 function ProfileContent() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState({});
@@ -138,9 +128,8 @@ function ProfileContent() {
   const [collections, setCollections] = useState([]);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
 
-  // State quản lý việc Zoom ảnh
-  const [zoomedImage, setZoomedImage] = useState(null); // Lưu URL ảnh
-  const [zoomedImageType, setZoomedImageType] = useState(null); // 'avatar' hoặc 'cover'
+  const [zoomedImage, setZoomedImage] = useState(null); 
+  const [zoomedImageType, setZoomedImageType] = useState(null); 
 
   const handlePostClick = (postId) => {
     navigate(`/post-detail?postId=${postId}`);
@@ -168,22 +157,30 @@ function ProfileContent() {
     try {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
-      if (!token || !userId) throw new Error('Vui lòng đăng nhập để xem trang cá nhân');
+      
+      // SỬA LỖI TẠI ĐÂY: Thay vì throw new Error làm sập giao diện, cập nhật error State
+      if (!token || !userId) {
+        setError('Vui lòng đăng nhập để xem trang cá nhân');
+        setIsLoading(false);
+        return;
+      }
       
       const res = await fetch(`http://localhost:5000/api/users/${userId}/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không tải được thông tin cá nhân');
+        setError('Không tải được thông tin cá nhân');
+        setIsLoading(false);
+        return;
       }
       
       const data = await res.json();
       setProfile(data.user || {});
       setUserPosts(Array.isArray(data.posts) ? data.posts : []);
     } catch (err) {
-      setError(err.message || 'Lỗi hệ thống khi load profile');
+      console.warn(err);
+      setError('Lỗi hệ thống khi load profile');
     } finally {
       setIsLoading(false);
     }
@@ -201,7 +198,7 @@ function ProfileContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) setCollections(await res.json());
-    } catch (err) { console.error(err); }
+    } catch (err) {}
     setIsLoadingCollections(false);
   };
 
@@ -232,8 +229,10 @@ function ProfileContent() {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center">
         <ShieldAlert size={48} className="text-red-500 mb-4" />
-        <p className="text-gray-800 font-bold text-lg mb-2">{error}</p>
-        <button onClick={() => navigate('/dashboard')} className="px-6 py-2 bg-[#f44336] text-white font-bold rounded-full hover:bg-red-600">Về trang chủ</button>
+        <p className="text-gray-800 font-bold text-lg mb-6">{error}</p>
+        <button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white font-bold rounded-full hover:bg-red-600 shadow-md transition-colors">
+          Về trang chủ
+        </button>
       </div>
     );
   }
@@ -244,9 +243,7 @@ function ProfileContent() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12 relative">
       
-      {/* ==========================================
-          MODAL ZOOM ẢNH BÌA / AVATAR
-      ========================================== */}
+      {/* MODAL ZOOM ẢNH BÌA / AVATAR */}
       {zoomedImage && (
         <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-200">
           <div className="absolute top-6 right-6 flex gap-4">
