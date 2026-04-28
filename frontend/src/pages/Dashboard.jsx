@@ -3,8 +3,18 @@ import { useNavigate, Link, MemoryRouter, useInRouterContext } from 'react-route
 import { 
   Bell, MessageSquare, Compass, Settings, 
   MapPin, Image as ImageIcon, Send, ShieldAlert,
-  Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot
+  Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot,
+  ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock
 } from 'lucide-react';
+
+// ==========================================
+// COMPONENT PHỤ TRỢ
+// ==========================================
+const SavePostButton = ({ postId, postImage }) => (
+  <button type="button" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold">
+    <Bookmark size={20} strokeWidth={2.5} />
+  </button>
+);
 
 let leafletAssetsPromise = null;
 const loadLeafletAssets = async () => {
@@ -47,7 +57,7 @@ const loadLeafletAssets = async () => {
 };
 
 // ==========================================
-// 1. COMPONENT BẢN ĐỒ THẬT CHỌN TỌA ĐỘ
+// COMPONENT BẢN ĐỒ
 // ==========================================
 function RealMapPicker({ setPickedCoords }) {
   const mapRef = useRef(null);
@@ -94,9 +104,6 @@ function RealMapPicker({ setPickedCoords }) {
   );
 }
 
-// ==========================================
-// 2. COMPONENT BẢN ĐỒ THẬT XEM VỊ TRÍ
-// ==========================================
 function RealMapViewer({ lat, lng, role, location }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -144,12 +151,12 @@ function RealMapViewer({ lat, lng, role, location }) {
 }
 
 // ==========================================
-// 3. GIAO DIỆN CHÍNH
+// GIAO DIỆN CHÍNH
 // ==========================================
 function DashboardContent() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
-  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'viewer', avatar: '' });
+  const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
   const [pickedCoords, setPickedCoords] = useState(null);
@@ -172,54 +179,310 @@ function DashboardContent() {
   const [editingCommentContent, setEditingCommentContent] = useState("");
   const [likingPosts, setLikingPosts] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, postId: null, commentId: null });
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'ai', content: 'Xin chào! Mình là trợ lý du lịch 🤖 Bạn muốn đi đâu cuối tuần này?' }
-  ]);
   const [openPostMenuId, setOpenPostMenuId] = useState(null);
 
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const [aiChatInput, setAiChatInput] = useState('');
+  const [isAiChatLoading, setIsAiChatLoading] = useState(false);
+  const [aiChatMessages, setAiChatMessages] = useState([
+    { role: 'ai', content: 'Xin chào! Mình là trợ lý du lịch 🤖 Bạn muốn đi đâu cuối tuần này?' }
+  ]);
+
+  // ==============================================================
+  // STATE HỆ THỐNG THÔNG BÁO (NOTIFICATIONS - KÉO 100% TỪ DATABASE)
+  // ==============================================================
+  const [notifications, setNotifications] = useState([]);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const displayBadgeCount = unreadCount > 9 ? '9+' : unreadCount;
+
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(Array.isArray(data) ? data : []);
+      } else {
+        setNotifications([]);
+      }
+    } catch (error) {
+      setNotifications([]);
+    }
+  };
+
+  const handleReadNotification = async (notif) => {
+    setNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, isRead: true } : n));
+    setIsNotificationOpen(false);
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://localhost:5000/api/notifications/${notif._id}/read`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${token}` }
+      }).catch(()=>{});
+    }
+
+    if (notif.type === 'message' && notif.sender) {
+      setIsUserChatOpen(true);
+      setSelectedChatUser(notif.sender);
+      setChatView('conversation');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`http://localhost:5000/api/notifications/read-all`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${token}` }
+      }).catch(()=>{});
+    }
+  };
+
+  // ==============================================================
+  // STATE HỆ THỐNG BẠN BÈ VÀ CHAT
+  // ==============================================================
+  const [allUsers, setAllUsers] = useState([]); 
+  const [friends, setFriends] = useState([]); 
+  const [sentRequests, setSentRequests] = useState([]);
+  const [receivedRequests, setReceivedRequests] = useState([]); 
+  const [isFriendDropdownOpen, setIsFriendDropdownOpen] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+
+  const [isUserChatOpen, setIsUserChatOpen] = useState(false);
+  const [chatView, setChatView] = useState('list'); 
+  const [selectedChatUser, setSelectedChatUser] = useState(null);
+  const [userMessageInput, setUserMessageInput] = useState('');
+  const [userMessages, setUserMessages] = useState({}); 
+  const [currentConversationId, setCurrentConversationId] = useState(null);
+
+  const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
+
+  const fetchAllUsers = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/users/search', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllUsers(prev => {
+          const newUsers = [...prev];
+          data.forEach(d => {
+             if (!newUsers.find(u => String(u._id) === String(d._id))) newUsers.push(d);
+          });
+          return newUsers;
+        });
+      }
+    } catch (error) {}
+  };
+
+  const fetchFriendData = async () => {
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    if (!token || !userId) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/${userId}/profile`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          const myFollowing = (data.user.following || []).map(u => String(u._id || u));
+          const myFollowers = (data.user.followers || []).map(u => String(u._id || u));
+
+          const mutualFriends = myFollowing.filter(id => myFollowers.includes(id));
+          const sent = myFollowing.filter(id => !myFollowers.includes(id));
+          const received = myFollowers.filter(id => !myFollowing.includes(id));
+
+          setFriends(mutualFriends);
+          setSentRequests(sent);
+          setReceivedRequests(received);
+
+          const combinedUsers = [...(data.user.followers || []), ...(data.user.following || [])];
+          setAllUsers(prev => {
+            const newUsers = [...prev];
+            combinedUsers.forEach(u => {
+              if (u._id && !newUsers.find(exist => String(exist._id) === String(u._id))) {
+                newUsers.push(u);
+              }
+            });
+            return newUsers;
+          });
+        }
+      }
+    } catch (error) {}
+  };
+
+  const fetchChatHistory = async (targetUserId) => {
+    const token = localStorage.getItem('token');
+    const currentUserId = localStorage.getItem('userId');
+    if (!token || !targetUserId) return;
+    
+    try {
+      const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId })
+      });
+
+      if (!convRes.ok) return;
+      const conversation = await convRes.json();
+      setCurrentConversationId(conversation._id); 
+
+      const msgRes = await fetch(`http://localhost:5000/api/messages/${conversation._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (msgRes.ok) {
+        const messages = await msgRes.json();
+        const formattedMessages = messages.map(msg => {
+          const senderId = msg.sender?._id || msg.sender;
+          return {
+            sender: String(senderId) === String(currentUserId) ? 'me' : 'them',
+            text: msg.text 
+          };
+        });
+        
+        setUserMessages(prev => ({
+          ...prev,
+          [targetUserId]: formattedMessages
+        }));
+      }
+    } catch (error) {}
+  };
+
   useEffect(() => {
-    const userRole = localStorage.getItem('role') || 'viewer';
-    const userId = localStorage.getItem('userId') || '';
-    // Nếu không có user, dùng tên mặc định thay vì đá văng về login gây lỗi ở môi trường xem trước
-    const username = localStorage.getItem('username') || 'Khách Xem Trước';
+    const userRole = localStorage.getItem('role') || 'user';
+    const userId = localStorage.getItem('userId') || ''; 
+    const username = localStorage.getItem('username') || '';
     const avatar = localStorage.getItem('avatar') || '';
     setCurrentUser({ userId, username, role: String(userRole).toLowerCase(), avatar });
+    
     loadLeafletAssets().catch(() => {});
     fetchPosts();
+
+    if (userId) {
+      fetchAllUsers();
+      fetchFriendData();
+      fetchNotifications();
+    }
+
+    const handleOpenChat = (e) => {
+      setIsUserChatOpen(true);
+      if (e.detail && e.detail.userId) {
+        const user = getUserById(e.detail.userId);
+        setSelectedChatUser(user);
+        setChatView('conversation');
+      } else {
+        setChatView('list');
+      }
+    };
+    window.addEventListener('openChat', handleOpenChat);
+    return () => window.removeEventListener('openChat', handleOpenChat);
   }, [navigate]);
+
+  useEffect(() => {
+    if (isUserChatOpen && chatView === 'conversation' && selectedChatUser) {
+      fetchChatHistory(selectedChatUser._id);
+    }
+  }, [isUserChatOpen, chatView, selectedChatUser]);
 
   const showToast = (type, text) => {
     setNotification({ type, text: String(text) });
     setTimeout(() => setNotification({ type: '', text: '' }), 5000);
   };
 
-  const mockPostData = [{
-    _id: 'mock_1',
-    title: 'Hệ thống giả lập',
-    description: 'Do chưa kết nối được Backend, đây là bài viết mô phỏng.',
-    location: 'Đà Nẵng',
-    lat: 16.047, lng: 108.206,
-    createdBy: { username: 'Admin', role: 'admin' },
-    createdAt: new Date().toISOString(),
-    likes: [],
-    images: [],
-    totalReviews: 0
-  }];
+  const handleAddFriend = async (userId) => {
+    const strUserId = String(userId);
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập để kết bạn.');
+
+    setSentRequests(prev => [...prev, strUserId]);
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/follow/${strUserId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.following) {
+        showToast('success', 'Đã gửi lời mời kết bạn');
+      } else {
+        setSentRequests(prev => prev.filter(id => id !== strUserId));
+      }
+    } catch (error) {
+      setSentRequests(prev => prev.filter(id => id !== strUserId));
+    }
+  };
+
+  const handleUndoRequest = async (userId) => {
+    const strUserId = String(userId);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setSentRequests(prev => prev.filter(id => id !== strUserId));
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/follow/${strUserId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && !data.following) {
+        showToast('success', 'Đã thu hồi lời mời');
+      } else {
+        setSentRequests(prev => [...prev, strUserId]);
+      }
+    } catch (error) {
+      setSentRequests(prev => [...prev, strUserId]);
+    }
+  };
+
+  const handleAcceptFriend = async (userId) => {
+    const strUserId = String(userId);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setReceivedRequests(prev => prev.filter(id => id !== strUserId));
+    setFriends(prev => [...prev, strUserId]);
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/follow/${strUserId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        showToast('success', 'Đã trở thành bạn bè');
+      } else {
+        setReceivedRequests(prev => [...prev, strUserId]);
+        setFriends(prev => prev.filter(id => id !== strUserId));
+      }
+    } catch (error) {
+      setReceivedRequests(prev => [...prev, strUserId]);
+      setFriends(prev => prev.filter(id => id !== strUserId));
+    }
+  };
+
+  const handleDeclineFriend = (userId) => {
+    const strUserId = String(userId);
+    setReceivedRequests(prev => prev.filter(id => id !== strUserId));
+    showToast('success', 'Đã từ chối lời mời');
+  };
 
   const fetchPosts = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/posts');
       if (res.ok) {
         const data = await res.json();
-        setPosts(Array.isArray(data) ? data : mockPostData);
-      } else {
-        setPosts(mockPostData);
+        setPosts(Array.isArray(data) ? data : []);
       }
     } catch (error) { 
-      setPosts(mockPostData); 
+      setPosts([]); 
     }
   };
 
@@ -340,7 +603,6 @@ function DashboardContent() {
     await handleDeleteComment(postId, commentId);
     cancelDelete();
   };
-
 
   const startEditComment = (commentId, content) => {
     setEditingCommentId(commentId);
@@ -548,14 +810,14 @@ function DashboardContent() {
     }
   };
 
-  const handleSendChat = async () => {
-    const text = chatInput.trim();
-    if (!text || isChatLoading) return;
+  const handleSendAiChat = async () => {
+    const text = aiChatInput.trim();
+    if (!text || isAiChatLoading) return;
 
-    const nextMessages = [...chatMessages, { role: 'user', content: text }];
-    setChatMessages(nextMessages);
-    setChatInput('');
-    setIsChatLoading(true);
+    const nextMessages = [...aiChatMessages, { role: 'user', content: text }];
+    setAiChatMessages(nextMessages);
+    setAiChatInput('');
+    setIsAiChatLoading(true);
 
     try {
       const history = nextMessages.slice(0, -1).map((m) => ({
@@ -572,21 +834,64 @@ function DashboardContent() {
       if (!res.ok) throw new Error('Không gọi được trợ lý AI');
       const data = await res.json();
       const reply = data.reply || 'Mình chưa có câu trả lời phù hợp, bạn thử lại nhé.';
-      setChatMessages((prev) => [...prev, { role: 'ai', content: reply }]);
+      setAiChatMessages((prev) => [...prev, { role: 'ai', content: reply }]);
     } catch (error) {
-      setChatMessages((prev) => [
+      setAiChatMessages((prev) => [
         ...prev,
         { role: 'ai', content: 'Hiện tại AI đang bận hoặc thiếu cấu hình `GROQ_API_KEY` ở backend.' }
       ]);
     } finally {
-      setIsChatLoading(false);
+      setIsAiChatLoading(false);
     }
   };
+
+  const handleSendUserMessage = async () => {
+    if (!userMessageInput.trim() || !selectedChatUser) return;
+    const token = localStorage.getItem('token');
+    const userId = String(selectedChatUser._id);
+    const text = userMessageInput;
+    
+    setUserMessages(prev => ({
+      ...prev,
+      [userId]: [...(prev[userId] || []), { sender: 'me', text }]
+    }));
+    setUserMessageInput('');
+
+    try {
+      await fetch('http://localhost:5000/api/messages/', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          receiverId: userId, 
+          text: text, 
+          conversationId: currentConversationId 
+        })
+      });
+    } catch(err) { console.log(err) }
+  };
+
+  const currentUserIdStr = String(currentUser.userId);
+
+  const searchResults = allUsers.filter(u => 
+    u.role !== 'admin' && 
+    String(u._id) !== currentUserIdStr && 
+    u.username.toLowerCase().includes(friendSearchQuery.toLowerCase())
+  );
+
+  const recommendedUsers = allUsers.filter(u => {
+    const targetIdStr = String(u._id);
+    return u.role !== 'admin' && 
+           targetIdStr !== currentUserIdStr && 
+           !friends.includes(targetIdStr) &&
+           !receivedRequests.includes(targetIdStr);
+  });
+
+  const currentChatMessages = selectedChatUser ? (userMessages[selectedChatUser._id] || []) : [];
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans relative">
       {notification.text && (
-        <div className={`fixed bottom-6 right-6 z-[100] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
+        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
           {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
           <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
           <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900"><X size={18} /></button>
@@ -616,12 +921,322 @@ function DashboardContent() {
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
-          <button type="button" className="text-gray-500 hover:text-gray-900"><Bell size={22} strokeWidth={2} /></button>
+          
+          {/* =========================================
+              MENU THÔNG BÁO (NOTIFICATION BELL)
+          ========================================= */}
+          <div className="relative">
+            <button 
+              type="button" 
+              onClick={() => {
+                setIsNotificationOpen(!isNotificationOpen);
+                setIsFriendDropdownOpen(false); 
+                if (!isNotificationOpen) fetchNotifications();
+              }} 
+              className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isNotificationOpen ? 'text-[#f44336]' : ''}`}
+            >
+              <Bell size={22} strokeWidth={2} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white flex items-center justify-center min-w-[18px]">
+                  {displayBadgeCount}
+                </span>
+              )}
+            </button>
+
+            {isNotificationOpen && (
+              <div className="absolute right-0 top-10 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[110] animate-in slide-in-from-top-2 fade-in">
+                <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                  <h3 className="font-bold text-[14px] text-gray-900">Thông báo</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={handleMarkAllAsRead} 
+                      className="text-[11px] font-semibold text-[#f44336] hover:underline"
+                    >
+                      Đánh dấu đã đọc
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[350px] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                     <div className="p-6 text-center text-[12px] text-gray-500">
+                        Không có thông báo mới.
+                     </div>
+                  ) : (
+                     notifications.map(notif => (
+                       <div 
+                         key={notif._id} 
+                         onClick={() => handleReadNotification(notif)}
+                         className={`flex items-start gap-3 p-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.isRead ? 'bg-blue-50/30' : ''}`}
+                       >
+                         <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden border border-gray-200">
+                           {notif.sender?.avatar ? <img src={notif.sender.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <p className="text-[13px] text-gray-800 leading-tight">
+                             <span className="font-bold text-gray-900 mr-1">{notif.sender?.username}</span>
+                             {notif.content}
+                           </p>
+                           <p className="text-[11px] text-[#f44336] font-medium mt-1">Vừa xong</p>
+                         </div>
+                         {!notif.isRead && <div className="w-2.5 h-2.5 bg-[#f44336] rounded-full shrink-0 mt-1.5 shadow-sm"></div>}
+                       </div>
+                     ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* =========================================
+              MENU BẠN BÈ VÀ LỜI MỜI
+          ========================================= */}
+          <div className="relative">
+            <button 
+              type="button" 
+              onClick={() => {
+                setIsFriendDropdownOpen(!isFriendDropdownOpen);
+                setIsNotificationOpen(false); 
+                if (!isFriendDropdownOpen) fetchFriendData(); 
+              }} 
+              className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : ''}`}
+            >
+              <Users size={22} strokeWidth={2} />
+              {receivedRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
+              )}
+            </button>
+            
+            {isFriendDropdownOpen && (
+              <div className="absolute right-0 top-10 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[110] animate-in slide-in-from-top-2 fade-in">
+                <div className="p-3 border-b border-gray-100 bg-white">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text"
+                      placeholder="Tìm kiếm bạn bè..."
+                      value={friendSearchQuery}
+                      onChange={(e) => setFriendSearchQuery(e.target.value)}
+                      className="w-full bg-[#f4f4f5] rounded-full py-2 pl-9 pr-4 text-[13px] outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-h-[350px] overflow-y-auto pb-4">
+                  {friendSearchQuery.trim() !== '' ? (
+                    <div className="px-2 pt-2">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Kết quả tìm kiếm</p>
+                      {searchResults.length === 0 ? (
+                        <p className="text-[13px] text-center text-gray-500 py-4">Không tìm thấy người dùng nào.</p>
+                      ) : (
+                        searchResults.map(user => {
+                          const strUserId = String(user._id);
+                          return (
+                            <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0">
+                                <User size={20} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-[13px] text-gray-900 truncate">{user.username}</p>
+                              </div>
+                              <div className="shrink-0 flex items-center">
+                                {friends.includes(strUserId) ? (
+                                  <button onClick={() => { setIsFriendDropdownOpen(false); setIsUserChatOpen(true); setSelectedChatUser(user); setChatView('conversation'); }} className="text-[11px] font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">Nhắn tin</button>
+                                ) : sentRequests.includes(strUserId) ? (
+                                  <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                ) : receivedRequests.includes(strUserId) ? (
+                                  <button onClick={() => handleAcceptFriend(user._id)} className="text-[11px] font-bold text-white bg-[#f44336] px-3 py-1.5 rounded-full hover:bg-[#e22d41]">Chấp nhận</button>
+                                ) : (
+                                  <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors">
+                                    <UserPlus size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {receivedRequests.length > 0 && (
+                        <div className="px-2 pt-3 pb-2 border-b border-gray-100">
+                          <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest px-2 mb-2">Lời mời kết bạn mới</p>
+                          {receivedRequests.map(reqId => {
+                            const user = getUserById(reqId);
+                            return (
+                              <div key={reqId} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0">
+                                  <User size={20} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-[13px] text-gray-900 truncate">{user.username}</p>
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  <button onClick={() => handleAcceptFriend(reqId)} className="w-8 h-8 rounded-full bg-[#f44336] text-white flex items-center justify-center hover:bg-[#e22d41] transition-colors"><Check size={16}/></button>
+                                  <button onClick={() => handleDeclineFriend(reqId)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-colors"><X size={16}/></button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <div className="px-2 pt-3">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Gợi ý kết nối</p>
+                        {recommendedUsers.length === 0 ? (
+                          <p className="text-[12px] text-gray-400 text-center py-4">Bạn đã kết nối với tất cả mọi người!</p>
+                        ) : (
+                          recommendedUsers.map(user => {
+                            const strUserId = String(user._id);
+                            return (
+                              <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
+                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0">
+                                  <User size={20} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-[13px] text-gray-900 truncate">{user.username}</p>
+                                  <p className="text-[11px] text-gray-400 truncate">Có thể bạn quen</p>
+                                </div>
+                                <div className="shrink-0 flex items-center">
+                                  {sentRequests.includes(strUserId) ? (
+                                    <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => handleAddFriend(user._id)}
+                                      className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors shrink-0"
+                                      title="Kết bạn"
+                                    >
+                                      <UserPlus size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button 
+            type="button" 
+            onClick={() => { setIsUserChatOpen((prev) => !prev); if(!isUserChatOpen) setChatView('list'); }} 
+            className={`text-gray-500 hover:text-gray-900 transition-colors ${isUserChatOpen ? 'text-[#f44336]' : ''}`}
+          >
+            <MessageSquare size={22} strokeWidth={2} />
+          </button>
+          
           <Link to="/profile" className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-200">
             <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Me" className="w-full h-full object-cover" />
           </Link>
         </div>
       </header>
+
+      {/* =========================================
+          WIDGET CHAT USER
+      ========================================= */}
+      {isUserChatOpen && (
+        <div className="fixed right-6 top-[85px] z-[100] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
+          <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
+            <div className="flex items-center gap-2">
+              {chatView === 'conversation' ? (
+                <>
+                  <button onClick={() => setChatView('list')} className="hover:bg-red-600 p-1 rounded-full transition-colors">
+                    <ArrowLeft size={18} />
+                  </button>
+                  <span className="font-bold text-[14px]">{selectedChatUser?.username || 'Trò chuyện'}</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquare size={18} />
+                  <span className="font-bold text-[14px]">Tin nhắn</span>
+                </>
+              )}
+            </div>
+            <button onClick={() => setIsUserChatOpen(false)} className="hover:bg-red-600 p-1 rounded-full transition-colors"><X size={18} /></button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-white flex flex-col">
+            {chatView === 'list' ? (
+              <div className="p-2 pb-4">
+                {friends.length === 0 ? (
+                  <div className="p-6 text-center text-[12px] text-gray-500">
+                    <Users size={32} className="mx-auto text-gray-300 mb-3" />
+                    Bạn chưa có bạn bè nào.<br/>Hãy tìm kiếm và kết bạn để bắt đầu trò chuyện nhé!
+                  </div>
+                ) : (
+                  friends.map(friendId => {
+                    const user = getUserById(friendId);
+                    const lastMsgObj = userMessages[friendId]?.slice(-1)[0];
+                    const lastMessage = lastMsgObj ? (lastMsgObj.sender === 'me' ? `Bạn: ${lastMsgObj.text}` : lastMsgObj.text) : 'Bắt đầu trò chuyện';
+
+                    return (
+                      <div key={user._id} onClick={() => { setSelectedChatUser(user); setChatView('conversation'); }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 relative">
+                          <User size={20} />
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[13px] text-gray-900 truncate">{user.username}</p>
+                          <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col h-full bg-white relative">
+                <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                  <div className="text-center text-[11px] text-gray-400 mb-4">Bắt đầu trò chuyện với {selectedChatUser?.username}</div>
+                  
+                  {currentChatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.sender === 'them' && (
+                        <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 mr-2 self-end mb-1">
+                          <User size={14} />
+                        </div>
+                      )}
+                      <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] text-gray-900 rounded-bl-sm border border-gray-100'}`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                  {currentChatMessages.length === 0 && (
+                     <div className="flex justify-center text-[12px] text-gray-400 mt-4">
+                       Hãy nói lời chào 👋
+                     </div>
+                  )}
+                </div>
+                <div className="p-3 border-t border-gray-100 bg-white shrink-0">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={userMessageInput}
+                      onChange={(e) => setUserMessageInput(e.target.value)}
+                      placeholder="Aa"
+                      className="w-full bg-[#f4f4f5] rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSendUserMessage();
+                      }}
+                    />
+                    <button
+                      onClick={handleSendUserMessage}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 rounded-full transition-colors"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <main className="max-w-[1100px] mx-auto pt-8 px-4 flex gap-8 items-start">
         
@@ -705,11 +1320,25 @@ function DashboardContent() {
                   <div className="p-6">
                     <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full overflow-hidden border-2 ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}>
+                        <div 
+                          className={`w-10 h-10 rounded-full overflow-hidden border-2 cursor-pointer hover:ring-2 hover:ring-red-200 transition-all ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}
+                          onClick={() => {
+                            if (post.createdBy && String(post.createdBy._id) !== String(currentUser.userId)) {
+                              window.dispatchEvent(new CustomEvent('openChat', { detail: { userId: post.createdBy._id, username: post.createdBy.username } }));
+                            }
+                          }}
+                        >
                           <img src={post.createdBy?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
                         </div>
                         <div>
-                          <h3 className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5">
+                          <h3 
+                            className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5 cursor-pointer hover:underline"
+                            onClick={() => {
+                              if (post.createdBy && String(post.createdBy._id) !== String(currentUser.userId)) {
+                                window.dispatchEvent(new CustomEvent('openChat', { detail: { userId: post.createdBy._id, username: post.createdBy.username } }));
+                              }
+                            }}
+                          >
                             {post.createdBy?.username || "Ẩn danh"} 
                             {isAdmin && <CheckCircle size={14} className="text-[#f44336]" />}
                           </h3>
@@ -822,7 +1451,8 @@ function DashboardContent() {
                       <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
                         <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || 'Bình luận'}
                       </button>
-                      <button type="button" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
+                      <SavePostButton postId={post._id} postImage={post.images?.[0]} />
+                      <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
                         <Share2 size={20} strokeWidth={2.5} />
                       </button>
                     </div>
@@ -978,24 +1608,24 @@ function DashboardContent() {
             <div className="space-y-4">
               <div>
                 <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">Biển</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
+                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Văn Hóa</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
+                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
               </div>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ Gợi ý nhanh</h3>
             <div className="space-y-2">
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput('Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 Lịch trình Đà Nẵng 2N1Đ
               </button>
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput('Gợi ý món ăn ngon ở Huế'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Gợi ý món ăn ngon ở Huế'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 Ăn gì ở Huế?
               </button>
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput('Điểm check-in đẹp ở Hội An buổi tối'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Điểm check-in đẹp ở Hội An buổi tối'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 Check-in Hội An buổi tối
               </button>
             </div>
@@ -1010,29 +1640,30 @@ function DashboardContent() {
 
       </main>
 
+      {/* WIDGET TRỢ LÝ AI */}
       <button
         type="button"
-        onClick={() => setIsChatOpen((prev) => !prev)}
+        onClick={() => setIsAiChatOpen((prev) => !prev)}
         className="fixed right-6 bottom-6 z-[101] bg-[#f44336] text-white w-14 h-14 rounded-full shadow-xl shadow-red-500/30 hover:bg-[#e53935] flex items-center justify-center"
       >
         <Bot size={24} />
       </button>
 
-      {isChatOpen && (
+      {isAiChatOpen && (
         <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h3 className="text-[13px] font-black text-gray-900">AI Tư vấn địa điểm</h3>
-            <button type="button" onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-gray-700">
+            <button type="button" onClick={() => setIsAiChatOpen(false)} className="text-gray-400 hover:text-gray-700">
               <X size={16} />
             </button>
           </div>
           <div className="h-[320px] overflow-y-auto px-3 py-3 space-y-3 bg-[#fafafa]">
-            {chatMessages.map((msg, index) => (
+            {aiChatMessages.map((msg, index) => (
               <div key={index} className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'ml-auto bg-[#f44336] text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'}`}>
                 {msg.content}
               </div>
             ))}
-            {isChatLoading && (
+            {isAiChatLoading && (
               <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
                 Đang tư vấn...
               </div>
@@ -1040,16 +1671,16 @@ function DashboardContent() {
           </div>
           <div className="p-3 border-t border-gray-100 flex gap-2">
             <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+              value={aiChatInput}
+              onChange={(e) => setAiChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendAiChat()}
               placeholder="Ví dụ: Gợi ý lịch trình Đà Lạt 2 ngày"
               className="flex-1 bg-[#f4f4f5] rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
             />
             <button
               type="button"
-              onClick={handleSendChat}
-              disabled={isChatLoading || !chatInput.trim()}
+              onClick={handleSendAiChat}
+              disabled={isAiChatLoading || !aiChatInput.trim()}
               className="px-4 py-2 rounded-xl bg-[#f44336] text-white text-[13px] font-bold hover:bg-[#e53935] disabled:opacity-50"
             >
               Gửi

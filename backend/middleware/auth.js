@@ -1,13 +1,12 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user");
+const User = require("../models/User");
 
 // Keep role comparisons consistent across backend.
 const normalizeRole = (role) => {
-  if (typeof role !== "string") return "";
+  if (typeof role !== "string") return "user";
   const r = role.trim().toLowerCase();
-  // Backward compatibility: legacy role "user" in this project maps to "poster".
-  if (r === "user") return "poster";
-  return r;
+  if (r === "admin") return "admin";
+  return "user";
 };
 
 // 🔐 Xác thực token — bắt buộc đăng nhập
@@ -32,14 +31,6 @@ const optionalAuth = (req, res, next) => {
   next();
 };
 
-// ✍️ Chỉ poster và admin mới đăng bài được
-const requirePoster = (req, res, next) => {
-  if (!req.user) return res.status(401).json({ message: "Chưa đăng nhập" });
-  const role = normalizeRole(req.user.role);
-  if (!["poster", "admin"].includes(role))
-    return res.status(403).json({ message: "Chỉ tài khoản Poster mới được đăng bài" });
-  next();
-};
 
 // 👑 Chỉ admin
 const requireAdmin = (req, res, next) => {
@@ -66,4 +57,4 @@ const requireOwnerOrAdmin = (getOwnerId) => async (req, res, next) => {
   }
 };
 
-module.exports = { protect, optionalAuth, requirePoster, requireAdmin, requireOwnerOrAdmin };
+module.exports = { protect, optionalAuth, requireAdmin, requireOwnerOrAdmin };

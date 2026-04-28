@@ -10,13 +10,8 @@ const userSchema = new mongoose.Schema(
     bio:      String,
     role: {
       type: String,
-      enum: ["viewer", "poster", "admin"],
-      default: "viewer",   // mặc định khi đăng ký là viewer
-    },
-    roleRequestStatus: {
-      type: String,
-      enum: ["none", "pending", "approved", "rejected"],
-      default: "none",
+      enum: ["user", "admin"],
+      default: "user",   // mặc định khi đăng ký là user
     },
     followers:      [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     following:      [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],

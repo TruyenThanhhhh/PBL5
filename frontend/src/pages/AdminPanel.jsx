@@ -278,22 +278,13 @@ function PostsTab({ showToast }) {
 // ════════════════════════════════════════════════════════════════
 function UsersTab({ showToast }) {
   const [users, setUsers] = useState([]);
-  const [pending, setPending] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
-  const [subTab, setSubTab] = useState('list'); // list | pending
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Lấy danh sách users từ posts (cách làm hiện tại của project)
-      const [postsRes, pendingRes] = await Promise.all([
-        fetch(`${API}/posts`, { headers: authHeader() }),
-        fetch(`${API}/users/admin/pending-requests`, { headers: authHeader() }),
-      ]);
+      const postsRes = await fetch(`${API}/posts`, { headers: authHeader() });
       const postsData = await postsRes.json();
-      const pendingData = await pendingRes.json();
 
       // Gom user từ posts, dedup theo _id
       const userMap = {};
@@ -309,7 +300,6 @@ function UsersTab({ showToast }) {
         });
       }
       setUsers(Object.values(userMap));
-      setPending(Array.isArray(pendingData) ? pendingData : []);
     } catch {
       showToast('error', 'Lỗi tải dữ liệu người dùng');
     } finally {
@@ -319,21 +309,6 @@ function UsersTab({ showToast }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleApprove = async (userId, action) => {
-    try {
-      const res = await fetch(`${API}/users/admin/approve-request`, {
-        method: 'POST',
-        headers: authHeader(),
-        body: JSON.stringify({ userId, action }),
-      });
-      if (!res.ok) throw new Error();
-      setPending(prev => prev.filter(u => u._id !== userId));
-      showToast('success', action === 'approve' ? 'Đã duyệt thành Poster' : 'Đã từ chối yêu cầu');
-      fetchData();
-    } catch {
-      showToast('error', 'Lỗi khi xử lý yêu cầu');
-    }
-  };
 
   const filteredUsers = users.filter(u => {
     const matchSearch = !search.trim() ||
@@ -348,7 +323,6 @@ function UsersTab({ showToast }) {
     admin: users.filter(u => u.role === 'admin').length,
     poster: users.filter(u => u.role === 'poster').length,
     viewer: users.filter(u => u.role === 'viewer').length,
-    pending: pending.length,
   };
 
   return (
@@ -359,7 +333,6 @@ function UsersTab({ showToast }) {
           { label: 'Tổng users', value: stats.total, color: 'text-gray-900' },
           { label: 'Poster', value: stats.poster, color: 'text-blue-600' },
           { label: 'Viewer', value: stats.viewer, color: 'text-gray-500' },
-          { label: 'Chờ duyệt', value: stats.pending, color: 'text-amber-500' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">{s.label}</p>
@@ -368,42 +341,19 @@ function UsersTab({ showToast }) {
         ))}
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setSubTab('list')}
-          className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-colors ${subTab === 'list' ? 'bg-[#f44336] text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
-        >
-          <span className="flex items-center gap-2"><Users size={14}/> Danh sách Users</span>
-        </button>
-        <button
-          onClick={() => setSubTab('pending')}
-          className={`px-4 py-2 rounded-xl text-[13px] font-bold transition-colors flex items-center gap-2 ${subTab === 'pending' ? 'bg-[#f44336] text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
-        >
-          <Shield size={14}/> Yêu cầu Poster
-          {pending.length > 0 && (
-            <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-black ${subTab === 'pending' ? 'bg-white/30 text-white' : 'bg-amber-100 text-amber-600'}`}>
-              {pending.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* SUB-TAB: DANH SÁCH USERS */}
-      {subTab === 'list' && (
-        <>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-4 p-4 flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex gap-2 items-center flex-1">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-                <input
-                  value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Tìm theo tên hoặc email..."
-                  className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-red-200"
-                />
-              </div>
-              <select
-                value={filterRole} onChange={e => setFilterRole(e.target.value)}
+      {/* DANH SÁCH USERS */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-4 p-4 flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 items-center flex-1">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+            <input
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo tên hoặc email..."
+              className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] rounded-xl text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-red-200"
+            />
+          </div>
+          <select
+            value={filterRole} onChange={e => setFilterRole(e.target.value)}
                 className="bg-[#f4f4f5] rounded-xl px-3 py-2 text-[13px] font-bold text-gray-700 focus:outline-none cursor-pointer"
               >
                 <option value="all">Tất cả role</option>
@@ -470,65 +420,7 @@ function UsersTab({ showToast }) {
               </div>
             )}
           </div>
-        </>
-      )}
-
-      {/* SUB-TAB: YÊU CẦU POSTER */}
-      {subTab === 'pending' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[14px] font-black text-gray-900">Yêu cầu nâng cấp lên Poster</h3>
-            {pending.length > 0 && (
-              <span className="bg-amber-100 text-amber-600 text-[11px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider">
-                {pending.length} chờ duyệt
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="animate-spin w-8 h-8 border-4 border-[#f44336] border-t-transparent rounded-full"/>
-            </div>
-          ) : pending.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-              <CheckCircle size={32} className="mb-2 opacity-30"/>
-              <p className="text-[13px] font-medium">Không có yêu cầu nào đang chờ</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {pending.map(req => (
-                <div key={req._id} className="flex items-center justify-between px-6 py-4 hover:bg-[#fafafa] transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[14px] font-black text-gray-500">
-                      {req.username?.[0]?.toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-[13px] font-bold text-gray-900">{req.username}</p>
-                      <p className="text-[11px] text-gray-400 font-medium">{req.email}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Đăng ký: {fmt(req.createdAt)}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleApprove(req._id, 'approve')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 text-[12px] font-bold rounded-xl transition-colors"
-                    >
-                      <CheckCircle size={14}/> Duyệt
-                    </button>
-                    <button
-                      onClick={() => handleApprove(req._id, 'reject')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-500 hover:bg-red-100 text-[12px] font-bold rounded-xl transition-colors"
-                    >
-                      <XCircle size={14}/> Từ chối
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      </div>
   );
 }
 
@@ -538,31 +430,16 @@ function UsersTab({ showToast }) {
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('posts');
   const [toast, setToast] = useState({ type: '', text: '' });
-  const [pendingCount, setPendingCount] = useState(0);
 
   const showToast = useCallback((type, text) => {
     setToast({ type, text });
     setTimeout(() => setToast({ type: '', text: '' }), 4000);
   }, []);
 
-  // Fetch pending count for badge
-  useEffect(() => {
-    const fetchPending = async () => {
-      try {
-        const res = await fetch(`${API}/users/admin/pending-requests`, { headers: authHeader() });
-        if (res.ok) {
-          const data = await res.json();
-          setPendingCount(Array.isArray(data) ? data.length : 0);
-        }
-      } catch {}
-    };
-    fetchPending();
-  }, [activeTab]);
-
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'posts', icon: FileText, label: 'Bài viết' },
-    { id: 'users', icon: Users, label: 'Người dùng', badge: pendingCount },
+    { id: 'users', icon: Users, label: 'Người dùng' },
   ];
 
   return (
@@ -621,7 +498,6 @@ export default function AdminPanel() {
           <div className="flex items-center gap-4">
             <button className="text-gray-400 hover:text-gray-700 transition-colors relative">
               <Bell size={20} strokeWidth={2}/>
-              {pendingCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#f44336] rounded-full text-white text-[9px] font-black flex items-center justify-center">{pendingCount}</span>}
             </button>
             <button className="text-gray-400 hover:text-gray-700 transition-colors">
               <Settings size={20} strokeWidth={2}/>
@@ -636,7 +512,6 @@ export default function AdminPanel() {
               <p className="text-[14px] text-gray-500 font-medium mb-6">Tổng quan hệ thống</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
                 {[
-                  { label: 'Bài viết chờ duyệt', value: pendingCount, color: 'text-amber-500', sub: 'Yêu cầu Poster' },
                   { label: 'Tổng bài viết', value: '—', color: 'text-gray-900', sub: 'Xem tab Bài viết' },
                   { label: 'Người dùng', value: '—', color: 'text-blue-600', sub: 'Xem tab Users' },
                   { label: 'Trạng thái', value: '✓', color: 'text-green-500', sub: 'Hệ thống ổn định' },

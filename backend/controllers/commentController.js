@@ -23,7 +23,22 @@ exports.addComment = async (req, res) => {
       await recalcRating(postId);
     }
 
-    const populated = await comment.populate("author", "username avatar");
+    const populated = await comment.populate('author', 'username avatar');
+
+    // Gử thông báo Comment real-time
+    try {
+      const { createAndEmitNotification } = require('./notificationController');
+      await createAndEmitNotification(req.io, req.connectedUsers, {
+        recipient: post.createdBy,
+        sender: req.user.id,
+        type: 'comment',
+        post: postId,
+        content: `đã bình luận vào bài viết của bạn: "${content?.substring(0, 40)}..."`
+      });
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr.message);
+    }
+
     res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });

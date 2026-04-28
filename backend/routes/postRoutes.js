@@ -3,7 +3,7 @@ const router  = express.Router();
 const postController = require("../controllers/postcontroller");
 const upload  = require("../middleware/upload");
 const uploadLocal = require("../middleware/uploadLocal");
-const { protect, optionalAuth, requirePoster, requireAdmin, requireOwnerOrAdmin } = require("../middleware/auth");
+const { protect, optionalAuth, requireAdmin, requireOwnerOrAdmin } = require("../middleware/auth");
 const Post    = require("../models/Post");
 const commentRoutes = require("./commentRoutes");
 

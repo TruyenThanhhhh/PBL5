@@ -2,8 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { Compass, Search, Bell, ArrowLeft } from 'lucide-react';
 
+// Hàm tự động sinh màu sắc phân biệt dựa trên Username (Hash String to HSL)
+const stringToColor = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  const s = 70 + (Math.abs(hash) % 20); // Saturation 70-90%
+  const l = 45 + (Math.abs(hash) % 10); // Lightness 45-55%
+  return `hsl(${h}, ${s}%, ${l}%)`;
+};
+
 // ==========================================
-// THÀNH PHẦN BẢN ĐỒ THẬT (Bypass lỗi ESBuild)
+// THÀNH PHẦN BẢN ĐỒ THẬT
 // ==========================================
 function RealLeafletMap({ posts }) {
   const mapRef = useRef(null);
@@ -41,34 +53,45 @@ function RealLeafletMap({ posts }) {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Chuẩn bị Icon đỏ (Admin) và xanh (User)
-        const adminIcon = L.icon({
-          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-        });
-        const defaultIcon = L.icon({
-          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-        });
-
         // Vẽ các điểm ghim lên bản đồ
         posts.forEach(post => {
           if (post.lat && post.lng) {
-            const icon = post.createdBy?.role === 'admin' ? adminIcon : defaultIcon;
-            const marker = L.marker([post.lat, post.lng], { icon }).addTo(map);
+            const username = post.createdBy?.username || 'Ẩn danh';
+            const userColor = stringToColor(username); // Lấy màu đặc trưng cho user
+
+            // Tạo Ghim CSS theo màu đặc trưng của User
+            const customIcon = L.divIcon({
+              className: 'custom-pin',
+              html: `<div style="background-color: ${userColor}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.4);"></div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 24],
+              popupAnchor: [0, -26],
+              tooltipAnchor: [0, -26]
+            });
             
-            // Popup HTML khi click vào ghim
+            const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
+            
+            // SỰ KIỆN HOVER: Tooltip hiển thị Tên và Tọa độ
+            marker.bindTooltip(`
+              <div style="text-align: center; font-family: sans-serif;">
+                <strong style="color: ${userColor};">${username}</strong><br/>
+                <span style="font-size: 11px; color: #666;">[${post.lat.toFixed(4)}, ${post.lng.toFixed(4)}]</span>
+              </div>
+            `, {
+              direction: 'top',
+              className: 'leaflet-tooltip-custom'
+            });
+
+            // SỰ KIỆN CLICK: Popup HTML khi click vào ghim
             marker.bindPopup(`
               <div style="min-width: 180px; font-family: sans-serif;">
-                <span style="font-size: 10px; font-weight: bold; background: ${post.createdBy?.role === 'admin' ? '#fee2e2' : '#e0f2fe'}; color: ${post.createdBy?.role === 'admin' ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                <span style="font-size: 10px; font-weight: bold; background: #f3f4f6; color: ${userColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
                   ${post.category || 'Địa điểm'}
                 </span>
                 <h4 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 900; color: #111827;">${post.title || post.location}</h4>
                 <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${post.description}</p>
-                <div style="font-size: 11px; font-weight: bold; color: #f44336; border-top: 1px solid #f3f4f6; padding-top: 6px;">
-                  Bởi: ${post.createdBy?.username || 'Ẩn danh'}
+                <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding-top: 6px;">
+                  Bởi: ${username}
                 </div>
               </div>
             `);
@@ -109,24 +132,20 @@ function ExploreContent() {
 
   const fetchPosts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/posts');
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      
+      const res = await fetch('http://localhost:5000/api/posts', { headers });
       if (res.ok) {
         const data = await res.json();
         // Lọc bài viết có tọa độ
-        const postsWithLocation = data.filter(p => p.lat && p.lng);
+        const postsWithLocation = Array.isArray(data) ? data.filter(p => p.lat && p.lng) : [];
         setPosts(postsWithLocation);
       } else {
-        throw new Error("Không kết nối được Backend");
+        setPosts([]);
       }
     } catch (error) {
-      console.log("Đang lấy dữ liệu giả lập cho Canvas Preview...");
-      // Dữ liệu mô phỏng để bản đồ Canvas có điểm hiển thị
-      setPosts([
-        { _id: '1', title: 'Cầu Rồng', location: 'Đà Nẵng', description: 'Biểu tượng của thành phố Đà Nẵng, phun lửa vào cuối tuần.', lat: 16.06, lng: 108.22, category: 'Thành phố', createdBy: { username: 'Admin (Hệ thống)', role: 'admin' } },
-        { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'poster' } },
-        { _id: '3', title: 'Phố Cổ Hội An', location: 'Hội An', description: 'Di sản văn hóa thế giới với những ngôi nhà cổ lồng đèn rực rỡ.', lat: 15.88, lng: 108.33, category: 'Văn hóa', createdBy: { username: 'Jane Wanderlust', role: 'poster' } },
-        { _id: '4', title: 'Đỉnh Fansipan', location: 'Lai Châu', description: 'Nóc nhà Đông Dương, cảnh tượng mây mù hùng vĩ.', lat: 22.30, lng: 103.77, category: 'Khám phá', createdBy: { username: 'Mountain_King', role: 'poster' } }
-      ]);
+      setPosts([]); // Không dùng dữ liệu giả định nữa
     } finally {
       setIsLoading(false);
     }
