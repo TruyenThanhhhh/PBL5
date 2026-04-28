@@ -1,343 +1,224 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
-import { 
-  User, Shield, Lock, Palette, Bell, LogOut, 
-  Camera, CheckCircle, AlertCircle, Loader2, Check
-} from 'lucide-react';
+const User = require('../models/User.js');
+const Post = require('../models/Post.js');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
-// Tạo avatar chữ mặc định nếu database chưa có ảnh
-const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+// 1. Đăng ký (Register)
+exports.registerUser = async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+        const userExists = await User.findOne({ email });
+        if (userExists) return res.status(400).json({ message: "Email đã tồn tại" });
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        let avatarPath = "";
+        if (req.file) avatarPath = req.file.path.replace(/\\/g, '/');
+
+        const newUser = await User.create({
+            username,
+            email,
+            password: hashedPassword,
+            avatar: avatarPath
+        });
+
+        res.status(201).json({ 
+            message: "Đăng ký thành công!", 
+            userId: newUser._id, 
+            user: newUser 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
-function SettingsContent() {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('profile');
-
-  // Dữ liệu hiển thị
-  const [profileData, setProfileData] = useState({ username: '', bio: '', avatar: '', cover: '' });
-  
-  // Lưu trữ file thật lấy từ máy tính
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [coverFile, setCoverFile] = useState(null);
-  
-  // Dữ liệu để Preview ảnh trước khi lưu
-  const [avatarPreview, setAvatarPreview] = useState('');
-  const [coverPreview, setCoverPreview] = useState('');
-  
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileMessage, setProfileMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load dữ liệu thật từ Database khi vào trang
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userId = localStorage.getItem('userId');
-        if(!token || !userId) throw new Error("Chưa đăng nhập");
-
-        const res = await fetch(`http://localhost:5000/api/users/${userId}/profile`);
-        if (!res.ok) throw new Error('Không tải được profile');
-        const data = await res.json();
-        
-        if(data.user) {
-          setProfileData({
-            username: data.user.username || '',
-            bio: data.user.bio || '',
-            avatar: data.user.avatar || '',
-            cover: data.user.cover || ''
-          });
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadProfile();
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
-  // Chọn file Avatar từ máy
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file)); // Hiển thị xem trước ngay lập tức
-  };
-
-  // Chọn file Ảnh bìa từ máy
-  const handleCoverChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setCoverFile(file);
-    setCoverPreview(URL.createObjectURL(file));
-  };
-
-  const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
-    setProfileMessage('');
+// 2. Đăng nhập (Login)
+exports.loginUser = async (req, res) => {
     try {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-      if (!token) throw new Error('Vui lòng đăng nhập để cập nhật profile');
-
-      // 1. GÓI DỮ LIỆU ĐỂ LƯU VÀO DATABASE
-      const formData = new FormData();
-      formData.append('username', profileData.username);
-      formData.append('bio', profileData.bio);
-      if (avatarFile) formData.append('avatar', avatarFile); // Đính kèm file ảnh đại diện
-      if (coverFile) formData.append('cover', coverFile);    // Đính kèm file ảnh bìa
-
-      // Gọi API gửi lên Backend
-      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData // multipart/form-data
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Lỗi từ Server khi lưu dữ liệu.');
-      }
-      
-      const result = await res.json();
-      
-      // Cập nhật lại UI sau khi Backend lưu thành công
-      setProfileData(prev => ({ ...prev, ...result }));
-      if (result.username) localStorage.setItem('username', result.username);
-      if (result.avatar) localStorage.setItem('avatar', result.avatar);
-
-      // 2. TỰ ĐỘNG ĐĂNG BÀI LÊN FEED ĐỂ THÔNG BÁO CHO BẠN BÈ
-      if (avatarFile || coverFile) {
-        const postForm = new FormData();
+        const identifier = req.body.email || req.body.username || req.body.identifier;
+        const password = req.body.password;
         
-        if (avatarFile && !coverFile) {
-          postForm.append('title', 'Cập nhật ảnh đại diện');
-          postForm.append('description', `${profileData.username} vừa cập nhật một ảnh đại diện mới rạng rỡ! 🎉`);
-          postForm.append('images', avatarFile); 
-        } else if (coverFile && !avatarFile) {
-          postForm.append('title', 'Cập nhật ảnh bìa');
-          postForm.append('description', `${profileData.username} vừa thay đổi ảnh bìa trang cá nhân. Mọi người thấy sao? ✨`);
-          postForm.append('images', coverFile);
-        } else {
-          postForm.append('title', 'Cập nhật trang cá nhân');
-          postForm.append('description', `${profileData.username} vừa thay đổi diện mạo mới cho trang cá nhân của mình!`);
-          postForm.append('images', avatarFile); // Ưu tiên show avatar lên post
+        if (!identifier) {
+            return res.status(400).json({ message: "Vui lòng nhập email hoặc tên đăng nhập" });
         }
-        
-        postForm.append('category', 'Update'); 
 
-        // Bắn API tạo bài đăng
-        await fetch('http://localhost:5000/api/posts/create-with-media', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: postForm
+        const user = await User.findOne({
+            $or: [
+                { email: identifier },
+                { username: identifier }
+            ]
         });
-      }
 
-      setProfileMessage('Cập nhật thành công! Dữ liệu đã lưu vào hệ thống.');
-      
-      // Clear files sau khi lưu xong
-      setAvatarFile(null);
-      setCoverFile(null);
-      setAvatarPreview('');
-      setCoverPreview('');
+        if (!user) return res.status(400).json({ message: "Sai email hoặc mật khẩu" });
 
-    } catch (error) {
-      setProfileMessage(error.message || 'Lỗi không xác định khi lưu profile');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  // Ưu tiên hiển thị Ảnh Preview đang chọn, nếu không thì lấy ảnh từ Database (hoặc mặc định)
-  const displayAvatar = avatarPreview || getAvatarUrl(profileData.avatar, profileData.username);
-  const displayCover = coverPreview || profileData.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
-
-  if (isLoading) {
-    return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-[#f44336]" size={32}/></div>;
-  }
-
-  return (
-    <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12">
-      {/* NAVBAR */}
-      <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100 shadow-sm">
-        <div className="flex items-center gap-8 w-1/4">
-          <button onClick={() => navigate('/dashboard')} className="text-[#f44336] font-extrabold text-xl tracking-tight">
-            The Wanderer
-          </button>
-        </div>
-        <div className="flex-1 flex justify-center">
-          <nav className="hidden md:flex items-center gap-8 text-[14px] font-bold text-gray-500">
-            <button onClick={() => navigate('/dashboard')} className="hover:text-gray-900 transition-colors py-4">Dashboard</button>
-            <button onClick={() => navigate('/explore')} className="hover:text-gray-900 transition-colors py-4">Explore</button>
-            <button onClick={() => navigate('/community')} className="hover:text-gray-900 transition-colors py-4">Community</button>
-          </nav>
-        </div>
-        <div className="flex items-center justify-end gap-5 w-1/4">
-          <button className="text-gray-500 hover:text-gray-900 relative">
-            <Bell size={22} strokeWidth={2} />
-          </button>
-          <button onClick={() => navigate('/profile')} className="block cursor-pointer">
-            <img 
-              src={displayAvatar} 
-              className="w-8 h-8 rounded-full border border-gray-200 object-cover"
-              alt="Profile"
-            />
-          </button>
-        </div>
-      </header>
-
-      {/* MAIN CONTENT */}
-      <main className="max-w-[1000px] mx-auto px-4 sm:px-6 pt-10 flex gap-8 items-start">
+        const isMatch = await bcrypt.compare(password, user.password);
         
-        {/* LEFT SIDEBAR */}
-        <aside className="w-[240px] flex-shrink-0 sticky top-[88px]">
-          <div className="mb-6">
-            <h1 className="text-2xl font-black text-gray-900">Settings</h1>
-            <p className="text-[12px] font-medium text-gray-500">Quản lý tài khoản của bạn</p>
-          </div>
+        if (!isMatch && password !== user.password) {
+            return res.status(400).json({ message: "Sai email hoặc mật khẩu" });
+        }
 
-          <nav className="space-y-1 text-[13px] font-bold text-gray-600 mb-8">
-            <button 
-              onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${activeTab === 'profile' ? 'bg-white text-[#f44336] shadow-sm' : 'hover:bg-white hover:shadow-sm'}`}
-            >
-              <User size={18} strokeWidth={2.5} /> Profile
-            </button>
-            <button 
-              onClick={() => setActiveTab('account')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${activeTab === 'account' ? 'bg-white text-[#f44336] shadow-sm' : 'hover:bg-white hover:shadow-sm'}`}
-            >
-              <Shield size={18} strokeWidth={2.5} /> Security
-            </button>
-            <button 
-              onClick={() => setActiveTab('privacy')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${activeTab === 'privacy' ? 'bg-white text-[#f44336] shadow-sm' : 'hover:bg-white hover:shadow-sm'}`}
-            >
-              <Lock size={18} strokeWidth={2.5} /> Privacy
-            </button>
-          </nav>
+        const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '7d' });
+        
+        res.status(200).json({ 
+            token, 
+            userId: user._id,
+            user: { _id: user._id, username: user.username, avatar: user.avatar, role: user.role } 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-          <div className="border-t border-gray-200 pt-6">
-            <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 text-[13px] font-bold text-[#f44336] hover:bg-red-50 w-full rounded-lg transition-colors">
-              <LogOut size={18} strokeWidth={2.5} /> Logout
-            </button>
-          </div>
-        </aside>
+// 3. Lấy thông tin Profile
+exports.getUserProfile = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'ID người dùng không hợp lệ' });
+        }
 
-        {/* RIGHT CONTENT */}
-        <section className="flex-1 max-w-[700px]">
-          
-          {/* TAB PROFILE */}
-          {activeTab === 'profile' && (
-            <div className="animate-in fade-in duration-300">
-              <div className="mb-6">
-                <h2 className="text-xl font-black text-gray-900">Profile</h2>
-                <p className="text-[13px] text-gray-500 font-medium">Cập nhật thông tin và hình ảnh hiển thị công khai.</p>
-              </div>
+        const user = await User.findById(userId).select('-password');
+        if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                
-                {/* ẢNH BÌA VÀ ẢNH ĐẠI DIỆN */}
-                <div className="relative mb-20 rounded-xl">
-                  {/* Ảnh Bìa */}
-                  <label className="block w-full h-48 bg-gray-200 relative overflow-hidden rounded-2xl group cursor-pointer border border-gray-100">
-                    <img
-                      src={displayCover}
-                      alt="Cover"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                      <Camera className="text-white mb-2" size={32} />
-                      <span className="text-white text-[12px] font-bold tracking-wide shadow-sm">TẢI ẢNH TỪ MÁY</span>
-                    </div>
-                    <input type="file" accept="image/png, image/jpeg, image/jpg" onChange={handleCoverChange} className="hidden" />
-                  </label>
+        const posts = await Post.find({ createdBy: userId }).sort({ createdAt: -1 }).populate('createdBy', 'username avatar role');
+        res.status(200).json({ user, posts });
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi Server", error: error.message });
+    }
+};
 
-                  {/* Ảnh Đại Diện */}
-                  <div className="absolute -bottom-12 left-8 z-10">
-                    <label className="block w-[120px] h-[120px] relative rounded-full border-4 border-white bg-white shadow-lg overflow-hidden group cursor-pointer">
-                      <img
-                        src={displayAvatar}
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera className="text-white mb-1" size={26} />
-                        <span className="text-white text-[10px] font-bold tracking-widest text-center">TẢI ẢNH</span>
-                      </div>
-                      <input type="file" accept="image/png, image/jpeg, image/jpg" onChange={handleAvatarChange} className="hidden" />
-                    </label>
-                  </div>
-                </div>
+// 4. Lấy tất cả user
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({}).select('-password');
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-                <div className="pt-2">
-                  <div className="grid grid-cols-2 gap-5 mb-6">
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Tên hiển thị</label>
-                      <input
-                        type="text"
-                        value={profileData.username}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, username: e.target.value }))}
-                        className="w-full bg-[#f4f4f5] border border-transparent rounded-xl px-4 py-3.5 text-[14px] font-bold text-gray-900 focus:ring-2 focus:ring-[#f44336]/30 focus:border-[#f44336]/50 focus:bg-white outline-none transition-all shadow-inner"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Tiểu sử (Bio)</label>
-                      <input
-                        type="text"
-                        value={profileData.bio}
-                        onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
-                        placeholder="Viết một vài dòng về bạn..."
-                        className="w-full bg-[#f4f4f5] border border-transparent rounded-xl px-4 py-3.5 text-[14px] font-medium text-gray-800 focus:ring-2 focus:ring-[#f44336]/30 focus:border-[#f44336]/50 focus:bg-white outline-none transition-all shadow-inner"
-                      />
-                    </div>
-                  </div>
+// 5. Toggle Follow
+exports.toggleFollow = async (req, res) => {
+    try {
+        const currentUserId = req.user?.userId || req.user?.id || req.user?._id; 
+        const targetUserId = req.params.id;
 
-                  {profileMessage && (
-                    <div className={`mb-6 px-4 py-3 rounded-xl flex items-center gap-3 text-[13px] font-bold animate-in fade-in ${profileMessage.includes('thành công') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                      {profileMessage.includes('thành công') ? <CheckCircle size={18}/> : <AlertCircle size={18}/>}
-                      {profileMessage}
-                    </div>
-                  )}
+        if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+            return res.status(400).json({ message: "ID mục tiêu không hợp lệ" });
+        }
 
-                  <div className="flex justify-end pt-5 border-t border-gray-100">
-                    <button
-                      onClick={handleSaveProfile}
-                      disabled={isSavingProfile}
-                      className="bg-[#f44336] text-white text-[14px] font-bold px-8 py-3 rounded-full hover:bg-[#e53935] shadow-lg shadow-red-500/30 transition-all disabled:opacity-50 flex items-center gap-2 transform active:scale-95"
-                    >
-                      {isSavingProfile ? <Loader2 size={18} className="animate-spin"/> : <Check size={18}/>}
-                      {isSavingProfile ? 'Đang lưu vào CSDL...' : 'Lưu thay đổi'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+        const currentUser = await User.findById(currentUserId);
+        const isFollowing = currentUser.following.includes(targetUserId);
 
-        </section>
-      </main>
-    </div>
-  );
-}
+        if (isFollowing) {
+            await User.findByIdAndUpdate(currentUserId, { $pull: { following: targetUserId } });
+            await User.findByIdAndUpdate(targetUserId, { $pull: { followers: currentUserId } });
+            res.status(200).json({ message: "Đã hủy theo dõi", following: false });
+        } else {
+            await User.findByIdAndUpdate(currentUserId, { $addToSet: { following: targetUserId } });
+            await User.findByIdAndUpdate(targetUserId, { $addToSet: { followers: currentUserId } });
+            res.status(200).json({ message: "Đã theo dõi", following: true });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-// 🛡️ LỚP BỌC AN TOÀN (SAFE WRAPPER)
-export default function Settings() {
-  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
-  if (!hasRouter) {
-    return (
-      <BrowserRouter>
-        <SettingsContent />
-      </BrowserRouter>
-    );
-  }
-  return <SettingsContent />;
-}
+// 6. Lấy Feed
+exports.getFeed = async (req, res) => {
+    try {
+        const posts = await Post.find().sort({ createdAt: -1 }).populate('createdBy', 'username avatar role');
+        res.status(200).json(posts);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// 7. Lấy danh sách Follower
+exports.getFollowers = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ message: "ID không hợp lệ" });
+        }
+        const user = await User.findById(req.params.id).populate('followers following', 'username avatar');
+        res.status(200).json({ followers: user.followers, following: user.following });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// 8. CẬP NHẬT PROFILE VÀ ẢNH (BẤT TỬ VỚI CLOUDINARY + DEBUG LOG)
+exports.updateProfile = async (req, res) => {
+    console.log("\n--- [DEBUG] BẮT ĐẦU API CẬP NHẬT PROFILE ---");
+    try {
+        const userId = req.params.id;
+        console.log("[DEBUG] User ID nhận được:", userId);
+        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            console.log("[DEBUG] LỖI: User ID không hợp lệ!");
+            return res.status(400).json({ message: "ID người dùng không hợp lệ" });
+        }
+
+        const { username, bio } = req.body;
+        console.log(`[DEBUG] Body nhận được - Username: ${username}, Bio: ${bio}`);
+        
+        let updateData = {};
+        if (username) updateData.username = username;
+        if (bio !== undefined) updateData.bio = bio;
+
+        // Hàm lấy URL an toàn tuyệt đối từ file object của Cloudinary
+        const getFileUrl = (fileObj) => {
+            if (!fileObj) return null;
+            const url = fileObj.path || fileObj.secure_url || fileObj.url;
+            return url ? url.replace(/\\/g, '/') : null;
+        };
+
+        // Nhận diện linh hoạt cấu hình upload của routes
+        if (req.file) {
+            console.log("[DEBUG] Phát hiện tải lên dạng req.file (1 file):", req.file.fieldname);
+            if (req.file.fieldname === 'cover') {
+                const url = getFileUrl(req.file);
+                if (url) updateData.cover = url;
+            } else {
+                const url = getFileUrl(req.file);
+                if (url) updateData.avatar = url;
+            }
+        } else if (req.files) {
+            console.log("[DEBUG] Phát hiện tải lên dạng req.files (nhiều file)");
+            if (Array.isArray(req.files)) {
+                if (req.files.length > 0) {
+                    const url = getFileUrl(req.files[0]);
+                    if (url) updateData.avatar = url;
+                }
+            } else {
+                if (req.files['avatar'] && req.files['avatar'].length > 0) {
+                    const url = getFileUrl(req.files['avatar'][0]);
+                    console.log("[DEBUG] URL Avatar tìm thấy:", url);
+                    if (url) updateData.avatar = url;
+                }
+                if (req.files['cover'] && req.files['cover'].length > 0) {
+                    const url = getFileUrl(req.files['cover'][0]);
+                    console.log("[DEBUG] URL Cover tìm thấy:", url);
+                    if (url) updateData.cover = url;
+                }
+            }
+        } else {
+            console.log("[DEBUG] Không phát hiện tệp ảnh nào tải lên.");
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(userId, { $set: updateData }, { new: true }).select('-password');
+        if (!updatedUser) {
+            console.log("[DEBUG] LỖI: Không tìm thấy tài khoản để lưu database.");
+            return res.status(404).json({ message: "Không tìm thấy tài khoản" });
+        }
+
+        console.log("[DEBUG] THÀNH CÔNG: Đã lưu dữ liệu vào database!");
+        res.status(200).json({ message: "Cập nhật thành công!", user: updatedUser });
+    } catch (error) {
+        console.error("[DEBUG] NGOẠI LỆ NGHIÊM TRỌNG TRONG API:", error);
+        res.status(500).json({ message: "Lỗi khi lưu dữ liệu", error: error.message });
+    }
+};

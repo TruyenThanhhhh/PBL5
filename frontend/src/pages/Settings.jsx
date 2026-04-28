@@ -6,7 +6,19 @@ import {
 } from 'lucide-react';
 
 const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  if (url) {
+    const cleanUrl = url.replace(/\\/g, '/');
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')) return cleanUrl;
+    return cleanUrl.startsWith('/') ? `http://localhost:5000${cleanUrl}` : `http://localhost:5000/${cleanUrl}`;
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+};
+
+const getCoverUrl = (url) => {
+  if (!url) return 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
+  const cleanUrl = url.replace(/\\/g, '/');
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')) return cleanUrl;
+  return cleanUrl.startsWith('/') ? `http://localhost:5000${cleanUrl}` : `http://localhost:5000/${cleanUrl}`;
 };
 
 function SettingsContent() {
@@ -74,6 +86,13 @@ function SettingsContent() {
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileMessage('Ảnh đại diện quá lớn. Vui lòng chọn ảnh có dung lượng dưới 5MB.');
+      return;
+    }
+    
+    setProfileMessage(''); 
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file)); 
   };
@@ -81,6 +100,13 @@ function SettingsContent() {
   const handleCoverChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileMessage('Ảnh bìa quá lớn. Vui lòng chọn ảnh có dung lượng dưới 5MB.');
+      return;
+    }
+
+    setProfileMessage(''); 
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file)); 
   };
@@ -91,71 +117,65 @@ function SettingsContent() {
     try {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
-      if (!token) {
-        setProfileMessage('Vui lòng đăng nhập để cập nhật profile');
-        return;
+      if (!token || !userId) {
+        throw new Error('Vui lòng đăng nhập để cập nhật profile');
       }
 
       const formData = new FormData();
-      formData.append('username', profileData.username);
-      formData.append('bio', profileData.bio);
+      formData.append('username', profileData.username || '');
+      formData.append('bio', profileData.bio || '');
       if (avatarFile) formData.append('avatar', avatarFile); 
       if (coverFile) formData.append('cover', coverFile);    
 
-      let isSuccess = false;
-      let result = null;
+      const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
 
-      try {
-        const res = await fetch(`http://localhost:5000/api/users/${userId}`, {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        });
-
-        const responseText = await res.text();
-        if (res.ok) {
-          result = JSON.parse(responseText);
-          isSuccess = true;
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        if (errData && errData.message) {
+          throw new Error(errData.message);
         } else {
-          console.warn("Lỗi Backend (Có thể chưa tạo Route):", responseText);
+          throw new Error(`Máy chủ từ chối file (Mã lỗi: ${res.status}). Có thể định dạng/kích thước ảnh không được phép.`);
         }
-      } catch (err) {
-        console.warn("Không kết nối được API Backend:", err);
       }
 
-      // ====================================================================
-      // MOCK FALLBACK: Nếu Backend lỗi (chưa có API), tự động giả lập thành công
-      // ====================================================================
-      if (!isSuccess || !result) {
-        console.warn("⚠️ Backend chưa có API PUT /api/users/:id. Giao diện đang giả lập (Mock) thành công để có thể Test UI.");
-        result = {
-          username: profileData.username,
-          bio: profileData.bio,
-          avatar: avatarPreview || profileData.avatar,
-          cover: coverPreview || profileData.cover
-        };
-      }
-      
-      // Update UI & LocalStorage
-      setProfileData(prev => ({ ...prev, ...result }));
-      if (result.username) localStorage.setItem('username', result.username);
-      if (result.avatar) localStorage.setItem('avatar', result.avatar);
+      const data = await res.json();
+      const updatedUser = data.user || data; 
 
-      // Thử tạo bài Post thông báo (Bỏ qua lỗi nếu Backend không hỗ trợ)
+      setProfileData(prev => ({ 
+        ...prev, 
+        username: updatedUser.username,
+        bio: updatedUser.bio,
+        avatar: updatedUser.avatar,
+        cover: updatedUser.cover
+      }));
+
+      if (updatedUser.username) localStorage.setItem('username', updatedUser.username);
+      if (updatedUser.avatar) localStorage.setItem('avatar', updatedUser.avatar);
+
+      window.dispatchEvent(new Event('profileUpdated'));
+
       if (avatarFile || coverFile) {
         try {
           const postForm = new FormData();
+          
+          // FIX LỖI ẨN DANH: Khai báo rõ ràng ai là người tạo bài đăng
+          postForm.append('createdBy', userId);
+
           if (avatarFile && !coverFile) {
             postForm.append('title', 'Cập nhật ảnh đại diện');
-            postForm.append('description', `${profileData.username} vừa cập nhật một ảnh đại diện mới rạng rỡ! 🎉`);
+            postForm.append('description', `${updatedUser.username} vừa cập nhật một ảnh đại diện mới rạng rỡ! 🎉`);
             postForm.append('images', avatarFile); 
           } else if (coverFile && !avatarFile) {
             postForm.append('title', 'Cập nhật ảnh bìa');
-            postForm.append('description', `${profileData.username} vừa thay đổi ảnh bìa trang cá nhân. Mọi người thấy sao? ✨`);
+            postForm.append('description', `${updatedUser.username} vừa thay đổi ảnh bìa trang cá nhân. Mọi người thấy sao? ✨`);
             postForm.append('images', coverFile);
           } else {
             postForm.append('title', 'Cập nhật trang cá nhân');
-            postForm.append('description', `${profileData.username} vừa thay đổi diện mạo mới cho trang cá nhân của mình!`);
+            postForm.append('description', `${updatedUser.username} vừa thay đổi diện mạo mới cho trang cá nhân của mình!`);
             postForm.append('images', avatarFile); 
           }
           postForm.append('category', 'Update'); 
@@ -175,20 +195,20 @@ function SettingsContent() {
       setAvatarPreview('');
       setCoverPreview('');
 
-      // Chuyển hướng về Profile sau 1.5s để người dùng kịp đọc thông báo thành công
       setTimeout(() => {
-        navigate('/profile');
+        navigate('/dashboard');
       }, 1500);
 
     } catch (error) {
-      setProfileMessage('Lỗi không xác định khi lưu profile');
+      setProfileMessage(error.message || 'Lỗi hệ thống khi lưu profile.');
+      console.error(error);
     } finally {
       setIsSavingProfile(false);
     }
   };
 
   const displayAvatar = avatarPreview || getAvatarUrl(profileData.avatar, profileData.username);
-  const displayCover = coverPreview || profileData.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
+  const displayCover = coverPreview || getCoverUrl(profileData.cover);
 
   if (isLoading) {
     return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-[#f44336]" size={32}/></div>;
@@ -225,7 +245,6 @@ function SettingsContent() {
           <button className="text-gray-500 hover:text-gray-900 relative">
             <Bell size={22} strokeWidth={2} />
           </button>
-          {/* SỰ KIỆN CLICK CHUYỂN HƯỚNG VÀO PROFILE */}
           <button onClick={() => navigate('/profile')} className="block cursor-pointer hover:opacity-80 transition-opacity">
             <img 
               src={displayAvatar} 
@@ -354,7 +373,6 @@ function SettingsContent() {
               </div>
             </div>
           )}
-
         </section>
       </main>
     </div>
