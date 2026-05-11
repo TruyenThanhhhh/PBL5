@@ -8,7 +8,7 @@ exports.addComment = async (req, res) => {
     const postId = req.params.postId;
 
     const post = await Post.findById(postId);
-    if (!post) return res.status(404).json({ message: "Post không tồn tại" });
+    if (!post) return res.status(404).json({ message: "Bài viết không tồn tại" });
 
     const comment = await Comment.create({
       post: postId,

@@ -31,6 +31,7 @@ exports.registerUser = async (req, res) => {
 
     const newUser = await User.create({
       username: username.trim(),
+      displayName: username.trim(),
       email: email.trim(), 
       password: hashedPassword,
       role: assignedRole,
@@ -55,11 +56,14 @@ exports.loginUser = async (req, res) => {
     const cleanIdentifier = identifier.trim();
     console.log("➡️ Đang thử đăng nhập với tài khoản:", cleanIdentifier);
 
+    const escapedIdentifier = cleanIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const identifierRegex = new RegExp(`^${escapedIdentifier}$`, "i");
+
     // Tìm user bằng email HOẶC username
     const user = await User.findOne({
       $or: [
-        { email: cleanIdentifier }, 
-        { username: cleanIdentifier }
+        { email: identifierRegex },
+        { username: identifierRegex }
       ]
     });
 
@@ -89,8 +93,9 @@ exports.loginUser = async (req, res) => {
       token, 
       userId: user._id,
       username: user.username,
+      displayName: user.displayName || user.username,
       avatar: user.avatar,
-      role: user.role
+      role: normalizedRole
     });
 
   } catch (error) {
@@ -216,23 +221,39 @@ exports.getUserProfile = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(20);
 
-    res.json({ user, posts });
+    const profile = user.toObject();
+    profile.role = normalizeRole(user.role);
+
+    res.json({ user: profile, posts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 👥 LẤY TẤT CẢ USER (Cho tính năng tìm kiếm chat)
+// 👥 LẤY TẤT CẢ USER (Sắp xếp theo số followers)
 exports.getAllUsers = async (req, res) => {
   try {
-    // Chỉ lấy vài field cần thiết
+    // Lấy các user và sort theo số followers (tương ứng với độ dài của mảng followers)
     const users = await User.find({ _id: { $ne: req.user._id } })
-      .select("username avatar email role")
-      .sort({ createdAt: -1 })
-      .limit(50); // Giới hạn 50 người mới nhất cho demo
-    res.json(users);
+      .select("username displayName avatar email role followers")
+      .populate("followers", "")
+      .sort({ "followers": -1 })
+      .limit(50);
+    
+    // Trả về user với thông tin followers count
+    const usersWithFollowerCount = users.map(user => ({
+      _id: user._id,
+      username: user.username,
+      displayName: user.displayName || user.username,
+      avatar: user.avatar,
+      email: user.email,
+      role: normalizeRole(user.role),
+      followersCount: user.followers ? user.followers.length : 0
+    }));
+
+    res.json(usersWithFollowerCount);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
+

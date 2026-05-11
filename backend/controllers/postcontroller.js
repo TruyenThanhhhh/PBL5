@@ -4,7 +4,7 @@ const { cloudinary } = require("../config/cloudinary");
 exports.uploadImages = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "Không có file nào được upload" });
+      return res.status(400).json({ message: "Không có file nào được tải lên" });
     }
     const urls = req.files.map((file) => file.path);
     res.json({ urls });
@@ -22,7 +22,7 @@ exports.createPost = async (req, res) => {
       Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     let finalPostType = "regular";
     if (postType === "promotional") {
-      if (req.user?.role === "poster" || req.user?.role === "admin") {
+      if (req.user?.role === "admin") {
         finalPostType = "promotional";
       }
     }
@@ -62,7 +62,7 @@ exports.createPostWithMedia = async (req, res) => {
 
     let finalPostType = "regular";
     if (postType === "promotional") {
-      if (req.user?.role === "poster" || req.user?.role === "admin") {
+      if (req.user?.role === "admin") {
         finalPostType = "promotional";
       }
     }
@@ -119,7 +119,18 @@ exports.getPosts = async (req, res) => {
       .populate("createdBy", "username email avatar role") 
       .sort({ createdAt: -1 });
 
-    res.json(posts);
+    const normalizedPosts = posts.map((post) => {
+      const obj = post.toObject ? post.toObject() : post;
+      if (obj?.createdBy?.role) {
+        const r = String(obj.createdBy.role || "").trim().toLowerCase();
+        obj.createdBy.role = r === "admin" ? "admin" : "user";
+      } else if (obj?.createdBy) {
+        obj.createdBy.role = "user";
+      }
+      return obj;
+    });
+
+    res.json(normalizedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -200,3 +211,84 @@ exports.toggleVisibility = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// 🔥 LẤY TRENDING KEYWORDS TỪ COMMENTS & POSTS (7 NGÀY GẦN NHẤT)
+exports.getTrendingKeywords = async (req, res) => {
+  try {
+    const Comment = require("../models/Comment");
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Lấy tất cả comments trong 7 ngày gần nhất
+    const comments = await Comment.find({ createdAt: { $gte: oneWeekAgo } })
+      .select("content")
+      .lean();
+
+    // Lấy tất cả posts trong 7 ngày gần nhất
+    const posts = await Post.find({ createdAt: { $gte: oneWeekAgo } })
+      .select("title description")
+      .lean();
+
+    // Gộp tất cả text
+    const allText = [
+      ...comments.map(c => c.content || ""),
+      ...posts.map(p => `${p.title} ${p.description}`),
+    ].join(" ");
+
+    // Tách từ khóa: loại bỏ từ thường dùng, chỉ lấy từ có độ dài > 3
+    const keywords = allText
+      .toLowerCase()
+      .match(/\b[a-z0-9àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]{4,}\b/g) || [];
+
+    // Lọc những từ thường dùng không quan trọng
+    const stopwords = new Set([
+      "được", "là", "để", "có", "không", "của", "và", "với", "từ", "vào", "bạn",
+      "trong", "này", "một", "nên", "chúng", "bài", "viết", "post", "điều", "những",
+      "cách", "khi", "đó", "sẽ", "được", "thì", "cũng", "nhưng", "nếu", "trước",
+      "sau", "đến", "tại", "qua", "vì", "thành", "việc", "khác", "chỉ", "chiều"
+    ]);
+
+    const filteredKeywords = keywords.filter(word => 
+      word.length > 3 && !stopwords.has(word)
+    );
+
+    // Đếm tần suất
+    const keywordCount = {};
+    filteredKeywords.forEach(keyword => {
+      keywordCount[keyword] = (keywordCount[keyword] || 0) + 1;
+    });
+
+    // Sắp xếp theo tần suất và lấy top 10
+    const trending = Object.entries(keywordCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([keyword, count]) => ({
+        keyword,
+        count,
+        category: categorizeKeyword(keyword)
+      }));
+
+    res.json(trending);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Hàm phân loại từ khóa theo chủ đề
+function categorizeKeyword(keyword) {
+  const categories = {
+    adventure: ["du", "lịch", "phiêu", "lưu", "khám", "phá", "leo", "núi", "hike", "trek"],
+    luxury: ["sang", "trọng", "cao", "cấp", "vip", "riêng", "tư", "resort", "spa"],
+    beach: ["biển", "cát", "sóng", "bãi", "bể", "bơi", "nước", "ocean", "sea"],
+    culture: ["văn", "hóa", "truyền", "thống", "lịch", "sử", "nghệ", "thuật", "bảo"],
+    food: ["ăn", "uống", "đặc", "sản", "quán", "nhà", "hàng", "cơm", "phở", "food"],
+    nature: ["thiên", "nhiên", "rừng", "cây", "cảnh", "đẹp", "sắc", "xanh", "vườn"],
+  };
+
+  for (const [category, words] of Object.entries(categories)) {
+    if (words.some(word => keyword.includes(word))) {
+      return category.charAt(0).toUpperCase() + category.slice(1);
+    }
+  }
+
+  return "Travel";
+}

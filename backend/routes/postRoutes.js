@@ -10,7 +10,7 @@ const commentRoutes = require("./commentRoutes");
 // 🖼️ Upload ảnh cloudinary — trả lỗi JSON rõ ràng
 router.post("/upload-images", protect, (req, res) => {
   upload.array("images", 5)(req, res, async (err) => {
-    if (err) return res.status(400).json({ message: err.message || "Upload cloudinary thất bại" });
+    if (err) return res.status(400).json({ message: err.message || "Tải ảnh lên Cloudinary thất bại" });
     return postController.uploadImages(req, res);
   });
 });
@@ -18,7 +18,7 @@ router.post("/upload-images", protect, (req, res) => {
 // 🧰 Fallback upload local khi Cloudinary lỗi
 router.post("/upload-images-local", protect, (req, res) => {
   uploadLocal.array("images", 5)(req, res, (err) => {
-    if (err) return res.status(400).json({ message: err.message || "Upload local thất bại" });
+    if (err) return res.status(400).json({ message: err.message || "Tải ảnh lên máy chủ thất bại" });
     const host = `${req.protocol}://${req.get("host")}`;
     const urls = Array.isArray(req.files)
       ? req.files.map((file) => `${host}/uploads/${file.filename}`)
@@ -39,8 +39,11 @@ router.post("/create-with-media", protect, (req, res) => {
   });
 });
 
-// 📄 Xem bài — ai cũng xem được, nếu login thì biết user là ai
+// 📄 Xem бай — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);
+
+// 🔥 LẤY TRENDING KEYWORDS (Công khai, không cần đăng nhập) - phải đặt TRƯỚC :id routes
+router.get("/trending/keywords", postController.getTrendingKeywords);
 
 // ✏️ Sửa bài — chủ bài hoặc admin
 router.put("/:id",
