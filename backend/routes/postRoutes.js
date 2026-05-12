@@ -39,6 +39,9 @@ router.post("/create-with-media", protect, (req, res) => {
   });
 });
 
+// 🗺️ API MỚI CHO EXPLORE MAP: Chỉ hiển thị bài của Bạn Bè và Bản Thân (Bắt buộc đăng nhập)
+router.get("/explore", protect, postController.getExplorePosts);
+
 // 📄 Xem bài — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);
 

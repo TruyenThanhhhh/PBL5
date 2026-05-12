@@ -1,4 +1,6 @@
 const Post = require("../models/Post");
+const User = require("../models/User"); // Import User model để lấy danh sách bạn bè
+const Notification = require("../models/Notification"); // Import Notification model để gửi thông báo
 const { cloudinary } = require("../config/cloudinary");
 
 exports.uploadImages = async (req, res) => {
@@ -13,7 +15,26 @@ exports.uploadImages = async (req, res) => {
   }
 };
 
-// postController.js (Cập nhật hàm createPost)
+// Hàm phụ trợ để gửi thông báo cho bạn bè khi có bài post chứa tọa độ
+const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
+  try {
+    const user = await User.findById(userId);
+    if (user && user.friends && user.friends.length > 0) {
+      const locationName = postLocation && postLocation !== "Chưa rõ vị trí" ? postLocation : "một địa điểm mới";
+      const notifications = user.friends.map(friendId => ({
+        receiver: friendId,
+        sender: userId,
+        type: "system", 
+        content: `vừa chia sẻ ${locationName} trên bản đồ.`,
+        link: `/explore`
+      }));
+      await Notification.insertMany(notifications);
+    }
+  } catch (err) {
+    console.error("Lỗi khi gửi thông báo vị trí: ", err);
+  }
+};
+
 exports.createPost = async (req, res) => {
   try {
     const { title, description, location, category, images, price, lat, lng, postType } = req.body;
@@ -41,6 +62,11 @@ exports.createPost = async (req, res) => {
     });
 
     await newPost.save();
+
+    // KIỂM TRA: Nếu có ghim tọa độ, gửi thông báo cho bạn bè
+    if (newPost.lat && newPost.lng && req.user?.id) {
+      await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
+    }
 
     res.status(201).json({
       message: "Post created successfully",
@@ -89,6 +115,12 @@ exports.createPostWithMedia = async (req, res) => {
     });
 
     await newPost.save();
+
+    // KIỂM TRA: Nếu có ghim tọa độ, gửi thông báo cho bạn bè
+    if (newPost.lat && newPost.lng && req.user?.id) {
+      await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
+    }
+
     res.status(201).json({ message: "Post created successfully", post: newPost });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -115,9 +147,34 @@ exports.getPosts = async (req, res) => {
     if (req.user?.role !== "admin") filter.isHidden = false;
 
     const posts = await Post.find(filter)
-      // ✅ ĐÃ SỬA: Trả thêm role để Frontend biết ai là Admin, ai là User
       .populate("createdBy", "username email avatar role") 
       .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// YÊU CẦU MỚI: API chỉ lấy các điểm được đăng bởi BẠN BÈ hoặc BẢN THÂN
+exports.getExplorePosts = async (req, res) => {
+  try {
+    // 1. Lấy thông tin User hiện tại kèm danh sách bạn bè
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) return res.status(404).json({ message: "User không tồn tại" });
+
+    // 2. Gom danh sách ID của bạn bè và chính user đó
+    const targetUsers = [...currentUser.friends, currentUser._id];
+
+    // 3. Tìm các Post của những người này, có tọa độ và không bị ẩn
+    const posts = await Post.find({
+      createdBy: { $in: targetUsers },
+      lat: { $ne: null },
+      lng: { $ne: null },
+      isHidden: false
+    })
+    .populate("createdBy", "username email avatar role")
+    .sort({ createdAt: -1 });
 
     res.json(posts);
   } catch (error) {

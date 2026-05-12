@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { Compass, Search, Bell, ArrowLeft } from 'lucide-react';
 
+// Hàm hash để tạo màu ngẫu nhiên dựa trên username
+const stringToColor = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h = Math.abs(hash) % 360;
+  return `hsl(${h}, 75%, 50%)`;
+};
+
 // ==========================================
 // THÀNH PHẦN BẢN ĐỒ THẬT (Bypass lỗi ESBuild)
 // ==========================================
@@ -41,34 +51,42 @@ function RealLeafletMap({ posts }) {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Chuẩn bị Icon đỏ (Admin) và xanh (User)
-        const adminIcon = L.icon({
-          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-        });
-        const defaultIcon = L.icon({
-          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
-        });
-
         // Vẽ các điểm ghim lên bản đồ
         posts.forEach(post => {
           if (post.lat && post.lng) {
-            const icon = post.createdBy?.role === 'admin' ? adminIcon : defaultIcon;
-            const marker = L.marker([post.lat, post.lng], { icon }).addTo(map);
+            
+            // Xử lý icon theo màu sắc riêng biệt cho từng User
+            const username = post.createdBy?.username || 'Ẩn danh';
+            const userColor = stringToColor(username);
+            const isAdmin = post.createdBy?.role === 'admin';
+
+            // Dùng divIcon để tạo Pin custom bằng HTML/CSS
+            const customIcon = L.divIcon({
+              className: 'custom-pin',
+              html: `<div style="background-color: ${isAdmin ? '#ef4444' : userColor}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.4);"></div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 24],
+              popupAnchor: [0, -26]
+            });
+
+            const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
+            
+            // Thêm Tooltip khi hover (di chuột)
+            marker.bindTooltip(
+              `<div style="text-align:center;"><b>${post.location || post.title}</b><br/><span style="font-size:10px; color:#666;">Đăng bởi: ${username}</span></div>`, 
+              { direction: 'top', offset: [0, -26], opacity: 0.9 }
+            );
             
             // Popup HTML khi click vào ghim
             marker.bindPopup(`
               <div style="min-width: 180px; font-family: sans-serif;">
-                <span style="font-size: 10px; font-weight: bold; background: ${post.createdBy?.role === 'admin' ? '#fee2e2' : '#e0f2fe'}; color: ${post.createdBy?.role === 'admin' ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                <span style="font-size: 10px; font-weight: bold; background: ${isAdmin ? '#fee2e2' : '#e0f2fe'}; color: ${isAdmin ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
                   ${post.category || 'Địa điểm'}
                 </span>
                 <h4 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 900; color: #111827;">${post.title || post.location}</h4>
                 <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${post.description}</p>
-                <div style="font-size: 11px; font-weight: bold; color: #f44336; border-top: 1px solid #f3f4f6; padding-top: 6px;">
-                  Bởi: ${post.createdBy?.username || 'Ẩn danh'}
+                <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding-top: 6px;">
+                  Bởi: ${username}
                 </div>
               </div>
             `);
@@ -109,18 +127,24 @@ function ExploreContent() {
 
   const fetchPosts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/posts');
+      const token = localStorage.getItem('token');
+      // Đảm bảo phải đăng nhập để xem Map (chỉ xem bài của bạn bè)
+      if (!token) throw new Error("Vui lòng đăng nhập để sử dụng tính năng này");
+
+      // Gọi vào API Explore mới tạo để chỉ lọc bài của friends
+      const res = await fetch('http://localhost:5000/api/posts/explore', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
       if (res.ok) {
         const data = await res.json();
-        // Lọc bài viết có tọa độ
-        const postsWithLocation = data.filter(p => p.lat && p.lng);
-        setPosts(postsWithLocation);
+        setPosts(data);
       } else {
         throw new Error("Không kết nối được Backend");
       }
     } catch (error) {
-      console.log("Đang lấy dữ liệu giả lập cho Canvas Preview...");
-      // Dữ liệu mô phỏng để bản đồ Canvas có điểm hiển thị
+      console.log(error.message);
+      // Giữ lại dữ liệu mô phỏng trong quá trình dev nếu không kết nối được
       setPosts([
         { _id: '1', title: 'Cầu Rồng', location: 'Đà Nẵng', description: 'Biểu tượng của thành phố Đà Nẵng, phun lửa vào cuối tuần.', lat: 16.06, lng: 108.22, category: 'Thành phố', createdBy: { username: 'Admin (Hệ thống)', role: 'admin' } },
         { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'poster' } },
@@ -139,7 +163,8 @@ function ExploreContent() {
     const location = String(post.location || '').toLowerCase();
     const description = String(post.description || '').toLowerCase();
     const category = String(post.category || '').toLowerCase();
-    return title.includes(keyword) || location.includes(keyword) || description.includes(keyword) || category.includes(keyword);
+    const creator = String(post.createdBy?.username || '').toLowerCase();
+    return title.includes(keyword) || location.includes(keyword) || description.includes(keyword) || category.includes(keyword) || creator.includes(keyword);
   });
 
   return (
@@ -170,7 +195,7 @@ function ExploreContent() {
               className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] border-transparent rounded-full text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
             />
           </div>
-          <button className="text-gray-500 hover:text-gray-900">
+          <button className="text-gray-500 hover:text-gray-900" onClick={() => navigate('/dashboard')}>
             <Bell size={22} strokeWidth={2} />
           </button>
         </div>
