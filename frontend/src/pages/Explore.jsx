@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
-import { Compass, Search, Bell, ArrowLeft } from 'lucide-react';
+import { Compass, Search, Bell, ArrowLeft, ShieldAlert, CheckCircle, X } from 'lucide-react';
 
 // Hàm hash để tạo màu ngẫu nhiên dựa trên username
 const stringToColor = (str) => {
@@ -12,12 +12,10 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
-// ==========================================
-// THÀNH PHẦN BẢN ĐỒ THẬT (Bypass lỗi ESBuild)
-// ==========================================
-function RealLeafletMap({ posts }) {
+function RealLeafletMap({ posts, flyToLocation }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const markersRef = useRef([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -51,55 +49,13 @@ function RealLeafletMap({ posts }) {
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Vẽ các điểm ghim lên bản đồ
-        posts.forEach(post => {
-          if (post.lat && post.lng) {
-            
-            // Xử lý icon theo màu sắc riêng biệt cho từng User
-            const username = post.createdBy?.username || 'Ẩn danh';
-            const userColor = stringToColor(username);
-            const isAdmin = post.createdBy?.role === 'admin';
-
-            // Dùng divIcon để tạo Pin custom bằng HTML/CSS
-            const customIcon = L.divIcon({
-              className: 'custom-pin',
-              html: `<div style="background-color: ${isAdmin ? '#ef4444' : userColor}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.4);"></div>`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 24],
-              popupAnchor: [0, -26]
-            });
-
-            const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
-            
-            // Thêm Tooltip khi hover (di chuột)
-            marker.bindTooltip(
-              `<div style="text-align:center;"><b>${post.location || post.title}</b><br/><span style="font-size:10px; color:#666;">Đăng bởi: ${username}</span></div>`, 
-              { direction: 'top', offset: [0, -26], opacity: 0.9 }
-            );
-            
-            // Popup HTML khi click vào ghim
-            marker.bindPopup(`
-              <div style="min-width: 180px; font-family: sans-serif;">
-                <span style="font-size: 10px; font-weight: bold; background: ${isAdmin ? '#fee2e2' : '#e0f2fe'}; color: ${isAdmin ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                  ${post.category || 'Địa điểm'}
-                </span>
-                <h4 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 900; color: #111827;">${post.title || post.location}</h4>
-                <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${post.description}</p>
-                <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding-top: 6px;">
-                  Bởi: ${username}
-                </div>
-              </div>
-            `);
-          }
-        });
-
         mapInstance.current = map;
       }
     };
 
     loadMap();
 
-    // Dọn dẹp bản đồ khi chuyển trang
+    // Dọn dẹp bản đồ khi unmount
     return () => {
       isMounted = false;
       if (mapInstance.current) {
@@ -107,28 +63,95 @@ function RealLeafletMap({ posts }) {
         mapInstance.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (!mapInstance.current || !window.L) return;
+    const L = window.L;
+    const map = mapInstance.current;
+
+    // Xóa markers cũ trước khi render markers mới
+    markersRef.current.forEach(marker => map.removeLayer(marker));
+    markersRef.current = [];
+
+    // Vẽ các điểm ghim lên bản đồ
+    posts.forEach(post => {
+      if (post.lat && post.lng) {
+        // Xử lý icon theo màu sắc riêng biệt cho từng User
+        const username = post.createdBy?.username || 'Ẩn danh';
+        const userColor = stringToColor(username);
+        const isAdmin = post.createdBy?.role === 'admin';
+
+        // Dùng divIcon để tạo Pin custom bằng HTML/CSS
+        const customIcon = L.divIcon({
+          className: 'custom-pin',
+          html: `<div style="background-color: ${isAdmin ? '#ef4444' : userColor}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.4);"></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 24],
+          popupAnchor: [0, -26]
+        });
+
+        const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
+        
+        // Thêm Tooltip khi hover (di chuột)
+        marker.bindTooltip(
+          `<div style="text-align:center;"><b>${post.location || post.title}</b><br/><span style="font-size:10px; color:#666;">Đăng bởi: ${username}</span></div>`, 
+          { direction: 'top', offset: [0, -26], opacity: 0.9 }
+        );
+        
+        // Popup HTML khi click vào ghim
+        marker.bindPopup(`
+          <div style="min-width: 180px; font-family: sans-serif;">
+            <span style="font-size: 10px; font-weight: bold; background: ${isAdmin ? '#fee2e2' : '#e0f2fe'}; color: ${isAdmin ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+              ${post.category || 'Địa điểm'}
+            </span>
+            <h4 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 900; color: #111827;">${post.title || post.location}</h4>
+            <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${post.description}</p>
+            <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding-top: 6px;">
+              Bởi: ${username}
+            </div>
+          </div>
+        `);
+
+        markersRef.current.push(marker);
+      }
+    });
   }, [posts]);
+
+  useEffect(() => {
+    if (mapInstance.current && flyToLocation) {
+      // flyTo(tọa độ, zoom_level, tùy chọn animation)
+      mapInstance.current.flyTo(flyToLocation, 13, {
+        animate: true,
+        duration: 1.5 // Thời gian bay (giây)
+      });
+    }
+  }, [flyToLocation]);
 
   return <div ref={mapRef} className="w-full h-full z-0" />;
 }
 
-// ==========================================
-// GIAO DIỆN EXPLORE CHÍNH
-// ==========================================
 function ExploreContent() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [flyToLocation, setFlyToLocation] = useState(null); // Lưu tọa độ để map bay tới
+  const [notification, setNotification] = useState({ type: '', text: '' }); // Quản lý Toast thông báo
 
   useEffect(() => {
     fetchPosts();
   }, []);
 
+  const showToast = (type, text) => {
+    setNotification({ type, text: String(text) });
+    setTimeout(() => setNotification({ type: '', text: '' }), 5000);
+  };
+
   const fetchPosts = async () => {
     try {
       const token = localStorage.getItem('token');
-      // Đảm bảo phải đăng nhập để xem Map (chỉ xem bài của bạn bè)
+      // Bắt buộc đăng nhập để xem Map (chỉ xem bài của bạn bè)
       if (!token) throw new Error("Vui lòng đăng nhập để sử dụng tính năng này");
 
       // Gọi vào API Explore mới tạo để chỉ lọc bài của friends
@@ -144,7 +167,7 @@ function ExploreContent() {
       }
     } catch (error) {
       console.log(error.message);
-      // Giữ lại dữ liệu mô phỏng trong quá trình dev nếu không kết nối được
+      // Dữ liệu mô phỏng trong quá trình dev nếu không kết nối được backend
       setPosts([
         { _id: '1', title: 'Cầu Rồng', location: 'Đà Nẵng', description: 'Biểu tượng của thành phố Đà Nẵng, phun lửa vào cuối tuần.', lat: 16.06, lng: 108.22, category: 'Thành phố', createdBy: { username: 'Admin (Hệ thống)', role: 'admin' } },
         { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'poster' } },
@@ -156,19 +179,42 @@ function ExploreContent() {
     }
   };
 
-  const filteredPosts = posts.filter((post) => {
-    const keyword = searchQuery.trim().toLowerCase();
-    if (!keyword) return true;
-    const title = String(post.title || '').toLowerCase();
-    const location = String(post.location || '').toLowerCase();
-    const description = String(post.description || '').toLowerCase();
-    const category = String(post.category || '').toLowerCase();
-    const creator = String(post.createdBy?.username || '').toLowerCase();
-    return title.includes(keyword) || location.includes(keyword) || description.includes(keyword) || category.includes(keyword) || creator.includes(keyword);
-  });
+  const handleSearchKeyPress = async (e) => {
+    if (e.key === 'Enter') {
+      const keyword = searchQuery.trim();
+      if (!keyword) return;
+
+      try {
+        // Sử dụng Nominatim API của OpenStreetMap (Miễn phí)
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}`);
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+          // Lấy tọa độ lat, lon của kết quả đầu tiên trả về
+          const { lat, lon } = data[0];
+          // Cập nhật state để trigger useEffect trong RealLeafletMap bay tới tọa độ này
+          setFlyToLocation([parseFloat(lat), parseFloat(lon)]);
+        } else {
+          showToast('error', `Không tìm thấy vị trí: ${keyword}`);
+        }
+      } catch (error) {
+        showToast('error', 'Lỗi kết nối đến máy chủ bản đồ.');
+      }
+    }
+  };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-white overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-white overflow-hidden relative">
+      
+      {/* KHU VỰC THÔNG BÁO (TOAST) */}
+      {notification.text && (
+        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
+          {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
+          <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
+          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900"><X size={18} /></button>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-6 z-10 shadow-sm flex-shrink-0 relative">
         <div className="w-1/4 flex items-center gap-3">
@@ -189,9 +235,10 @@ function ExploreContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Search map..." 
+              placeholder="Nhấn Enter để tìm vị trí..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyPress} // Bắt sự kiện phím Enter
               className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] border-transparent rounded-full text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
             />
           </div>
@@ -208,14 +255,13 @@ function ExploreContent() {
             <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
           </div>
         ) : (
-          <RealLeafletMap posts={filteredPosts} />
+          <RealLeafletMap posts={posts} flyToLocation={flyToLocation} />
         )}
       </div>
     </div>
   );
 }
 
-// Bọc Router để chống lỗi Preview
 export default function Explore() {
   const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
   if (!hasRouter) {
