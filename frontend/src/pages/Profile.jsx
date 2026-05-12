@@ -22,8 +22,32 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
+// Hàm định dạng URL ảnh TỐI ƯU HƠN (Xử lý cả lỗi dấu gạch chéo ngược của Windows)
 const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  if (url) {
+    const cleanUrl = url.replace(/\\/g, '/'); // Sửa lỗi đường dẫn từ backend Windows
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')) return cleanUrl;
+    return cleanUrl.startsWith('/') ? `http://localhost:5000${cleanUrl}` : `http://localhost:5000/${cleanUrl}`;
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+};
+
+const getCoverUrl = (url) => {
+  if (!url) return 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
+  const cleanUrl = url.replace(/\\/g, '/');
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')) return cleanUrl;
+  return cleanUrl.startsWith('/') ? `http://localhost:5000${cleanUrl}` : `http://localhost:5000/${cleanUrl}`;
+};
+
+const getPostImageUrl = (img) => {
+  let url = '';
+  if (typeof img === 'string') url = img;
+  else if (img && typeof img === 'object') url = img.url || img.path || '';
+  
+  if (!url) return '';
+  const cleanUrl = url.replace(/\\/g, '/');
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://') || cleanUrl.startsWith('data:')) return cleanUrl;
+  return cleanUrl.startsWith('/') ? `http://localhost:5000${cleanUrl}` : `http://localhost:5000/${cleanUrl}`;
 };
 
 let leafletAssetsPromise = null;
@@ -158,7 +182,6 @@ function ProfileContent() {
       const token = localStorage.getItem('token');
       const userId = localStorage.getItem('userId');
       
-      // SỬA LỖI TẠI ĐÂY: Thay vì throw new Error làm sập giao diện, cập nhật error State
       if (!token || !userId) {
         setError('Vui lòng đăng nhập để xem trang cá nhân');
         setIsLoading(false);
@@ -178,6 +201,12 @@ function ProfileContent() {
       const data = await res.json();
       setProfile(data.user || {});
       setUserPosts(Array.isArray(data.posts) ? data.posts : []);
+
+      // Đồng bộ thông tin về LocalStorage để nơi khác gọi (nếu là profile của chính mình)
+      if (data.user) {
+        if (data.user.avatar) localStorage.setItem('avatar', data.user.avatar);
+        if (data.user.username) localStorage.setItem('username', data.user.username);
+      }
     } catch (err) {
       console.warn(err);
       setError('Lỗi hệ thống khi load profile');
@@ -186,8 +215,16 @@ function ProfileContent() {
     }
   };
 
+  // CẬP NHẬT: Lắng nghe sự kiện "profileUpdated" để render lại lập tức khi đổi ảnh
   useEffect(() => {
     loadProfile();
+
+    const handleProfileUpdate = () => {
+      loadProfile();
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    return () => window.removeEventListener('profileUpdated', handleProfileUpdate);
   }, []);
 
   const fetchCollections = async () => {
@@ -238,7 +275,7 @@ function ProfileContent() {
   }
 
   const displayAvatar = getAvatarUrl(profile.avatar, profile.username);
-  const displayCover = profile.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
+  const displayCover = getCoverUrl(profile.cover);
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12 relative">
@@ -422,7 +459,7 @@ function ProfileContent() {
                       <div key={col._id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-md transition-all group">
                         <div className="h-[140px] bg-gradient-to-br from-red-50 to-orange-50 relative overflow-hidden">
                           {col.posts?.length > 0 && col.posts[0]?.images?.length > 0 ? (
-                            <img src={col.posts[0].images[0]} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            <img src={getPostImageUrl(col.posts[0].images[0])} alt="cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <FolderHeart size={36} className="text-[#f44336] opacity-40" />
@@ -441,7 +478,7 @@ function ProfileContent() {
                           {col.posts?.length > 1 && (
                             <div className="flex gap-1 mt-2">
                               {col.posts.slice(0, 3).map((p, i) => (
-                                p.images?.[0] && <img key={i} src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                                p.images?.[0] && <img key={i} src={getPostImageUrl(p.images[0])} alt="" className="w-8 h-8 rounded-lg object-cover" />
                               ))}
                             </div>
                           )}
@@ -514,7 +551,7 @@ function ProfileContent() {
                       {/* NẾU CÓ ẢNH */}
                       {Array.isArray(post.images) && post.images.length > 0 && (
                         <img 
-                          src={post.images[0]} 
+                          src={getPostImageUrl(post.images[0])} 
                           alt="Post Media" 
                           className="w-full rounded-xl object-cover max-h-[350px] mb-4 group-hover:opacity-95 transition-opacity border border-gray-100"
                         />
@@ -574,7 +611,6 @@ function ProfileContent() {
   );
 }
 
-// 🛡️ LỚP BỌC AN TOÀN (SAFE WRAPPER)
 export default function Profile() {
   const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
   if (!hasRouter) {
