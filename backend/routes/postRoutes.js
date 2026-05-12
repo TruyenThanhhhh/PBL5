@@ -39,6 +39,9 @@ router.post("/create-with-media", protect, (req, res) => {
   });
 });
 
+// 🔥 Lấy danh sách bài viết thịnh hành (Phải đặt trước /:id để tránh bị nhầm route)
+router.get("/trending", postController.getTrendingPosts);
+
 // 🗺️ API MỚI CHO EXPLORE MAP: Chỉ hiển thị bài của Bạn Bè và Bản Thân (Bắt buộc đăng nhập)
 router.get("/explore", protect, postController.getExplorePosts);
 

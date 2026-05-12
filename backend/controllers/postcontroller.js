@@ -156,7 +156,7 @@ exports.getPosts = async (req, res) => {
   }
 };
 
-// YÊU CẦU MỚI: API chỉ lấy các điểm được đăng bởi BẠN BÈ hoặc BẢN THÂN
+// API chỉ lấy các điểm được đăng bởi BẠN BÈ hoặc BẢN THÂN
 exports.getExplorePosts = async (req, res) => {
   try {
     // 1. Lấy thông tin User hiện tại kèm danh sách bạn bè
@@ -238,6 +238,31 @@ exports.toggleVisibility = async (req, res) => {
     post.isHidden = !post.isHidden;
     await post.save();
     res.json({ message: post.isHidden ? "Đã ẩn bài" : "Đã hiện bài", isHidden: post.isHidden });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getTrendingPosts = async (req, res) => {
+  try {
+    // Sử dụng aggregate để tính toán số lượng like và sắp xếp
+    const posts = await Post.aggregate([
+      { 
+        $match: { 
+          isHidden: false,
+          lat: { $ne: null }, // Đã sửa: Chỉ lấy bài có tọa độ lat
+          lng: { $ne: null }  // Đã sửa: Chỉ lấy bài có tọa độ lng
+        } 
+      }, // Chỉ lấy bài không bị ẩn và có ghim vị trí thực sự
+      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, // Đếm số lượng phần tử trong mảng likes
+      { $sort: { likeCount: -1, createdAt: -1 } }, // Sắp xếp giảm dần theo like, sau đó là thời gian tạo
+      { $limit: 5 } // Lấy top 5
+    ]);
+    
+    // Populate thông tin người tạo (vì aggregate không tự populate)
+    await Post.populate(posts, { path: "createdBy", select: "username avatar role" });
+    
+    res.json(posts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

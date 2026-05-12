@@ -139,6 +139,9 @@ function DashboardContent() {
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
+  // STATE MỚI CHO TOP ĐỊA ĐIỂM ĐANG HOT
+  const [trendingPosts, setTrendingPosts] = useState([]);
+  
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
   const [pickedCoords, setPickedCoords] = useState(null);
   const [showMapPicker, setShowMapPicker] = useState(false);
@@ -191,7 +194,6 @@ function DashboardContent() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   
-  // Ref để auto-scroll tin nhắn
   const messagesEndRef = useRef(null);
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
@@ -265,7 +267,6 @@ function DashboardContent() {
           return newUsers;
         });
 
-        // Bóc tách sentRequests (những người mà mình đã gửi yêu cầu kết bạn cho họ)
         if (myId) {
           const sent = data
             .filter(u => u.friendRequests && u.friendRequests.includes(myId))
@@ -280,7 +281,6 @@ function DashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
-      // Gọi API lấy profile của CHÍNH MÌNH (private profile API) để có được mảng friendRequests đã populate user.
       const res = await fetch(`http://localhost:5000/api/users/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -288,13 +288,11 @@ function DashboardContent() {
         const user = await res.json();
         if (user) {
           const myFriends = (user.friends || []).map(u => String(u._id || u));
-          // Vì API /profile populate friendRequests, nó là mảng các object
           const myReceivedRequests = (user.friendRequests || []).map(u => String(u._id || u));
           
           setFriends(myFriends);
           setReceivedRequests(myReceivedRequests);
 
-          // Bổ sung những người lạ (gửi request) vào mảng allUsers để UI tìm được username và avatar
           setAllUsers(prev => {
             const newUsers = [...prev];
             (user.friendRequests || []).forEach(reqUser => {
@@ -302,7 +300,6 @@ function DashboardContent() {
                 newUsers.push(reqUser);
               }
             });
-            // Bổ sung cả friends nữa cho chắc chắn
             (user.friends || []).forEach(fUser => {
               if (fUser._id && !newUsers.find(exist => String(exist._id) === String(fUser._id))) {
                 newUsers.push(fUser);
@@ -364,6 +361,31 @@ function DashboardContent() {
     }
   };
 
+  // HÀM MỚI: FETCH ĐỊA ĐIỂM HOT (TRENDING POSTS)
+  const fetchTrendingPosts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/posts/trending');
+      if (res.ok) {
+        const data = await res.json();
+        setTrendingPosts(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy danh sách trending:", error);
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/posts');
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(Array.isArray(data) ? data : []);
+      }
+    } catch (error) { 
+      setPosts([]); 
+    }
+  };
+
   useEffect(() => {
     const userRole = localStorage.getItem('role') || 'user';
     const userId = localStorage.getItem('userId') || ''; 
@@ -373,6 +395,7 @@ function DashboardContent() {
     
     loadLeafletAssets().catch(() => {});
     fetchPosts();
+    fetchTrendingPosts(); // Gọi hàm lấy danh sách trending khi load trang
 
     if (userId) {
       fetchAllUsers();
@@ -501,18 +524,6 @@ function DashboardContent() {
       }
     } catch (error) {
       showToast('error', 'Lỗi khi bỏ qua');
-    }
-  };
-
-  const fetchPosts = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/posts');
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(Array.isArray(data) ? data : []);
-      }
-    } catch (error) { 
-      setPosts([]); 
     }
   };
 
@@ -937,7 +948,7 @@ function DashboardContent() {
            targetIdStr !== currentUserIdStr && 
            !friends.includes(targetIdStr) &&
            !receivedRequests.includes(targetIdStr) &&
-           !sentRequests.includes(targetIdStr); // Sửa: Không hiển thị người mình ĐÃ GỬI lời mời
+           !sentRequests.includes(targetIdStr); 
   });
 
   const currentChatMessages = selectedChatUser ? (userMessages[selectedChatUser._id] || []) : [];
@@ -1195,7 +1206,6 @@ function DashboardContent() {
         </div>
       </header>
 
-      {}
       {isUserChatOpen && (
         <div className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
@@ -1271,7 +1281,6 @@ function DashboardContent() {
                            Hãy nói lời chào 👋
                          </div>
                       )}
-                      {/* Vị trí để auto-scroll */}
                       <div ref={messagesEndRef} />
                     </>
                   )}
@@ -1302,7 +1311,6 @@ function DashboardContent() {
         </div>
       )}
 
-      {}
       <main className="max-w-[1100px] mx-auto pt-8 px-4 flex gap-8 items-start">
         
         <div className="flex-1 max-w-[650px]">
@@ -1514,7 +1522,6 @@ function DashboardContent() {
                       </button>
                     </div>
 
-                    {}
                     {expandedComments[post._id] && (
                       <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300">
                         <div className="flex gap-3 mb-6">
@@ -1660,19 +1667,32 @@ function DashboardContent() {
           </div>
         </div>
 
-        {}
         <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa điểm Đang Hot</h3>
             <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">Biển</p>
-                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Văn Hóa</p>
-                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
-              </div>
+              {trendingPosts.length === 0 ? (
+                <p className="text-[12px] font-medium text-gray-400 text-center py-2">Chưa có dữ liệu</p>
+              ) : (
+                trendingPosts.map((trendingPost) => (
+                  <div key={trendingPost._id}>
+                    <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">
+                      {trendingPost.category || 'Khám phá'}
+                    </p>
+                    <p 
+                      onClick={() => {
+                        navigate(`/post-detail?postId=${trendingPost._id}`);
+                      }} 
+                      className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline"
+                    >
+                      {trendingPost.title || trendingPost.location || 'Chưa rõ vị trí'}
+                    </p>
+                    <p className="text-[11px] font-medium text-gray-500 mt-1 flex items-center gap-1.5">
+                      <Heart size={12} className="text-[#f44336]" fill="#f44336" /> {trendingPost.likeCount || 0} lượt thích
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
@@ -1699,7 +1719,6 @@ function DashboardContent() {
 
       </main>
 
-      {}
       <button
         type="button"
         onClick={() => setIsAiChatOpen((prev) => !prev)}
@@ -1751,7 +1770,6 @@ function DashboardContent() {
   );
 }
 
-// Bọc Router
 export default function Dashboard() {
   const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
   if (!hasRouter) return <MemoryRouter><DashboardContent /></MemoryRouter>;
