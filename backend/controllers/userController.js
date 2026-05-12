@@ -1,7 +1,8 @@
-const User = require("../models/user"); // <-- Đã sửa chữ 'U' viết hoa
+const User = require("../models/User"); // Đảm bảo đúng file model (U viết hoa hoặc thường tùy file gốc của bạn, ở đây mình sửa thành User để đồng bộ)
 const Post = require("../models/Post");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const Notification = require("../models/Notification");
 
 // Hàm hỗ trợ chuẩn hóa role
 const normalizeRole = (role) => {
@@ -45,7 +46,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 🚀 ĐĂNG NHẬP (Khớp chính xác chữ hoa/chữ thường)
+// 🚀 ĐĂNG NHẬP
 exports.loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -55,9 +56,7 @@ exports.loginUser = async (req, res) => {
     }
 
     const cleanIdentifier = identifier.trim();
-    console.log("➡️ Đang thử đăng nhập với tài khoản:", cleanIdentifier);
 
-    // Tìm user bằng email HOẶC username
     const user = await User.findOne({
       $or: [
         { email: cleanIdentifier }, 
@@ -69,13 +68,11 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: "Tài khoản không tồn tại!" });
     }
 
-    // Kiểm tra mật khẩu
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Sai mật khẩu!" });
     }
 
-    // Tạo Token
     const normalizedRole = normalizeRole(user.role);
     const token = jwt.sign(
       { id: user._id, role: normalizedRole },
@@ -83,9 +80,6 @@ exports.loginUser = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    console.log(`✅ Đăng nhập thành công: ${user.username} | Quyền: ${user.role}`);
-
-    // Gửi kèm 'role' và 'roleRequestStatus' về cho Frontend
     res.json({ 
       message: "Đăng nhập thành công", 
       token, 
@@ -97,12 +91,139 @@ exports.loginUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Login Error:", error);
     res.status(500).json({ message: "Lỗi Server!" });
   }
 };
 
-// ➕ FOLLOW / UNFOLLOW USER
+// ==========================================
+// 🤝 HỆ THỐNG BẠN BÈ (THÊM MỚI)
+// ==========================================
+
+// 1. Gửi hoặc Hủy yêu cầu kết bạn
+exports.sendFriendRequest = async (req, res) => {
+  try {
+    const targetId = req.params.id; // Người mình muốn kết bạn
+    const myId = req.user.id;
+
+    if (targetId === myId) return res.status(400).json({ message: "Không thể tự kết bạn" });
+
+    const targetUser = await User.findById(targetId);
+    if (!targetUser) return res.status(404).json({ message: "User không tồn tại" });
+
+    // Kiểm tra xem đã là bạn chưa
+    if (targetUser.friends.includes(myId)) {
+      return res.status(400).json({ message: "Đã là bạn bè" });
+    }
+
+    const isRequested = targetUser.friendRequests.includes(myId);
+
+    if (isRequested) {
+      // Nếu ĐÃ GỬI => HỦY YÊU CẦU (Hoàn tác)
+      targetUser.friendRequests.pull(myId);
+      await targetUser.save();
+      
+      // (Tùy chọn) Xóa thông báo cũ nếu muốn
+      await Notification.findOneAndDelete({ receiver: targetId, sender: myId, type: "friend_request" });
+
+      return res.json({ status: "none", message: "Đã hủy lời mời kết bạn" });
+    } else {
+      // CHƯA GỬI => TIẾN HÀNH GỬI
+      targetUser.friendRequests.push(myId);
+      await targetUser.save();
+
+      // Gửi thông báo
+      await Notification.create({
+        receiver: targetId,
+        sender: myId,
+        type: "friend_request",
+        content: "đã gửi cho bạn một lời mời kết bạn.",
+        link: `/profile`
+      });
+
+      return res.json({ status: "pending", message: "Đã gửi lời mời kết bạn" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 2. Chấp nhận yêu cầu kết bạn
+exports.acceptFriendRequest = async (req, res) => {
+  try {
+    const senderId = req.params.id; // Người đã gửi lời mời
+    const myId = req.user.id; // Mình (người nhận)
+
+    const [me, sender] = await Promise.all([
+      User.findById(myId),
+      User.findById(senderId)
+    ]);
+
+    if (!me || !sender) return res.status(404).json({ message: "User không tồn tại" });
+
+    // Kiểm tra xem có lời mời không
+    if (!me.friendRequests.includes(senderId)) {
+      return res.status(400).json({ message: "Không tìm thấy lời mời kết bạn" });
+    }
+
+    // Chấp nhận: Bỏ khỏi mảng request, thêm vào mảng friends của cả 2
+    me.friendRequests.pull(senderId);
+    me.friends.push(senderId);
+    sender.friends.push(myId);
+
+    await Promise.all([me.save(), sender.save()]);
+
+    // Thông báo cho người gửi là mình đã chấp nhận
+    await Notification.create({
+      receiver: senderId,
+      sender: myId,
+      type: "system",
+      content: "đã chấp nhận lời mời kết bạn của bạn.",
+      link: `/profile`
+    });
+
+    res.json({ status: "friends", message: "Đã trở thành bạn bè" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 3. Xóa bạn bè (Unfriend) / Từ chối lời mời
+exports.unfriend = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    const [me, target] = await Promise.all([
+      User.findById(myId),
+      User.findById(targetId)
+    ]);
+
+    if (!me || !target) return res.status(404).json({ message: "User không tồn tại" });
+
+    // Xóa khỏi danh sách bạn bè
+    if (me.friends.includes(targetId)) {
+      me.friends.pull(targetId);
+      target.friends.pull(myId);
+    }
+
+    // Nếu đây là hành động từ chối lời mời (reject request)
+    if (me.friendRequests.includes(targetId)) {
+        me.friendRequests.pull(targetId);
+    }
+
+    await Promise.all([me.save(), target.save()]);
+
+    res.json({ status: "none", message: "Đã hủy kết bạn/từ chối lời mời" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==========================================
+// CÁC HÀM CŨ BÊN DƯỚI GIỮ NGUYÊN
+// ==========================================
+
+// ➕ FOLLOW / UNFOLLOW USER (Có thể bạn muốn bỏ cái này nếu dùng friend, nhưng mình cứ giữ nguyên)
 exports.toggleFollow = async (req, res) => {
   try {
     const targetId = req.params.id;
@@ -118,7 +239,7 @@ exports.toggleFollow = async (req, res) => {
 
     if (!target) return res.status(404).json({ message: "User không tồn tại" });
 
-    const isFollowing = me.following.includes(targetId);
+    const isFollowing = me.following.some(id => id.toString() === targetId);
 
     if (isFollowing) {
       me.following.pull(targetId);
@@ -130,6 +251,16 @@ exports.toggleFollow = async (req, res) => {
 
     await Promise.all([me.save(), target.save()]);
 
+    if (!isFollowing) {
+      await Notification.create({
+        receiver: targetId,
+        sender: myId,
+        type: "system", // Sửa type thành system cho follow, nhường friend_request cho tính năng kết bạn
+        content: "đã bắt đầu theo dõi bạn.",
+        link: `/profile`
+      });
+    }
+
     res.json({
       following: !isFollowing,
       message: isFollowing ? "Đã unfollow" : "Đã follow",
@@ -140,25 +271,109 @@ exports.toggleFollow = async (req, res) => {
   }
 };
 
-// 📰 GET FEED
+exports.searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const myId = req.user.id;
+
+    const query = {
+      role: { $ne: "admin" },
+      _id: { $ne: myId }
+    };
+
+    if (q) {
+      query.username = { $regex: q, $options: "i" };
+    }
+
+    const users = await User.find(query).select("username avatar role followers following friends friendRequests"); // Trả thêm friends để FE check trạng thái
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bio } = req.body;
+    const user = await User.findById(userId);
+
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    let hasChanged = false;
+    let changeType = "";
+
+    if (req.files) {
+      if (req.files.avatar) {
+        user.avatar = req.files.avatar[0].path;
+        hasChanged = true;
+        changeType = changeType ? "both" : "avatar";
+      }
+      if (req.files.cover) {
+        user.cover = req.files.cover[0].path;
+        hasChanged = true;
+        changeType = changeType ? "both" : "cover";
+      }
+    }
+
+    if (bio !== undefined) {
+      user.bio = bio;
+    }
+
+    await user.save();
+
+    if (hasChanged) {
+      let title = "";
+      let images = [];
+
+      if (changeType === "avatar") {
+        title = `${user.username} đã cập nhật ảnh đại diện mới`;
+        images = [user.avatar];
+      } else if (changeType === "cover") {
+        title = `${user.username} đã cập nhật ảnh bìa mới`;
+        images = [user.cover];
+      } else {
+        title = `${user.username} đã làm mới trang cá nhân`;
+        images = [user.avatar, user.cover];
+      }
+
+      await Post.create({
+        title,
+        description: `Mọi người thấy thế nào? ✨`,
+        images,
+        createdBy: user._id,
+        category: "System",
+        location: "Cập nhật hồ sơ"
+      });
+    }
+
+    res.json({ message: "Cập nhật thành công", user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getFeed = async (req, res) => {
   try {
-    const me = await User.findById(req.user.id).select("following");
-    if (!me.following.length) {
-      return res.json({ posts: [], message: "Hãy follow ai đó để xem feed" });
+    const me = await User.findById(req.user.id).select("following friends");
+    // Feed hiển thị bài của người mình follow HOẶC bạn bè
+    const targetUsers = [...new Set([...me.following, ...me.friends])];
+
+    if (!targetUsers.length) {
+      return res.json({ posts: [], message: "Hãy kết bạn hoặc follow ai đó để xem feed" });
     }
 
     const page  = parseInt(req.query.page)  || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip  = (page - 1) * limit;
 
-    const posts = await Post.find({ createdBy: { $in: me.following } })
+    const posts = await Post.find({ createdBy: { $in: targetUsers } })
       .populate("createdBy", "username avatar")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Post.countDocuments({ createdBy: { $in: me.following } });
+    const total = await Post.countDocuments({ createdBy: { $in: targetUsers } });
 
     res.json({
       posts,
@@ -169,33 +384,36 @@ exports.getFeed = async (req, res) => {
   }
 };
 
-// 👥 LẤY DANH SÁCH FOLLOWERS / FOLLOWING
 exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .populate("followers", "username avatar bio")
-      .populate("following", "username avatar bio");
+      .populate("following", "username avatar bio")
+      .populate("friends", "username avatar bio"); // Thêm populate friends
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     res.json({
       followers: user.followers,
       following: user.following,
+      friends: user.friends,
       followersCount: user.followers.length,
       followingCount: user.following.length,
+      friendsCount: user.friends.length
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 👤 GET USER PROFILE
 exports.getUserProfile = async (req, res) => {
   try {
+    // Populate đầy đủ thông tin để FE xử lý
     const user = await User.findById(req.params.id)
       .select("-password")
       .populate("followers", "username avatar")
-      .populate("following", "username avatar");
+      .populate("following", "username avatar")
+      .populate("friends", "username avatar"); // Lấy danh sách bạn bè
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -203,15 +421,25 @@ exports.getUserProfile = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(20);
 
-    res.json({ user, posts });
+    // Gửi kèm thông tin xem user hiện tại (người request) có trạng thái gì với user đang xem
+    let friendStatus = "none";
+    if (req.user) {
+        if (user.friends.some(f => f._id.toString() === req.user.id)) friendStatus = "friends";
+        else if (user.friendRequests.includes(req.user.id)) friendStatus = "pending"; // Mình đã gửi cho họ
+        // Nếu muốn check họ đã gửi cho mình chưa thì phải query thêm, 
+        // nhưng tạm thời frontend có thể check qua /profile của chính user đang login
+    }
+
+    // Clone user object to add friendStatus without modifying mongoose doc
+    const userResponse = user.toObject();
+    userResponse.friendStatus = friendStatus;
+
+    res.json({ user: userResponse, posts });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// ==========================================
-// 🛡️ TÍNH NĂNG: XIN LÊN QUYỀN POSTER
-// ==========================================
 exports.requestPosterRole = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -261,6 +489,36 @@ exports.getPendingRequests = async (req, res) => {
   try {
     const users = await User.find({ roleRequestStatus: "pending" }).select("username email createdAt");
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+        .select("-password")
+        .populate("friendRequests", "username avatar"); // Lấy danh sách những người xin kết bạn để FE hiển thị
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Mật khẩu cũ không chính xác" });
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "Đổi mật khẩu thành công" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

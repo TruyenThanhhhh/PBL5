@@ -18,8 +18,8 @@ const normalizeRole = (role) => {
 
 // Cấu hình CORS mở cửa cho Frontend (Vite)
 app.use(cors({
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"], 
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"], 
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   credentials: true
 }));
 
@@ -49,69 +49,19 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ─── Routes ────────────────────────────────────────────────
-const postRoutes = require("./routes/postRoutes");
-const userRoutes = require("./routes/userRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-const { requireAdmin } = require("./middleware/auth");
+const postRoutes    = require("./routes/postRoutes");
+const userRoutes    = require("./routes/userRoutes");
+const commentRoutes = require("./routes/commentRoutes");
+const chatRoutes    = require("./routes/chatRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
-app.use("/api/posts", postRoutes);
-app.use("/api/users", userRoutes);  
-app.use("/api/chat", chatRoutes);
-
-// ─── Profile ───────────────────────────────────────────────
-app.get("/api/profile", authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select("-password");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    user.role = normalizeRole(user.role);
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.put("/api/profile", authMiddleware, (req, res, next) => {
-  upload.fields([{ name: "avatar", maxCount: 1 }, { name: "cover", maxCount: 1 }])(req, res, (err) => {
-    if (err) {
-      console.error('[API] PUT /api/profile upload error:', err);
-      return res.status(400).json({ message: err.message || 'Upload error', error: err });
-    }
-    next();
-  });
-}, async (req, res) => {
-  console.log("[API] PUT /api/profile", { userId: req.user?.id, body: req.body, files: req.files });
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      console.log("[API] PUT /api/profile user not found", { userId: req.user?.id });
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const { username, bio } = req.body;
-    if (username) user.username = username.trim();
-    if (bio) user.bio = bio.trim();
-
-    if (req.files && req.files.avatar && req.files.avatar[0]) {
-      user.avatar = req.files.avatar[0].path || req.files.avatar[0].filename || user.avatar;
-    }
-
-    if (req.files && req.files.cover && req.files.cover[0]) {
-      user.cover = req.files.cover[0].path || req.files.cover[0].filename || user.cover;
-    }
-
-    await user.save();
-
-    const updatedUser = user.toObject();
-    delete updatedUser.password;
-    updatedUser.role = normalizeRole(user.role);
-
-    console.log("[API] PUT /api/profile success", { userId: req.user?.id });
-    res.json({ message: "Cập nhật profile thành công", user: updatedUser });
-  } catch (error) {
-    console.error("[API] PUT /api/profile error", error);
-    res.status(500).json({ message: error.message, error });
-  }
-});
+app.use("/api/posts",    postRoutes);
+app.use("/api/users",    userRoutes);
+app.use("/api/comments", commentRoutes);
+app.use("/api/chat",     chatRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Global error JSON handler
 app.use((err, req, res, next) => {
@@ -119,26 +69,6 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   const message = err?.message || 'Internal server error';
   res.status(err?.status || 500).json({ message, error: err });
-});
-
-// ─── Change Password ───────────────────────────────────────
-app.put("/api/change-password", authMiddleware, async (req, res) => {
-  try {
-    const { oldPassword, newPassword } = req.body;
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Old password incorrect" });
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    res.json({ message: "Password changed successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // ─── Start ─────────────────────────────────────────────────
