@@ -9,6 +9,7 @@ const { protect, requireAdmin } = require("../middleware/auth");
 // ==========================================
 router.post("/register", upload.single("avatar"), userController.registerUser);
 router.post("/login", userController.loginUser); 
+router.post("/google-login", userController.googleLogin); // Thêm route này cho Google Login
 
 // ==========================================
 // 🛡️ ROUTES QUẢN LÝ QUYỀN POSTER 
@@ -20,9 +21,9 @@ router.post("/admin/approve-request", protect, requireAdmin, userController.appr
 // ==========================================
 // 🤝 ROUTES KẾT BẠN (FRIENDSHIP)
 // ==========================================
-router.post("/friend-request/:id", protect, userController.sendFriendRequest); // Gửi hoặc hủy lời mời
-router.post("/accept-friend/:id", protect, userController.acceptFriendRequest); // Chấp nhận lời mời
-router.delete("/unfriend/:id", protect, userController.unfriend); // Xóa bạn hoặc từ chối lời mời
+router.post("/friend-request/:id", protect, userController.sendFriendRequest); 
+router.post("/accept-friend/:id", protect, userController.acceptFriendRequest); 
+router.delete("/unfriend/:id", protect, userController.unfriend); 
 
 // ==========================================
 // 👤 CÁC TÍNH NĂNG CƠ BẢN
@@ -34,6 +35,6 @@ router.get("/search", protect, userController.searchUsers);
 router.put("/update-profile", protect, upload.fields([{ name: "avatar", maxCount: 1 }, { name: "cover", maxCount: 1 }]), userController.updateProfile);
 router.put("/follow/:id", protect, userController.toggleFollow);
 router.get("/:id/follow-info", userController.getFollowers);
-router.get("/:id/profile", protect, userController.getUserProfile); // Thêm middleware protect để biết user đăng nhập là ai
+router.get("/:id/profile", protect, userController.getUserProfile); 
 
 module.exports = router;

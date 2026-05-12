@@ -1,8 +1,13 @@
-const User = require("../models/User"); // Đảm bảo đúng file model (U viết hoa hoặc thường tùy file gốc của bạn, ở đây mình sửa thành User để đồng bộ)
+const User = require("../models/User");
 const Post = require("../models/Post");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Notification = require("../models/Notification");
+
+// Khởi tạo thư viện Auth của Google
+const { OAuth2Client } = require('google-auth-library');
+// Khởi tạo client với ID lấy từ file .env
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Hàm hỗ trợ chuẩn hóa role
 const normalizeRole = (role) => {
@@ -12,7 +17,86 @@ const normalizeRole = (role) => {
   return r;
 };
 
-// 🚀 ĐĂNG KÝ TÀI KHOẢN
+// ==========================================
+// 🚀 ĐĂNG NHẬP BẰNG GOOGLE (API MỚI)
+// ==========================================
+exports.googleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: "Không tìm thấy Google Token" });
+    }
+
+    // 1. Xác thực Token này với Google Server
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,  // Đảm bảo request này dành cho App của bạn
+    });
+
+    // 2. Lấy thông tin User từ Google (Payload)
+    const payload = ticket.getPayload();
+    const { email, name, picture, sub } = payload; // sub là Google ID duy nhất
+
+    // 3. Kiểm tra xem User này đã tồn tại trong DB chưa
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // NẾU CHƯA CÓ TÀI KHOẢN -> TỰ ĐỘNG ĐĂNG KÝ
+      // Mật khẩu sẽ được random sinh ra (hoặc lấy chính ID google hash đi) vì họ login qua Google
+      const randomPassword = email + sub + process.env.JWT_SECRET;
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      // Định dạng username: Bỏ khoảng trắng, xóa kí tự đặc biệt để làm username duy nhất
+      let baseUsername = name.replace(/\s+/g, '').toLowerCase();
+      
+      // Kiểm tra trùng username
+      let existUsername = await User.findOne({ username: baseUsername });
+      if(existUsername) {
+        baseUsername = baseUsername + Math.floor(Math.random() * 10000);
+      }
+
+      user = await User.create({
+        username: baseUsername,
+        email: email,
+        password: hashedPassword,
+        avatar: picture,
+        role: "viewer", // Mặc định tài khoản Google mới cấp là viewer
+      });
+    } else {
+      // NẾU ĐÃ CÓ TÀI KHOẢN NHƯNG CHƯA CÓ AVATAR -> Cập nhật avatar từ google
+      if (!user.avatar || user.avatar === "") {
+         user.avatar = picture;
+         await user.save();
+      }
+    }
+
+    // 4. Sinh Token đăng nhập của riêng hệ thống chúng ta
+    const normalizedRole = normalizeRole(user.role);
+    const jwtToken = jwt.sign(
+      { id: user._id, role: normalizedRole },
+      process.env.JWT_SECRET || "123456789",
+      { expiresIn: "7d" }
+    );
+
+    // 5. Trả dữ liệu về cho Frontend giống hệt Login bình thường
+    res.json({ 
+      message: "Đăng nhập Google thành công", 
+      token: jwtToken, 
+      userId: user._id,
+      username: user.username,
+      avatar: user.avatar,
+      role: user.role,
+      roleRequestStatus: user.roleRequestStatus
+    });
+
+  } catch (error) {
+    console.error("Google Login Error in Backend:", error);
+    res.status(401).json({ message: "Xác thực Google thất bại hoặc Token hết hạn" });
+  }
+};
+
+// 🚀 ĐĂNG KÝ TÀI KHOẢN BẰNG TAY (CŨ)
 exports.registerUser = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
@@ -46,7 +130,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 🚀 ĐĂNG NHẬP
+// 🚀 ĐĂNG NHẬP BẰNG TAY (CŨ)
 exports.loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -96,7 +180,7 @@ exports.loginUser = async (req, res) => {
 };
 
 // ==========================================
-// 🤝 HỆ THỐNG BẠN BÈ (THÊM MỚI)
+// 🤝 HỆ THỐNG BẠN BÈ 
 // ==========================================
 
 // 1. Gửi hoặc Hủy yêu cầu kết bạn
@@ -219,11 +303,7 @@ exports.unfriend = async (req, res) => {
   }
 };
 
-// ==========================================
-// CÁC HÀM CŨ BÊN DƯỚI GIỮ NGUYÊN
-// ==========================================
-
-// ➕ FOLLOW / UNFOLLOW USER (Có thể bạn muốn bỏ cái này nếu dùng friend, nhưng mình cứ giữ nguyên)
+// ➕ FOLLOW / UNFOLLOW USER 
 exports.toggleFollow = async (req, res) => {
   try {
     const targetId = req.params.id;
@@ -255,7 +335,7 @@ exports.toggleFollow = async (req, res) => {
       await Notification.create({
         receiver: targetId,
         sender: myId,
-        type: "system", // Sửa type thành system cho follow, nhường friend_request cho tính năng kết bạn
+        type: "system", 
         content: "đã bắt đầu theo dõi bạn.",
         link: `/profile`
       });
@@ -285,7 +365,7 @@ exports.searchUsers = async (req, res) => {
       query.username = { $regex: q, $options: "i" };
     }
 
-    const users = await User.find(query).select("username avatar role followers following friends friendRequests"); // Trả thêm friends để FE check trạng thái
+    const users = await User.find(query).select("username avatar role followers following friends friendRequests"); 
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -356,7 +436,6 @@ exports.updateProfile = async (req, res) => {
 exports.getFeed = async (req, res) => {
   try {
     const me = await User.findById(req.user.id).select("following friends");
-    // Feed hiển thị bài của người mình follow HOẶC bạn bè
     const targetUsers = [...new Set([...me.following, ...me.friends])];
 
     if (!targetUsers.length) {
@@ -389,7 +468,7 @@ exports.getFollowers = async (req, res) => {
     const user = await User.findById(req.params.id)
       .populate("followers", "username avatar bio")
       .populate("following", "username avatar bio")
-      .populate("friends", "username avatar bio"); // Thêm populate friends
+      .populate("friends", "username avatar bio"); 
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -408,12 +487,11 @@ exports.getFollowers = async (req, res) => {
 
 exports.getUserProfile = async (req, res) => {
   try {
-    // Populate đầy đủ thông tin để FE xử lý
     const user = await User.findById(req.params.id)
       .select("-password")
       .populate("followers", "username avatar")
       .populate("following", "username avatar")
-      .populate("friends", "username avatar"); // Lấy danh sách bạn bè
+      .populate("friends", "username avatar"); 
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -421,16 +499,12 @@ exports.getUserProfile = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(20);
 
-    // Gửi kèm thông tin xem user hiện tại (người request) có trạng thái gì với user đang xem
     let friendStatus = "none";
     if (req.user) {
         if (user.friends.some(f => f._id.toString() === req.user.id)) friendStatus = "friends";
-        else if (user.friendRequests.includes(req.user.id)) friendStatus = "pending"; // Mình đã gửi cho họ
-        // Nếu muốn check họ đã gửi cho mình chưa thì phải query thêm, 
-        // nhưng tạm thời frontend có thể check qua /profile của chính user đang login
+        else if (user.friendRequests.includes(req.user.id)) friendStatus = "pending"; 
     }
 
-    // Clone user object to add friendStatus without modifying mongoose doc
     const userResponse = user.toObject();
     userResponse.friendStatus = friendStatus;
 
@@ -498,7 +572,7 @@ exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
         .select("-password")
-        .populate("friendRequests", "username avatar"); // Lấy danh sách những người xin kết bạn để FE hiển thị
+        .populate("friendRequests", "username avatar"); 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
     res.json(user);
   } catch (error) {
