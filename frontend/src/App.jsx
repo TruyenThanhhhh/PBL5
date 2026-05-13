@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import AdminPanel from './pages/AdminPanel';
 import Explore from './pages/Explore';
 import Community from './pages/Community';
+import Friends from './pages/Friends';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route caseSensitive path="/admin" element={<AdminPanel />} />
         <Route path="/explore" caseSensitive element={<Explore />} />
         <Route path="/community" caseSensitive element={<Community />} />
+        <Route path="/friends" caseSensitive element={<Friends />} />
         
         {/* Nếu gõ sai link, tự động về Home */}
         <Route path="*" element={<Navigate to="/" replace />} />

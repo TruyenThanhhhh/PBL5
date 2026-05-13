@@ -46,6 +46,7 @@ export default function Community() {
           <Link to="/dashboard" className="hover:text-gray-900 transition-colors">Home</Link>
           <Link to="/explore" className="hover:text-gray-900 transition-colors">Explore</Link>
           <Link to="/community" className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Community</Link>
+          <Link to="/friends" className="hover:text-gray-900 transition-colors">Friends</Link>
         </nav>
         <Link to="/profile" className="text-[13px] font-bold text-gray-600 hover:text-[#f44336] transition-colors">
           Profile

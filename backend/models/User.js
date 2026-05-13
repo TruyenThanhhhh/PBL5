@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
     bio:      String,
     role: {
       type: String,
-      enum: ["viewer", "poster", "admin"],
+      enum: ["user", "viewer", "poster", "admin"],
       default: "viewer",   // mặc định khi đăng ký là viewer
     },
     roleRequestStatus: {

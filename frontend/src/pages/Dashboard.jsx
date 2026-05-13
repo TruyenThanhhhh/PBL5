@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link, MemoryRouter, useInRouterContext } from 'react-router-dom';
+import { useNavigate, Link, useInRouterContext } from 'react-router-dom';
 import { 
   Bell, MessageSquare, Compass, Settings, 
   MapPin, Image as ImageIcon, Send, ShieldAlert,
@@ -194,6 +194,13 @@ function DashboardContent() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   
+  // Group chat states
+  const [conversationsList, setConversationsList] = useState([]);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [groupNameInput, setGroupNameInput] = useState('');
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  
   const messagesEndRef = useRef(null);
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
@@ -314,28 +321,78 @@ function DashboardContent() {
     }
   };
 
-  const fetchChatHistory = async (targetUserId) => {
+  const fetchConversations = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/messages/conversations', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConversationsList(data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    if (!groupNameInput.trim() || selectedGroupMembers.length === 0) {
+      showToast('error', 'Vui lòng nhập tên nhóm và chọn thành viên.');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:5000/api/messages/group', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupName: groupNameInput, participantIds: selectedGroupMembers })
+      });
+      if (res.ok) {
+        showToast('success', 'Tạo nhóm thành công!');
+        setIsCreateGroupOpen(false);
+        setGroupNameInput('');
+        setSelectedGroupMembers([]);
+        fetchConversations();
+      } else {
+        const data = await res.json();
+        showToast('error', data.message || 'Có lỗi xảy ra');
+      }
+    } catch (error) {
+      showToast('error', 'Lỗi kết nối.');
+    }
+  };
+
+  const fetchChatHistory = async (targetUserId, groupId = null) => {
     const token = localStorage.getItem('token');
     const currentUserId = localStorage.getItem('userId');
-    if (!token || !targetUserId) return;
+    if (!token || (!targetUserId && !groupId)) return;
     
     setIsChatLoading(true);
     try {
-      const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId })
-      });
-
-      if (!convRes.ok) {
-        if(convRes.status === 403) showToast('error', 'Chỉ bạn bè mới có thể nhắn tin.');
-        return;
-      }
+      let convId = groupId;
       
-      const conversation = await convRes.json();
-      setCurrentConversationId(conversation._id); 
+      if (!convId) {
+        const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUserId })
+        });
 
-      const msgRes = await fetch(`http://localhost:5000/api/messages/${conversation._id}`, {
+        if (!convRes.ok) {
+          if(convRes.status === 403) showToast('error', 'Chỉ bạn bè mới có thể nhắn tin.');
+          return;
+        }
+        
+        const conversation = await convRes.json();
+        convId = conversation._id;
+      }
+
+      setCurrentConversationId(convId); 
+
+      const msgRes = await fetch(`http://localhost:5000/api/messages/${convId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -345,13 +402,15 @@ function DashboardContent() {
           const senderId = msg.sender?._id || msg.sender;
           return {
             sender: String(senderId) === String(currentUserId) ? 'me' : 'them',
+            senderName: msg.sender?.username,
+            senderAvatar: msg.sender?.avatar,
             text: msg.text 
           };
         });
         
         setUserMessages(prev => ({
           ...prev,
-          [targetUserId]: formattedMessages
+          [groupId || targetUserId]: formattedMessages
         }));
       }
     } catch (error) {
@@ -401,6 +460,7 @@ function DashboardContent() {
       fetchAllUsers();
       fetchFriendData();
       fetchNotifications();
+      fetchConversations();
     }
 
     const handleOpenChat = (e) => {
@@ -420,10 +480,14 @@ function DashboardContent() {
   }, [navigate]);
 
   useEffect(() => {
-    if (isUserChatOpen && chatView === 'conversation' && selectedChatUser) {
-      fetchChatHistory(selectedChatUser._id);
+    if (isUserChatOpen && chatView === 'conversation') {
+      if (selectedGroup) {
+        fetchChatHistory(null, selectedGroup._id);
+      } else if (selectedChatUser) {
+        fetchChatHistory(selectedChatUser._id, null);
+      }
     }
-  }, [isUserChatOpen, chatView, selectedChatUser]);
+  }, [isUserChatOpen, chatView, selectedChatUser, selectedGroup]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -887,22 +951,24 @@ function DashboardContent() {
   };
 
   const handleSendUserMessage = async () => {
-    if (!userMessageInput.trim() || !selectedChatUser) return;
+    if (!userMessageInput.trim() || (!selectedChatUser && !selectedGroup)) return;
     const token = localStorage.getItem('token');
-    const targetUserId = String(selectedChatUser._id);
     const text = userMessageInput;
+    
+    const key = selectedGroup ? selectedGroup._id : String(selectedChatUser._id);
     
     // Optimistic Update
     setUserMessages(prev => ({
       ...prev,
-      [targetUserId]: [...(prev[targetUserId] || []), { sender: 'me', text }]
+      [key]: [...(prev[key] || []), { sender: 'me', text, senderName: currentUser.username, senderAvatar: currentUser.avatar }]
     }));
     setUserMessageInput('');
 
     try {
       let convId = currentConversationId;
       
-      if (!convId) {
+      if (!convId && !selectedGroup) {
+        const targetUserId = String(selectedChatUser._id);
         const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -921,7 +987,7 @@ function DashboardContent() {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          receiverId: targetUserId, 
+          receiverId: selectedGroup ? undefined : String(selectedChatUser._id), 
           text: text, 
           conversationId: convId 
         })
@@ -951,7 +1017,8 @@ function DashboardContent() {
            !sentRequests.includes(targetIdStr); 
   });
 
-  const currentChatMessages = selectedChatUser ? (userMessages[selectedChatUser._id] || []) : [];
+  const currentKey = selectedGroup ? selectedGroup._id : (selectedChatUser ? String(selectedChatUser._id) : null);
+  const currentChatMessages = currentKey ? (userMessages[currentKey] || []) : [];
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans relative">
@@ -984,6 +1051,7 @@ function DashboardContent() {
           <Link to="/dashboard" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">Home</Link>
           <Link to="/explore" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Explore</Link>
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
+          <Link to="/friends" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Friends</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
           
@@ -1215,7 +1283,11 @@ function DashboardContent() {
                   <button onClick={() => setChatView('list')} className="hover:bg-red-600 p-1 rounded-full transition-colors">
                     <ArrowLeft size={18} />
                   </button>
-                  <span onClick={() => handleNavigateProfile(selectedChatUser?._id)} className="font-bold text-[14px] cursor-pointer hover:underline">{selectedChatUser?.username || 'Trò chuyện'}</span>
+                  <span onClick={() => {
+                      if(selectedChatUser) handleNavigateProfile(selectedChatUser?._id)
+                  }} className={`font-bold text-[14px] ${selectedChatUser ? 'cursor-pointer hover:underline' : ''}`}>
+                    {selectedGroup ? selectedGroup.groupName : (selectedChatUser?.username || 'Trò chuyện')}
+                  </span>
                 </>
               ) : (
                 <>
@@ -1229,31 +1301,47 @@ function DashboardContent() {
 
           <div className="flex-1 overflow-y-auto bg-white flex flex-col">
             {chatView === 'list' ? (
-              <div className="p-2 pb-4">
-                {friends.length === 0 ? (
-                  <div className="p-6 text-center text-[12px] text-gray-500">
-                    <Users size={32} className="mx-auto text-gray-300 mb-3" />
-                    Bạn chưa có bạn bè nào.<br/>Hãy tìm kiếm và kết bạn để bắt đầu trò chuyện nhé!
-                  </div>
-                ) : (
-                  friends.map(friendId => {
-                    const user = getUserById(friendId);
-                    const lastMsgObj = userMessages[friendId]?.slice(-1)[0];
-                    const lastMessage = lastMsgObj ? (lastMsgObj.sender === 'me' ? `Bạn: ${lastMsgObj.text}` : lastMsgObj.text) : 'Bắt đầu trò chuyện';
+              <div className="p-2 pb-4 flex flex-col h-full">
+                <button onClick={() => setIsCreateGroupOpen(true)} className="mb-2 bg-red-50 text-[#f44336] text-[13px] font-bold py-2 rounded-xl hover:bg-red-100 transition-colors">
+                  + Tạo nhóm chat
+                </button>
+                <div className="flex-1 overflow-y-auto">
+                  {conversationsList.length === 0 ? (
+                    <div className="p-6 text-center text-[12px] text-gray-500">
+                      <Users size={32} className="mx-auto text-gray-300 mb-3" />
+                      Chưa có cuộc trò chuyện nào.<br/>Tạo nhóm hoặc chọn bạn bè để chat!
+                    </div>
+                  ) : (
+                    conversationsList.map(conv => {
+                      const isGroup = conv.isGroup;
+                      const otherUser = !isGroup ? conv.participants.find(p => String(p._id) !== currentUser.userId) : null;
+                      const displayName = isGroup ? conv.groupName : (otherUser?.username || 'Người dùng');
+                      const displayAvatar = isGroup ? null : otherUser?.avatar;
+                      const lastMessage = conv.lastMessage || 'Bắt đầu trò chuyện';
 
-                    return (
-                      <div key={user._id} onClick={() => { setSelectedChatUser(user); setChatView('conversation'); }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
-                        <div onClick={(e) => { e.stopPropagation(); handleNavigateProfile(user._id); }} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 relative overflow-hidden hover:opacity-80">
-                          {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
+                      return (
+                        <div key={conv._id} onClick={() => { 
+                            if (isGroup) {
+                                setSelectedGroup(conv);
+                                setSelectedChatUser(null);
+                            } else {
+                                setSelectedGroup(null);
+                                setSelectedChatUser(otherUser);
+                            }
+                            setChatView('conversation'); 
+                          }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
+                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 relative overflow-hidden hover:opacity-80">
+                            {isGroup ? <Users size={20} /> : (displayAvatar ? <img src={displayAvatar} className="w-full h-full object-cover"/> : <User size={20} />)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-[13px] text-gray-900 truncate">{displayName}</p>
+                            <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-[13px] text-gray-900 truncate">{user.username}</p>
-                          <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
+                      )
+                    })
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col h-full bg-white relative">
@@ -1262,17 +1350,24 @@ function DashboardContent() {
                     <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
                   ) : (
                     <>
-                      <div className="text-center text-[11px] text-gray-400 mb-4">Bắt đầu trò chuyện với {selectedChatUser?.username}</div>
+                      <div className="text-center text-[11px] text-gray-400 mb-4">
+                        {selectedGroup ? `Bắt đầu trò chuyện trong ${selectedGroup.groupName}` : `Bắt đầu trò chuyện với ${selectedChatUser?.username}`}
+                      </div>
                       
                       {currentChatMessages.map((msg, i) => (
-                        <div key={i} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                          {msg.sender === 'them' && (
-                            <div onClick={() => handleNavigateProfile(selectedChatUser?._id)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
-                              {selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />}
-                            </div>
+                        <div key={i} className={`flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}`}>
+                          {msg.sender === 'them' && selectedGroup && (
+                            <span className="text-[10px] text-gray-400 ml-10 mb-0.5">{msg.senderName}</span>
                           )}
-                          <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] text-gray-900 rounded-bl-sm border border-gray-100'}`}>
-                            {msg.text}
+                          <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} w-full`}>
+                            {msg.sender === 'them' && (
+                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
+                                {msg.senderAvatar ? <img src={msg.senderAvatar} className="w-full h-full object-cover"/> : (selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />)}
+                              </div>
+                            )}
+                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] text-gray-900 rounded-bl-sm border border-gray-100'}`}>
+                              {msg.text}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1719,6 +1814,58 @@ function DashboardContent() {
 
       </main>
 
+      {isCreateGroupOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center animate-in fade-in">
+          <div className="bg-white w-[400px] rounded-2xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900 text-[15px]">Tạo Nhóm Chat</h3>
+              <button onClick={() => setIsCreateGroupOpen(false)} className="text-gray-400 hover:text-gray-900"><X size={20}/></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-2">Tên nhóm</label>
+                <input 
+                  type="text" 
+                  value={groupNameInput}
+                  onChange={e => setGroupNameInput(e.target.value)}
+                  placeholder="Nhập tên nhóm..." 
+                  className="w-full bg-[#f4f4f5] rounded-xl py-2.5 px-4 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-2">Chọn thành viên</label>
+                <div className="max-h-[200px] overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
+                  {friends.length === 0 ? (
+                     <div className="p-3 text-center text-gray-500 text-[12px]">Không có bạn bè để thêm.</div>
+                  ) : friends.map(friendId => {
+                    const user = getUserById(friendId);
+                    return (
+                      <div key={friendId} className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedGroupMembers.includes(friendId)}
+                          onChange={(e) => {
+                             if(e.target.checked) setSelectedGroupMembers(prev => [...prev, friendId]);
+                             else setSelectedGroupMembers(prev => prev.filter(id => id !== friendId));
+                          }}
+                          className="w-4 h-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer"
+                        />
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200"><img src={user.avatar || getAvatarUrl(null, user.username)} className="w-full h-full object-cover" /></div>
+                        <span className="text-[13px] font-bold text-gray-900">{user.username}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50">
+              <button onClick={() => setIsCreateGroupOpen(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors">Hủy</button>
+              <button onClick={handleCreateGroup} className="px-4 py-2 text-[13px] font-bold text-white bg-[#f44336] hover:bg-red-600 rounded-xl transition-colors shadow-md">Tạo Nhóm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setIsAiChatOpen((prev) => !prev)}
@@ -1770,8 +1917,4 @@ function DashboardContent() {
   );
 }
 
-export default function Dashboard() {
-  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
-  if (!hasRouter) return <MemoryRouter><DashboardContent /></MemoryRouter>;
-  return <DashboardContent />;
-}
+export default DashboardContent;
