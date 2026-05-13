@@ -139,6 +139,7 @@ function ProfileContent() {
   const [zoomedImageType, setZoomedImageType] = useState(null); 
   
   const [followModal, setFollowModal] = useState({ open: false, type: '', list: [] });
+  const [editBioModal, setEditBioModal] = useState({ open: false, bio: '' });
 
   const handlePostClick = (postId) => navigate(`/post-detail?postId=${postId}`);
   const handleActionClick = (e) => e.stopPropagation();
@@ -152,6 +153,24 @@ function ProfileContent() {
   const closeImageZoom = () => {
     setZoomedImage(null);
     setZoomedImageType(null);
+  };
+
+  const handleUpdateBio = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/update-profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bio: editBioModal.bio })
+      });
+      if (res.ok) {
+        setProfile(prev => ({ ...prev, bio: editBioModal.bio }));
+        setEditBioModal({ open: false, bio: '' });
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const loadProfile = async () => {
@@ -252,6 +271,13 @@ function ProfileContent() {
   const displayAvatar = getAvatarUrl(profile.avatar, profile.username);
   const displayCover = profile.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
 
+  const allImages = userPosts.reduce((acc, post) => {
+    if (Array.isArray(post.images) && post.images.length > 0) {
+      post.images.forEach(img => acc.push({ url: img, postId: post._id }));
+    }
+    return acc;
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12 relative">
       
@@ -319,6 +345,30 @@ function ProfileContent() {
         </div>
       )}
 
+      {editBioModal.open && (
+        <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-black text-lg text-gray-900">Chỉnh sửa tiểu sử</h3>
+              <button onClick={() => setEditBioModal({ open: false, bio: '' })} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-900">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <textarea
+                value={editBioModal.bio}
+                onChange={e => setEditBioModal({ ...editBioModal, bio: e.target.value })}
+                placeholder="Viết một chút về bản thân bạn..."
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-[14px] font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 focus:border-[#f44336] resize-none h-32 transition-all"
+              />
+              <button onClick={handleUpdateBio} className="w-full mt-4 bg-[#f44336] hover:bg-red-600 text-white font-bold text-[15px] py-3 rounded-xl transition-colors shadow-md shadow-red-500/20">
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {}
       <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100">
         <div className="flex items-center gap-8 w-1/4">
@@ -360,12 +410,12 @@ function ProfileContent() {
             <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <Compass size={20} strokeWidth={2} /> Explore
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+            <button onClick={() => navigate('/trending')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
               <TrendingUp size={20} strokeWidth={2} /> Trending
             </button>
             {isMyProfile && (
               <>
-                <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+                <button onClick={() => navigate('/saved')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
                   <Bookmark size={20} strokeWidth={2} /> Saved
                 </button>
                 <button onClick={handleSettingsClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all text-left">
@@ -404,7 +454,7 @@ function ProfileContent() {
                 {}
                 {isMyProfile ? (
                   <div className="flex gap-2">
-                    <button onClick={handleSettingsClick} className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors flex items-center gap-1.5 shadow-md shadow-red-500/20">
+                    <button onClick={() => setEditBioModal({ open: true, bio: profile.bio || '' })} className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors flex items-center gap-1.5 shadow-md shadow-red-500/20">
                       <Edit3 size={16} /> Edit Profile
                     </button>
                     <button onClick={handleSettingsClick} className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 transition-colors inline-block">
@@ -456,17 +506,17 @@ function ProfileContent() {
                   {profile.bio || (isMyProfile ? 'Bạn chưa cập nhật thông tin giới thiệu (Bio). Hãy nhấn Edit Profile để chia sẻ nhiều hơn nhé!' : 'Người dùng này chưa có thông tin giới thiệu.')}
                 </p>
 
-                <div className="flex gap-8 border-t border-gray-100 pt-5">
-                  <div className="text-center">
-                    <p className="text-xl font-black text-gray-900">{userPosts.length}</p>
+                <div className="flex gap-4 border-t border-gray-100 pt-6">
+                  <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-default border border-gray-100/50">
+                    <p className="text-2xl font-black text-gray-900 mb-1">{userPosts.length}</p>
                     <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Posts</p>
                   </div>
-                  <div className="text-center cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors" onClick={() => setFollowModal({ open: true, type: 'Bạn bè', list: profile.friends || [] })}>
-                    <p className="text-xl font-black text-gray-900">{profile.friends?.length || 0}</p>
+                  <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-pointer border border-gray-100/50 shadow-sm" onClick={() => setFollowModal({ open: true, type: 'Bạn bè', list: profile.friends || [] })}>
+                    <p className="text-2xl font-black text-[#f44336] mb-1">{profile.friends?.length || 0}</p>
                     <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Friends</p>
                   </div>
-                  <div className="text-center cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors" onClick={() => setFollowModal({ open: true, type: 'Người theo dõi', list: profile.followers || [] })}>
-                    <p className="text-xl font-black text-gray-900">{profile.followers?.length || 0}</p>
+                  <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-pointer border border-gray-100/50 shadow-sm" onClick={() => setFollowModal({ open: true, type: 'Người theo dõi', list: profile.followers || [] })}>
+                    <p className="text-2xl font-black text-[#f44336] mb-1">{profile.followers?.length || 0}</p>
                     <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Followers</p>
                   </div>
                 </div>
@@ -486,6 +536,40 @@ function ProfileContent() {
                   </div>
                 </div>
                 <ProfileMap posts={userPosts} username={profile.username} />
+              </div>
+            )}
+
+            {activeTab === 'media' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {allImages.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center text-gray-400 gap-3">
+                    <ImageIcon size={44} className="opacity-40" />
+                    <p className="text-[14px] font-bold">Chưa có hình ảnh nào.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {allImages.map((img, idx) => (
+                      <div key={idx} className="aspect-square bg-gray-100 cursor-pointer overflow-hidden rounded-2xl relative group shadow-sm border border-gray-100" onClick={() => openImageZoom(img.url, 'post')}>
+                        <img src={img.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" size={28} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'collections' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="bg-white rounded-2xl p-16 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                    <Bookmark size={32} className="text-[#f44336]" />
+                  </div>
+                  <h3 className="text-[18px] font-black text-gray-900 mb-2">Tính năng đang phát triển</h3>
+                  <p className="text-[14px] font-medium text-gray-500 max-w-[320px]">Bộ sưu tập các bài đăng và địa điểm yêu thích sẽ sớm ra mắt trong các bản cập nhật tới. Hãy đón chờ nhé!</p>
+                </div>
               </div>
             )}
 

@@ -11,11 +11,38 @@ const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
-const SavePostButton = ({ postId, postImage }) => (
-  <button type="button" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold">
-    <Bookmark size={20} strokeWidth={2.5} />
-  </button>
-);
+const SavePostButton = ({ postId, initialIsSaved, onToggleSave }) => {
+  const [isSaved, setIsSaved] = useState(initialIsSaved);
+  
+  useEffect(() => {
+    setIsSaved(initialIsSaved);
+  }, [initialIsSaved]);
+
+  const handleSave = async (e) => {
+    e.stopPropagation();
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/save-post/${postId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsSaved(data.isSaved);
+        if(onToggleSave) onToggleSave(postId, data.isSaved);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}>
+      <Bookmark size={20} strokeWidth={isSaved ? 3 : 2.5} fill={isSaved ? '#f44336' : 'none'} />
+    </button>
+  );
+};
 
 let leafletAssetsPromise = null;
 const loadLeafletAssets = async () => {
@@ -141,6 +168,7 @@ function DashboardContent() {
   
   // STATE MỚI CHO TOP ĐỊA ĐIỂM ĐANG HOT
   const [trendingPosts, setTrendingPosts] = useState([]);
+  const [savedPostsSet, setSavedPostsSet] = useState(new Set());
   
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
   const [pickedCoords, setPickedCoords] = useState(null);
@@ -445,6 +473,22 @@ function DashboardContent() {
     }
   };
 
+  const fetchSavedPosts = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/users/saved-posts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setSavedPostsSet(new Set(data.map(p => p._id)));
+        }
+      }
+    } catch (error) {}
+  };
+
   useEffect(() => {
     const userRole = localStorage.getItem('role') || 'user';
     const userId = localStorage.getItem('userId') || ''; 
@@ -455,6 +499,7 @@ function DashboardContent() {
     loadLeafletAssets().catch(() => {});
     fetchPosts();
     fetchTrendingPosts(); // Gọi hàm lấy danh sách trending khi load trang
+    fetchSavedPosts();
 
     if (userId) {
       fetchAllUsers();
@@ -1611,7 +1656,7 @@ function DashboardContent() {
                       <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
                         <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || 'Bình luận'}
                       </button>
-                      <SavePostButton postId={post._id} postImage={post.images?.[0]} />
+                      <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
                       <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
                         <Share2 size={20} strokeWidth={2.5} />
                       </button>

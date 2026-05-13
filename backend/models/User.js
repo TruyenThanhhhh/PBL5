@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
     // THÊM MỚI: Hệ thống bạn bè
     friends:        [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách bạn bè chính thức
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Những người ĐÃ GỬI lời mời cho user này
+    savedPosts:     [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // Danh sách bài đăng đã lưu
   },
   { timestamps: true }
 );
