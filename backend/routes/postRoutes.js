@@ -68,6 +68,16 @@ router.delete("/:id",
 // 👁️ ẨN/hiện bài — chỉ admin
 router.patch("/:id/toggle-visibility", protect, requireAdmin, postController.toggleVisibility);
 
+router.patch(
+  "/:id/publish-profile",
+  protect,
+  requireOwnerOrAdmin(async (req) => {
+    const post = await Post.findById(req.params.id);
+    return post?.createdBy;
+  }),
+  postController.publishPostToProfile
+);
+
 // ❤️ Like — phải đăng nhập (viewer cũng like được)
 router.put("/like/:id", protect, postController.likePost);
 

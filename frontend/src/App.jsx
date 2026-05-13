@@ -12,28 +12,31 @@ import Settings from './pages/Settings';
 import AdminPanel from './pages/AdminPanel';
 import Explore from './pages/Explore';
 import Community from './pages/Community';
+import CommunityDetail from './pages/CommunityDetail';
 import GlobalChat from './components/GlobalChat';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route caseSensitive path="/" element={<Home />} />
-        <Route caseSensitive path="/login" element={<Login />} />
-        <Route caseSensitive path="/register" element={<Register />} />
-        <Route caseSensitive path="/dashboard" element={<Dashboard />} />
-        <Route caseSensitive path="/profile" element={<Profile />} />
-        <Route caseSensitive path="/upload" element={<PostUpload />} />
-        <Route caseSensitive path="/post-detail" element={<PostDetail />} />
-        <Route caseSensitive path="/settings" element={<Settings />} />
-        <Route caseSensitive path="/admin" element={<AdminPanel />} />
-        <Route path="/explore" caseSensitive element={<Explore />} />
-        <Route path="/community" caseSensitive element={<Community />} />
-        
-        {/* Nếu gõ sai link, tự động về Home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <GlobalChat />
-    </Router>
+    <LanguageProvider>
+      <Router>
+        <Routes>
+          <Route caseSensitive path="/" element={<Home />} />
+          <Route caseSensitive path="/login" element={<Login />} />
+          <Route caseSensitive path="/register" element={<Register />} />
+          <Route caseSensitive path="/dashboard" element={<Dashboard />} />
+          <Route caseSensitive path="/profile" element={<Profile />} />
+          <Route caseSensitive path="/upload" element={<PostUpload />} />
+          <Route caseSensitive path="/post-detail" element={<PostDetail />} />
+          <Route caseSensitive path="/settings" element={<Settings />} />
+          <Route caseSensitive path="/admin" element={<AdminPanel />} />
+          <Route caseSensitive path="/explore" element={<Explore />} />
+          <Route caseSensitive path="/community" element={<Community />} />
+          <Route caseSensitive path="/community/:id" element={<CommunityDetail />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <GlobalChat />
+      </Router>
+    </LanguageProvider>
   );
 }

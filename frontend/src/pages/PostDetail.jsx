@@ -4,6 +4,7 @@ import {
   Bed, Compass, Bookmark, MapPin, Star, CalendarPlus, 
   MessageSquare, ArrowUp, ArrowDown, Map, Share2, CornerDownRight, Flag, ChevronDown
 } from 'lucide-react';
+import AccountMenu from '../components/AccountMenu';
 
 export default function PostDetail() {
   const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
@@ -90,19 +91,13 @@ export default function PostDetail() {
               <Bell size={20} />
             </button>
             <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900"><MessageSquare size={20} /></button>
-            <a href="/profile" className="block cursor-pointer">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                className="w-8 h-8 rounded-full border border-gray-200 object-cover hover:ring-2 hover:ring-[#f44336]/50 transition-all"
-                alt="Profile"
-              />
-            </a>
+            <AccountMenu />
           </div>
         </div>
       </header>
 
       {/* MAIN LAYOUT */}
-      <main className="max-w-[1400px] mx-auto px-6 py-6 flex gap-8">
+      <main className="max-w-[1500px] mx-auto px-6 2xl:px-8 py-6 flex gap-8">
         
         {/* LEFT SIDEBAR */}
         <aside className="w-[220px] hidden md:block flex-shrink-0">
@@ -143,7 +138,7 @@ export default function PostDetail() {
         </aside>
 
         {/* FEED CONTENT (POST DETAIL) */}
-        <section className="flex-1 max-w-3xl pt-2">
+        <section className="flex-1 min-w-0 pt-2">
           
           {/* Tags & Rating */}
           <div className="flex items-center gap-3 mb-4">
@@ -346,7 +341,7 @@ export default function PostDetail() {
         </section>
 
         {/* RIGHT SIDEBAR */}
-        <aside className="w-[300px] hidden xl:block flex-shrink-0 space-y-6">
+        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
           
           {/* Aesthetic Blocks */}
           <div className="bg-[#fdf4e6] h-[220px] rounded-3xl flex items-center justify-center relative overflow-hidden shadow-sm">

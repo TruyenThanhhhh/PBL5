@@ -1,5 +1,12 @@
 const Post = require("../models/Post");
+const Community = require("../models/Community");
 const { cloudinary } = require("../config/cloudinary");
+
+const normalizeRole = (role) => {
+  if (typeof role !== "string") return "user";
+  const r = role.trim().toLowerCase();
+  return r === "admin" ? "admin" : "user";
+};
 
 exports.uploadImages = async (req, res) => {
   try {
@@ -38,7 +45,22 @@ exports.createPost = async (req, res) => {
       lng: lng || null,
       postType: finalPostType,
       createdBy: req.user?.id || null,
+      publishedToProfile: true,
     });
+
+    const cid = req.body.communityId;
+    if (cid && String(cid).trim()) {
+      const comm = await Community.findById(String(cid).trim());
+      if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
+      const uid = String(req.user.id);
+      const isMember =
+        String(comm.createdBy) === uid ||
+        (comm.members || []).some((m) => String(m) === uid);
+      if (!isMember) return res.status(403).json({ message: "Bạn chưa tham gia cộng đồng này" });
+      newPost.community = comm._id;
+      newPost.publishedToProfile =
+        String(req.body.publishedToProfile || "").toLowerCase() === "true";
+    }
 
     await newPost.save();
 
@@ -53,7 +75,8 @@ exports.createPost = async (req, res) => {
 
 exports.createPostWithMedia = async (req, res) => {
   try {
-    const { title, description, location, category, price, lat, lng, postType } = req.body;
+    const { title, description, location, category, price, lat, lng, postType, communityId, publishedToProfile } =
+      req.body;
 
     const normalizedPrice =
       Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
@@ -86,7 +109,21 @@ exports.createPostWithMedia = async (req, res) => {
       lng: parsedLng,
       postType: finalPostType,
       createdBy: req.user?.id || null,
+      publishedToProfile: true,
     });
+
+    if (communityId && String(communityId).trim()) {
+      const comm = await Community.findById(String(communityId).trim());
+      if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
+      const uid = String(req.user.id);
+      const isMember =
+        String(comm.createdBy) === uid ||
+        (comm.members || []).some((m) => String(m) === uid);
+      if (!isMember) return res.status(403).json({ message: "Bạn chưa tham gia cộng đồng này" });
+      newPost.community = comm._id;
+      newPost.publishedToProfile =
+        String(publishedToProfile || "").toLowerCase() === "true";
+    }
 
     await newPost.save();
     res.status(201).json({ message: "Post created successfully", post: newPost });
@@ -112,11 +149,20 @@ exports.getPosts = async (req, res) => {
 
     if (location) filter.location = location;
     if (category) filter.category = category;
-    if (req.user?.role !== "admin") filter.isHidden = false;
+    const isAdmin = normalizeRole(req.user?.role) === "admin";
+    if (!isAdmin) {
+      filter.isHidden = false;
+      filter.$or = [
+        { publishedToProfile: true },
+        { community: null },
+        { community: { $exists: false } },
+      ];
+    }
 
     const posts = await Post.find(filter)
       // ✅ ĐÃ SỬA: Trả thêm role để Frontend biết ai là Admin, ai là User
-      .populate("createdBy", "username email avatar role") 
+      .populate("createdBy", "username displayName email avatar role")
+      .populate("community", "name")
       .sort({ createdAt: -1 });
 
     const normalizedPosts = posts.map((post) => {
@@ -195,6 +241,22 @@ exports.deletePost = async (req, res) => {
   try {
     await Post.findByIdAndDelete(req.params.id);
     res.json({ message: "Đã xóa bài" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.publishPostToProfile = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Không tìm thấy bài" });
+    if (!post.community) {
+      return res.status(400).json({ message: "Bài này không thuộc cộng đồng" });
+    }
+    post.publishedToProfile = true;
+    await post.save();
+    const obj = post.toObject();
+    res.json({ message: "Đã chia sẻ bài lên trang cá nhân", post: obj });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
