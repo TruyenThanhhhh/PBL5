@@ -46,7 +46,6 @@ const analyzeImageWithGroq = async (filePath) => {
       return null;
     }
 
-    // Cập nhật log để hiển thị model mới
     console.log("🚀 AI_DEBUG: Bắt đầu gửi ảnh sang Groq Vision AI (meta-llama/llama-4-scout-17b-16e-instruct)...");
     
     // Đọc ảnh và chuyển sang Base64
@@ -64,7 +63,6 @@ const analyzeImageWithGroq = async (filePath) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // 👇 Đã thay đổi model sang Llama 4 Scout (Model Vision mới nhất được hỗ trợ)
         model: "meta-llama/llama-4-scout-17b-16e-instruct",
         messages: [
           {
@@ -100,10 +98,10 @@ const analyzeImageWithGroq = async (filePath) => {
     const validCategories = ["Ẩm thực", "Biển đảo", "Núi rừng", "Văn hóa / Kiến trúc", "Thành phố", "Thú cưng", "Góc làm việc", "Đời thường"];
     
     for (const validCat of validCategories) {
-      if (category.toLowerCase().includes(validCat.toLowerCase())) {
-        console.log(`🏷️ AI_DEBUG: AI đã chốt thẻ [${validCat}] từ hình ảnh.`);
-        return validCat;
-      }
+        if (category.toLowerCase().includes(validCat.toLowerCase())) {
+            console.log(`🏷️ AI_DEBUG: AI đã chốt thẻ [${validCat}] từ hình ảnh.`);
+            return validCat;
+        }
     }
 
     console.log("⚠️ AI_DEBUG: AI trả lời từ khóa không nằm trong danh sách.");
@@ -118,17 +116,17 @@ const analyzeImageWithGroq = async (filePath) => {
 // 🧠 HÀM 2: FALLBACK - PHÂN TÍCH THEO CHỮ NẾU AI ẢNH THẤT BẠI
 // ==========================================
 const autoCategorizeFromText = (text) => {
-  if (!text || text.trim() === "") return null;
-  const lowerText = text.toLowerCase();
+    if (!text || text.trim() === "") return null;
+    const lowerText = text.toLowerCase();
 
-  if (lowerText.match(/ăn|uống|ngon|nhà hàng|quán|cafe|cà phê|trà sữa|món|bánh|phở|bún|cơm/)) return "Ẩm thực";
-  if (lowerText.match(/biển|đảo|cát|sóng|hải sản|bơi|tắm|vịnh|san hô/)) return "Biển đảo";
-  if (lowerText.match(/núi|rừng|đèo|suối|thác|cây|cắm trại|trekking|đỉnh/)) return "Núi rừng";
-  if (lowerText.match(/chùa|đền|di tích|lịch sử|bảo tàng|cổ|kiến trúc|nhà thờ/)) return "Văn hóa / Kiến trúc";
-  if (lowerText.match(/thành phố|đường phố|cầu|xe cộ|tòa nhà|check-in|sôi động/)) return "Thành phố";
-  if (lowerText.match(/chó|mèo|thú cưng|pet/)) return "Thú cưng";
+    if (lowerText.match(/ăn|uống|ngon|nhà hàng|quán|cafe|cà phê|trà sữa|món|bánh|phở|bún|cơm/)) return "Ẩm thực";
+    if (lowerText.match(/biển|đảo|cát|sóng|hải sản|bơi|tắm|vịnh|san hô/)) return "Biển đảo";
+    if (lowerText.match(/núi|rừng|đèo|suối|thác|cây|cắm trại|trekking|đỉnh/)) return "Núi rừng";
+    if (lowerText.match(/chùa|đền|di tích|lịch sử|bảo tàng|cổ|kiến trúc|nhà thờ/)) return "Văn hóa / Kiến trúc";
+    if (lowerText.match(/thành phố|đường phố|cầu|xe cộ|tòa nhà|check-in|sôi động/)) return "Thành phố";
+    if (lowerText.match(/chó|mèo|thú cưng|pet/)) return "Thú cưng";
 
-  return null; 
+    return null; 
 };
 
 exports.createPost = async (req, res) => {
@@ -189,7 +187,7 @@ exports.createPostWithMedia = async (req, res) => {
 
     if (Array.isArray(req.files) && req.files.length > 0) {
       req.files.forEach(file => {
-        uploadedUrls.push(`${host}/uploads/${file.filename}`);
+          uploadedUrls.push(`${host}/uploads/${file.filename}`);
       });
       
       // Chạy AI Vision cho bức ảnh đầu tiên
@@ -200,26 +198,26 @@ exports.createPostWithMedia = async (req, res) => {
     // Xử lý Description chặt chẽ
     let finalDescription = null;
     if (typeof description === "string") {
-      const trimmed = description.trim();
-      if (trimmed !== "" && trimmed !== "0" && trimmed !== "\u200B") {
-        finalDescription = trimmed;
-      }
+       const trimmed = description.trim();
+       if (trimmed !== "" && trimmed !== "0" && trimmed !== "\u200B") {
+           finalDescription = trimmed;
+       }
     }
     
     // Gán Category: Nếu người dùng để mặc định "General" thì áp dụng AI
     let finalCategory = category || "General";
     
     if (finalCategory === "General") {
-      if (imageAiCategory) {
-        finalCategory = imageAiCategory; // Ưu tiên AI phân tích hình ảnh
-      } else {
-        // Nếu AI nhìn ảnh thất bại, thử đoán qua chữ viết
-        const textCat = autoCategorizeFromText(finalDescription);
-        if (textCat) {
-          finalCategory = textCat;
-          console.log(`🏷️ AI_DEBUG: AI ảnh lỗi, chuyển sang gán thẻ theo chữ: [${finalCategory}]`);
+        if (imageAiCategory) {
+            finalCategory = imageAiCategory; // Ưu tiên AI phân tích hình ảnh
+        } else {
+            // Nếu AI nhìn ảnh thất bại, thử đoán qua chữ viết
+            const textCat = autoCategorizeFromText(finalDescription);
+            if (textCat) {
+                finalCategory = textCat;
+                console.log(`🏷️ AI_DEBUG: AI ảnh lỗi, chuyển sang gán thẻ theo chữ: [${finalCategory}]`);
+            }
         }
-      }
     }
 
     const newPost = new Post({
@@ -365,15 +363,16 @@ exports.getTrendingPosts = async (req, res) => {
       { 
         $match: { 
           isHidden: false,
-          lat: { $ne: null },
-          lng: { $ne: null }
+          lat: { $ne: null }, // Đã sửa: Chỉ lấy bài có tọa độ lat
+          lng: { $ne: null }  // Đã sửa: Chỉ lấy bài có tọa độ lng
         } 
-      },
-      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } },
-      { $sort: { likeCount: -1, createdAt: -1 } },
-      { $limit: 5 }
+      }, // Chỉ lấy bài không bị ẩn và có ghim vị trí thực sự
+      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, // Đếm số lượng phần tử trong mảng likes
+      { $sort: { likeCount: -1, createdAt: -1 } }, // Sắp xếp giảm dần theo like, sau đó là thời gian tạo
+      { $limit: 5 } // Lấy top 5
     ]);
     
+    // Populate thông tin người tạo (vì aggregate không tự populate)
     await Post.populate(posts, { path: "createdBy", select: "username avatar role" });
     
     res.json(posts);

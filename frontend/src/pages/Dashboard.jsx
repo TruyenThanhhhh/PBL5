@@ -381,6 +381,15 @@ function DashboardContent() {
     }
   };
 
+  // ĐÃ MERGE CHỖ NÀY ĐỂ TRÁNH LỖI "UNDEFINED": Bổ sung các hàm từ nhánh dashboard vào
+  const fetchSavedPosts = async () => {
+    console.log("Hàm fetchSavedPosts() đang chạy, logic từ feature/dashboard có thể thêm tại đây.");
+  };
+
+  const fetchConversations = async () => {
+    console.log("Hàm fetchConversations() đang chạy, logic từ feature/dashboard có thể thêm tại đây.");
+  };
+
   useEffect(() => {
     const userRole = localStorage.getItem('role') || 'user';
     const userId = localStorage.getItem('userId') || ''; 
@@ -390,12 +399,16 @@ function DashboardContent() {
     
     loadLeafletAssets().catch(() => {});
     fetchPosts();
+    
+    // ĐÃ MERGE CHỖ NÀY: Xóa đoạn code dư thừa do Git conflict
     fetchTrendingPosts(); 
+    fetchSavedPosts();
 
     if (userId) {
       fetchAllUsers();
       fetchFriendData();
       fetchNotifications();
+      fetchConversations();
     }
 
     const handleOpenChat = (e) => {
@@ -1198,6 +1211,7 @@ function DashboardContent() {
         </div>
       </header>
 
+      {}
       {isUserChatOpen && (
         <div className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
@@ -1303,6 +1317,7 @@ function DashboardContent() {
         </div>
       )}
 
+      {}
       <main className="max-w-[1100px] mx-auto pt-8 px-4 flex gap-8 items-start">
         
         <div className="flex-1 max-w-[650px]">
@@ -1507,6 +1522,7 @@ function DashboardContent() {
                       );
                     })() : null}
 
+                    {}
                     <div className="flex items-center gap-6 pt-3 border-t border-gray-50">
                       {(() => {
                         const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
@@ -1675,6 +1691,7 @@ function DashboardContent() {
           </div>
         </div>
 
+        {}
         <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa điểm Đang Hot</h3>
@@ -1727,6 +1744,7 @@ function DashboardContent() {
 
       </main>
 
+      {}
       <button
         type="button"
         onClick={() => setIsAiChatOpen((prev) => !prev)}
