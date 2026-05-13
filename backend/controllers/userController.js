@@ -96,6 +96,7 @@ exports.googleLogin = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Đăng ký và đăng nhập (Manual)... */
 // 🚀 ĐĂNG KÝ TÀI KHOẢN BẰNG TAY (CŨ)
 exports.registerUser = async (req, res) => {
   try {
@@ -179,6 +180,7 @@ exports.loginUser = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Hệ thống bạn bè... */
 // ==========================================
 // 🤝 HỆ THỐNG BẠN BÈ 
 // ==========================================
@@ -322,6 +324,7 @@ exports.unfriend = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Follow, Profile, Feed... */
 // ➕ FOLLOW / UNFOLLOW USER 
 exports.toggleFollow = async (req, res) => {
   try {
@@ -547,6 +550,7 @@ exports.getFollowers = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Merge chức năng getUserProfile (lọc Community)... */
 exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
@@ -557,7 +561,15 @@ exports.getUserProfile = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    const posts = await Post.find({ createdBy: req.params.id })
+    // ✅ ĐÃ SỬA: Lọc posts theo Community (Tích hợp dựa trên image Github)
+    const posts = await Post.find({ 
+      createdBy: req.params.id,
+      $or: [
+        { publishedToProfile: true },
+        { community: null },
+        { community: { $exists: false } },
+      ],
+    })
       .sort({ createdAt: -1 })
       .limit(20);
 
@@ -576,6 +588,7 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Các tính năng quản lý quyền, profile, password... */
 exports.requestPosterRole = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);

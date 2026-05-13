@@ -19,7 +19,14 @@ const postSchema = new mongoose.Schema(
       type: String, 
       enum: ["regular", "promotional"], 
       default: "regular" 
-    }
+    },
+    community: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Community",
+      default: null,
+    },
+    /** Khi bài thuộc community: chỉ hiện trên bảng tin chính / hồ sơ nếu true */
+    publishedToProfile: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

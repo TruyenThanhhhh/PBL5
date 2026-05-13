@@ -1,5 +1,8 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user");
+const User = require("../models/User"); // Lưu ý: Chữ in hoa cho User schema
+
+/** Phải khớp với jwt.sign trong userController (login/register). */
+const jwtSecret = () => process.env.JWT_SECRET || "123456789";
 
 // Keep role comparisons consistent across backend.
 const normalizeRole = (role) => {
@@ -10,13 +13,15 @@ const normalizeRole = (role) => {
   return r;
 };
 
+/* STREAMING_CHUNK:Cập nhật các hàm middleware xác thực... */
 // 🔐 Xác thực token — bắt buộc đăng nhập
 const protect = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Chưa đăng nhập" });
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    // ĐÃ SỬA THEO GITHUB: Dùng jwtSecret() thay vì process.env.JWT_SECRET trực tiếp
+    req.user = jwt.verify(token, jwtSecret());
     next();
   } catch {
     return res.status(401).json({ message: "Token không hợp lệ" });
@@ -27,11 +32,15 @@ const protect = (req, res, next) => {
 const optionalAuth = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (token) {
-    try { req.user = jwt.verify(token, process.env.JWT_SECRET); } catch {}
+    try { 
+      // ĐÃ SỬA THEO GITHUB: Dùng jwtSecret() thay vì process.env.JWT_SECRET trực tiếp
+      req.user = jwt.verify(token, jwtSecret()); 
+    } catch {}
   }
   next();
 };
 
+/* STREAMING_CHUNK:Các hàm kiểm tra phân quyền (Roles)... */
 // ✍️ Chỉ poster và admin mới đăng bài được
 const requirePoster = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "Chưa đăng nhập" });

@@ -1,8 +1,15 @@
 const Post = require("../models/Post");
+const Community = require("../models/Community");
 const User = require("../models/User"); 
 const Notification = require("../models/Notification"); 
 const { cloudinary } = require("../config/cloudinary");
 const fs = require('fs');
+
+const normalizeRole = (role) => {
+  if (typeof role !== "string") return "user";
+  const r = role.trim().toLowerCase();
+  return r === "admin" ? "admin" : "user";
+};
 
 exports.uploadImages = async (req, res) => {
   try {
@@ -35,6 +42,7 @@ const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
   }
 };
 
+/* STREAMING_CHUNK:Logic xử lý AI Vision và Fallback (Giữ nguyên từ File 2)... */
 // ==========================================
 // 🤖 HÀM 1: AI PHÂN TÍCH ẢNH DÙNG GROQ VISION
 // ==========================================
@@ -129,9 +137,10 @@ const autoCategorizeFromText = (text) => {
     return null; 
 };
 
+/* STREAMING_CHUNK:Logic CreatePost đã được gộp Community (Từ File 1)... */
 exports.createPost = async (req, res) => {
   try {
-    const { title, description, location, category, images, price, lat, lng, postType } = req.body;
+    const { title, description, location, category, images, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
 
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     let finalPostType = "regular";
@@ -152,7 +161,23 @@ exports.createPost = async (req, res) => {
       lng: lng || null,
       postType: finalPostType,
       createdBy: req.user?.id || null,
+      publishedToProfile: true, // Mặc định true theo logic File 1
     });
+
+    // ----------------------------------------------------------------------
+    // TÍCH HỢP COMMUNITY: Nếu có communityId, kiểm tra quyền và gán vào bài đăng
+    // ----------------------------------------------------------------------
+    if (communityId && String(communityId).trim()) {
+      const comm = await Community.findById(String(communityId).trim());
+      if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
+      
+      const uid = String(req.user.id);
+      const isMember = String(comm.createdBy) === uid || (comm.members || []).some((m) => String(m) === uid);
+      if (!isMember) return res.status(403).json({ message: "Bạn chưa tham gia cộng đồng này" });
+      
+      newPost.community = comm._id;
+      newPost.publishedToProfile = String(publishedToProfile || "").toLowerCase() === "true";
+    }
 
     await newPost.save();
 
@@ -166,9 +191,10 @@ exports.createPost = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Logic CreatePostWithMedia đã được gộp Community (Từ File 1)... */
 exports.createPostWithMedia = async (req, res) => {
   try {
-    const { title, description, location, category, price, lat, lng, postType } = req.body;
+    const { title, description, location, category, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
 
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const parsedLat = Number.isFinite(Number(lat)) ? Number(lat) : null;
@@ -231,7 +257,23 @@ exports.createPostWithMedia = async (req, res) => {
       lng: parsedLng,
       postType: finalPostType,
       createdBy: req.user?.id || null,
+      publishedToProfile: true, // Mặc định true theo logic File 1
     });
+
+    // ----------------------------------------------------------------------
+    // TÍCH HỢP COMMUNITY: Nếu có communityId, kiểm tra quyền và gán vào bài đăng
+    // ----------------------------------------------------------------------
+    if (communityId && String(communityId).trim()) {
+      const comm = await Community.findById(String(communityId).trim());
+      if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
+      
+      const uid = String(req.user.id);
+      const isMember = String(comm.createdBy) === uid || (comm.members || []).some((m) => String(m) === uid);
+      if (!isMember) return res.status(403).json({ message: "Bạn chưa tham gia cộng đồng này" });
+      
+      newPost.community = comm._id;
+      newPost.publishedToProfile = String(publishedToProfile || "").toLowerCase() === "true";
+    }
 
     await newPost.save();
 
@@ -245,6 +287,7 @@ exports.createPostWithMedia = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Get Posts tích hợp lọc Community (Từ File 1)... */
 exports.deleteImage = async (req, res) => {
   try {
     const { publicId } = req.body;
@@ -262,18 +305,37 @@ exports.getPosts = async (req, res) => {
 
     if (location) filter.location = location;
     if (category) filter.category = category;
-    if (req.user?.role !== "admin") filter.isHidden = false;
+    
+    // TÍCH HỢP COMMUNITY: Logic lọc bài viết nâng cao từ File 1
+    const isAdmin = normalizeRole(req.user?.role) === "admin";
+    if (!isAdmin) {
+      filter.isHidden = false;
+      filter.$or = [
+        { publishedToProfile: true },
+        { community: null },
+        { community: { $exists: false } },
+      ];
+    }
 
     const posts = await Post.find(filter)
-      .populate("createdBy", "username email avatar role")
+      // ✅ Trả thêm thuộc tính displayName như ở File 1 và populate cả community
+      .populate("createdBy", "username displayName email avatar role")
+      .populate("community", "name")
       .sort({ createdAt: -1 });
 
-    res.json(posts);
+    // TÍCH HỢP COMMUNITY: Tính năng normalize output ở File 1
+    const normalizedPosts = posts.map((post) => {
+      const obj = post.toObject();
+      return obj;
+    });
+
+    res.json(normalizedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+/* STREAMING_CHUNK:Các tính năng xử lý cơ bản tiếp tục giữ nguyên... */
 exports.getExplorePosts = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.id);
@@ -375,6 +437,26 @@ exports.deletePost = async (req, res) => {
   }
 };
 
+/* STREAMING_CHUNK:Thêm PublishPostToProfile (Từ File 1)... */
+exports.publishPostToProfile = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Không tìm thấy bài" });
+    if (!post.community) {
+      return res.status(400).json({ message: "Bài này không thuộc cộng đồng" });
+    }
+    
+    post.publishedToProfile = true;
+    await post.save();
+    
+    const obj = post.toObject();
+    res.json({ message: "Đã chia sẻ bài lên trang cá nhân", post: obj });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* STREAMING_CHUNK:Hoàn thiện với ToggleVisibility và GetTrendingPosts... */
 exports.toggleVisibility = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);

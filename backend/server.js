@@ -143,7 +143,10 @@ mongoose
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.log("❌ MongoDB Error:", err));
 
-const User = require("./models/User");
+// 🛠️ Models
+const User = require("./models/User"); 
+const Community = require("./models/Community");
+const { normalizeCommunityKey } = require("./utils/communityName");
 
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
@@ -157,19 +160,21 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ─── Routes ────────────────────────────────────────────────
-const postRoutes    = require("./routes/postRoutes");
-const userRoutes    = require("./routes/userRoutes");
-const commentRoutes = require("./routes/commentRoutes");
-const chatRoutes    = require("./routes/chatRoutes");
-const messageRoutes = require("./routes/messageRoutes");
+const postRoutes         = require("./routes/postRoutes");
+const userRoutes         = require("./routes/userRoutes");
+const commentRoutes      = require("./routes/commentRoutes");
+const chatRoutes         = require("./routes/chatRoutes");
+const messageRoutes      = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const communityRoutes    = require("./routes/communityRoutes");
 
-app.use("/api/posts",    postRoutes);
-app.use("/api/users",    userRoutes);
-app.use("/api/comments", commentRoutes);
-app.use("/api/chat",     chatRoutes);
-app.use("/api/messages", messageRoutes);
+app.use("/api/posts",         postRoutes);
+app.use("/api/users",         userRoutes);
+app.use("/api/comments",      commentRoutes);
+app.use("/api/chat",          chatRoutes);
+app.use("/api/messages",      messageRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/communities",   communityRoutes);
 
 // Global error JSON handler
 app.use((err, req, res, next) => {
@@ -182,7 +187,29 @@ app.use((err, req, res, next) => {
 // ─── Start ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running perfectly on http://localhost:${PORT}`);
-  console.log(`⚡ Socket.io is active and listening`);
-});
+async function startServer() {
+  try {
+    const needCommKey = await Community.find({
+      $or: [{ nameKey: { $exists: false } }, { nameKey: null }, { nameKey: "" }],
+    }).select("_id name");
+
+    if (needCommKey.length > 0) {
+      for (const c of needCommKey) {
+        await Community.updateOne(
+          { _id: c._id },
+          { $set: { nameKey: normalizeCommunityKey(c.name) } }
+        );
+      }
+      console.log(`Backfilled nameKey for ${needCommKey.length} communities.`);
+    }
+  } catch (error) {
+    console.error("Error during backfilling: ", error);
+  }
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running perfectly on http://localhost:${PORT}`);
+    console.log(`⚡ Socket.io is active and listening`);
+  });
+}
+
+startServer();
