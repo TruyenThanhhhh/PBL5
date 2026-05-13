@@ -2043,7 +2043,7 @@ function DashboardContent() {
               
               return (
                 <div key={post._id || Math.random().toString()} className={`${isDarkMode ? 'bg-[#1e293b] border-gray-700' : 'bg-white border-gray-100'} rounded-2xl overflow-hidden shadow-sm border ${isAdmin ? 'border-red-200' : ''} transition-colors duration-300`}>
-                  {isAdmin && (
+                  {isAdmin ? (
                     <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
                       <ShieldAlert size={16} className="text-[#f44336]" />
                       <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
@@ -2197,7 +2197,7 @@ function DashboardContent() {
                       </button>
                     </div>
 
-                    {expandedComments[post._id] && (
+                    {expandedComments[post._id] ? (
                       <div className={`mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'} animate-in fade-in duration-300`}>
                         <div className="flex gap-3 mb-6">
                           <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(currentUser.userId)}>
