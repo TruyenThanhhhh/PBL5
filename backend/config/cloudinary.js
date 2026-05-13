@@ -1,9 +1,10 @@
 const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
+
+const multerCloudinary = require("multer-storage-cloudinary");
+const CloudinaryStorage = multerCloudinary.CloudinaryStorage || multerCloudinary;
 
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.warn("[cloudinary] Warning: Missing Cloudinary credentials. Uploads to Cloudinary will fail.");
-  console.warn("Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in .env with real values.");
+  console.warn("[cloudinary] Warning: Missing Cloudinary credentials.");
 }
 
 cloudinary.config({
@@ -15,9 +16,12 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: "travel-app/posts",       // thư mục trên Cloudinary
+    folder: "travel-app/posts",       
     allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    transformation: [{ width: 1200, height: 800, crop: "limit" }], // resize tự động
+    transformation: [{ width: 1200, height: 800, crop: "limit" }], 
+    // Bật AI của Google Cloud Vision tích hợp trong Cloudinary
+    categorization: "google_tagging", 
+    auto_tagging: 0.6 // Lấy các tag có độ tin cậy > 60%
   },
 });
 

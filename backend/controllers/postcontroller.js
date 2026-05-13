@@ -1,7 +1,8 @@
 const Post = require("../models/Post");
-const User = require("../models/User"); // Import User model để lấy danh sách bạn bè
-const Notification = require("../models/Notification"); // Import Notification model để gửi thông báo
+const User = require("../models/User"); 
+const Notification = require("../models/Notification"); 
 const { cloudinary } = require("../config/cloudinary");
+const fs = require('fs');
 
 exports.uploadImages = async (req, res) => {
   try {
@@ -15,7 +16,6 @@ exports.uploadImages = async (req, res) => {
   }
 };
 
-// Hàm phụ trợ để gửi thông báo cho bạn bè khi có bài post chứa tọa độ
 const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
   try {
     const user = await User.findById(userId);
@@ -35,12 +35,107 @@ const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
   }
 };
 
+// ==========================================
+// 🤖 HÀM 1: AI PHÂN TÍCH ẢNH DÙNG GROQ VISION
+// ==========================================
+const analyzeImageWithGroq = async (filePath) => {
+  try {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      console.log("⚠️ AI_DEBUG: Thiếu biến GROQ_API_KEY trong file .env");
+      return null;
+    }
+
+    // Cập nhật log để hiển thị model mới
+    console.log("🚀 AI_DEBUG: Bắt đầu gửi ảnh sang Groq Vision AI (meta-llama/llama-4-scout-17b-16e-instruct)...");
+    
+    // Đọc ảnh và chuyển sang Base64
+    const imageBuffer = fs.readFileSync(filePath);
+    const base64Image = imageBuffer.toString('base64');
+    // Xác định mime type (mặc định lấy jpeg cho an toàn)
+    let mimeType = "image/jpeg";
+    if (filePath.endsWith('.png')) mimeType = "image/png";
+    if (filePath.endsWith('.webp')) mimeType = "image/webp";
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        // 👇 Đã thay đổi model sang Llama 4 Scout (Model Vision mới nhất được hỗ trợ)
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: "Bạn là một AI phân loại hình ảnh. Hãy phân loại bức ảnh này vào CHÍNH XÁC MỘT TRONG CÁC TỪ KHÓA SAU: 'Ẩm thực', 'Biển đảo', 'Núi rừng', 'Văn hóa / Kiến trúc', 'Thành phố', 'Thú cưng', 'Góc làm việc', 'Đời thường'. Trả về duy nhất 1 từ khóa đó, không giải thích thêm." 
+              },
+              { 
+                type: "image_url", 
+                image_url: { url: `data:${mimeType};base64,${base64Image}` } 
+              }
+            ]
+          }
+        ],
+        temperature: 0.1, // Cấu hình thấp để kết quả ổn định, không sáng tạo lung tung
+        max_tokens: 20
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`❌ AI_DEBUG: Lỗi gọi API Groq (Status: ${response.status}):`, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    let category = data.choices[0]?.message?.content?.trim();
+    console.log("🧠 AI_DEBUG: Groq Vision phân loại bức ảnh là:", category);
+
+    // Chuẩn hóa kết quả trả về để map với DB
+    const validCategories = ["Ẩm thực", "Biển đảo", "Núi rừng", "Văn hóa / Kiến trúc", "Thành phố", "Thú cưng", "Góc làm việc", "Đời thường"];
+    
+    for (const validCat of validCategories) {
+      if (category.toLowerCase().includes(validCat.toLowerCase())) {
+        console.log(`🏷️ AI_DEBUG: AI đã chốt thẻ [${validCat}] từ hình ảnh.`);
+        return validCat;
+      }
+    }
+
+    console.log("⚠️ AI_DEBUG: AI trả lời từ khóa không nằm trong danh sách.");
+    return null; 
+  } catch (error) {
+    console.log("❌ Lỗi AI Groq Vision (Exception):", error.message);
+    return null; 
+  }
+};
+
+// ==========================================
+// 🧠 HÀM 2: FALLBACK - PHÂN TÍCH THEO CHỮ NẾU AI ẢNH THẤT BẠI
+// ==========================================
+const autoCategorizeFromText = (text) => {
+  if (!text || text.trim() === "") return null;
+  const lowerText = text.toLowerCase();
+
+  if (lowerText.match(/ăn|uống|ngon|nhà hàng|quán|cafe|cà phê|trà sữa|món|bánh|phở|bún|cơm/)) return "Ẩm thực";
+  if (lowerText.match(/biển|đảo|cát|sóng|hải sản|bơi|tắm|vịnh|san hô/)) return "Biển đảo";
+  if (lowerText.match(/núi|rừng|đèo|suối|thác|cây|cắm trại|trekking|đỉnh/)) return "Núi rừng";
+  if (lowerText.match(/chùa|đền|di tích|lịch sử|bảo tàng|cổ|kiến trúc|nhà thờ/)) return "Văn hóa / Kiến trúc";
+  if (lowerText.match(/thành phố|đường phố|cầu|xe cộ|tòa nhà|check-in|sôi động/)) return "Thành phố";
+  if (lowerText.match(/chó|mèo|thú cưng|pet/)) return "Thú cưng";
+
+  return null; 
+};
+
 exports.createPost = async (req, res) => {
   try {
     const { title, description, location, category, images, price, lat, lng, postType } = req.body;
 
-    const normalizedPrice =
-      Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
+    const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     let finalPostType = "regular";
     if (postType === "promotional") {
       if (req.user?.role === "poster" || req.user?.role === "admin") {
@@ -50,7 +145,7 @@ exports.createPost = async (req, res) => {
 
     const newPost = new Post({
       title: title || "Cập nhật mới",
-      description,
+      description: description || null,
       location: location || "Chưa rõ vị trí",
       category: category || "General",
       price: normalizedPrice,
@@ -63,15 +158,11 @@ exports.createPost = async (req, res) => {
 
     await newPost.save();
 
-    // KIỂM TRA: Nếu có ghim tọa độ, gửi thông báo cho bạn bè
     if (newPost.lat && newPost.lng && req.user?.id) {
       await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
     }
 
-    res.status(201).json({
-      message: "Post created successfully",
-      post: newPost,
-    });
+    res.status(201).json({ message: "Post created successfully", post: newPost });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -81,8 +172,7 @@ exports.createPostWithMedia = async (req, res) => {
   try {
     const { title, description, location, category, price, lat, lng, postType } = req.body;
 
-    const normalizedPrice =
-      Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
+    const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const parsedLat = Number.isFinite(Number(lat)) ? Number(lat) : null;
     const parsedLng = Number.isFinite(Number(lng)) ? Number(lng) : null;
 
@@ -94,18 +184,49 @@ exports.createPostWithMedia = async (req, res) => {
     }
 
     const host = `${req.protocol}://${req.get("host")}`;
-    const uploadedUrls = Array.isArray(req.files)
-      ? req.files.map((file) => `${host}/uploads/${file.filename}`)
-      : [];
+    const uploadedUrls = [];
+    let imageAiCategory = null;
 
-    const finalDescription =
-      typeof description === "string" && description.trim() !== "" ? description : "\u200B";
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      req.files.forEach(file => {
+        uploadedUrls.push(`${host}/uploads/${file.filename}`);
+      });
+      
+      // Chạy AI Vision cho bức ảnh đầu tiên
+      const firstImagePath = req.files[0].path;
+      imageAiCategory = await analyzeImageWithGroq(firstImagePath);
+    }
+
+    // Xử lý Description chặt chẽ
+    let finalDescription = null;
+    if (typeof description === "string") {
+      const trimmed = description.trim();
+      if (trimmed !== "" && trimmed !== "0" && trimmed !== "\u200B") {
+        finalDescription = trimmed;
+      }
+    }
+    
+    // Gán Category: Nếu người dùng để mặc định "General" thì áp dụng AI
+    let finalCategory = category || "General";
+    
+    if (finalCategory === "General") {
+      if (imageAiCategory) {
+        finalCategory = imageAiCategory; // Ưu tiên AI phân tích hình ảnh
+      } else {
+        // Nếu AI nhìn ảnh thất bại, thử đoán qua chữ viết
+        const textCat = autoCategorizeFromText(finalDescription);
+        if (textCat) {
+          finalCategory = textCat;
+          console.log(`🏷️ AI_DEBUG: AI ảnh lỗi, chuyển sang gán thẻ theo chữ: [${finalCategory}]`);
+        }
+      }
+    }
 
     const newPost = new Post({
       title: title || "Cập nhật mới",
-      description: finalDescription,
+      description: finalDescription, 
       location: location || "Chưa rõ vị trí",
-      category: category || "General",
+      category: finalCategory,
       price: normalizedPrice,
       images: uploadedUrls,
       lat: parsedLat,
@@ -116,7 +237,6 @@ exports.createPostWithMedia = async (req, res) => {
 
     await newPost.save();
 
-    // KIỂM TRA: Nếu có ghim tọa độ, gửi thông báo cho bạn bè
     if (newPost.lat && newPost.lng && req.user?.id) {
       await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
     }
@@ -156,17 +276,13 @@ exports.getPosts = async (req, res) => {
   }
 };
 
-// API chỉ lấy các điểm được đăng bởi BẠN BÈ hoặc BẢN THÂN
 exports.getExplorePosts = async (req, res) => {
   try {
-    // 1. Lấy thông tin User hiện tại kèm danh sách bạn bè
     const currentUser = await User.findById(req.user.id);
     if (!currentUser) return res.status(404).json({ message: "User không tồn tại" });
 
-    // 2. Gom danh sách ID của bạn bè và chính user đó
     const targetUsers = [...currentUser.friends, currentUser._id];
 
-    // 3. Tìm các Post của những người này, có tọa độ và không bị ẩn
     const posts = await Post.find({
       createdBy: { $in: targetUsers },
       lat: { $ne: null },
@@ -245,21 +361,19 @@ exports.toggleVisibility = async (req, res) => {
 
 exports.getTrendingPosts = async (req, res) => {
   try {
-    // Sử dụng aggregate để tính toán số lượng like và sắp xếp
     const posts = await Post.aggregate([
       { 
         $match: { 
           isHidden: false,
-          lat: { $ne: null }, // Đã sửa: Chỉ lấy bài có tọa độ lat
-          lng: { $ne: null }  // Đã sửa: Chỉ lấy bài có tọa độ lng
+          lat: { $ne: null },
+          lng: { $ne: null }
         } 
-      }, // Chỉ lấy bài không bị ẩn và có ghim vị trí thực sự
-      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, // Đếm số lượng phần tử trong mảng likes
-      { $sort: { likeCount: -1, createdAt: -1 } }, // Sắp xếp giảm dần theo like, sau đó là thời gian tạo
-      { $limit: 5 } // Lấy top 5
+      },
+      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } },
+      { $sort: { likeCount: -1, createdAt: -1 } },
+      { $limit: 5 }
     ]);
     
-    // Populate thông tin người tạo (vì aggregate không tự populate)
     await Post.populate(posts, { path: "createdBy", select: "username avatar role" });
     
     res.json(posts);
