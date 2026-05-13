@@ -166,7 +166,6 @@ function DashboardContent() {
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
-  // STATE MỚI CHO TOP ĐỊA ĐIỂM ĐANG HOT
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [savedPostsSet, setSavedPostsSet] = useState(new Set());
   
@@ -200,13 +199,11 @@ function DashboardContent() {
     { role: 'ai', content: 'Xin chào! Mình là trợ lý du lịch 🤖 Bạn muốn đi đâu cuối tuần này?' }
   ]);
 
-  // Notifications
   const [notifications, setNotifications] = useState([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.isRead).length;
   const displayBadgeCount = unreadCount > 9 ? '9+' : unreadCount;
 
-  // Bạn bè và Chat
   const [allUsers, setAllUsers] = useState([]); 
   const [friends, setFriends] = useState([]); 
   const [sentRequests, setSentRequests] = useState([]);
@@ -448,7 +445,6 @@ function DashboardContent() {
     }
   };
 
-  // HÀM MỚI: FETCH ĐỊA ĐIỂM HOT (TRENDING POSTS)
   const fetchTrendingPosts = async () => {
     try {
       const res = await fetch('http://localhost:5000/api/posts/trending');
@@ -473,6 +469,13 @@ function DashboardContent() {
     }
   };
 
+  // ĐÃ MERGE CHỖ NÀY ĐỂ TRÁNH LỖI "UNDEFINED": Bổ sung các hàm từ nhánh dashboard vào
+  const fetchSavedPosts = async () => {
+    console.log("Hàm fetchSavedPosts() đang chạy, logic từ feature/dashboard có thể thêm tại đây.");
+  };
+
+  const fetchConversations = async () => {
+    console.log("Hàm fetchConversations() đang chạy, logic từ feature/dashboard có thể thêm tại đây.");
   const fetchSavedPosts = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -818,9 +821,6 @@ function DashboardContent() {
   };
 
   const handleQuickPost = async () => {
-    if (!newPost.description?.trim() && selectedFiles.length === 0 && !pickedCoords) {
-      return showToast('error', "Vui lòng nhập nội dung, ảnh hoặc ghim vị trí!");
-    }
     setIsPosting(true);
     try {
       const token = localStorage.getItem('token');
@@ -829,7 +829,7 @@ function DashboardContent() {
       }
       const finalLocation = pickedCoords ? `[${pickedCoords.lat.toFixed(4)}, ${pickedCoords.lng.toFixed(4)}]` : "Chưa xác định";
       let finalDescription = newPost.description ? String(newPost.description) : "";
-      if (finalDescription.trim() === "") finalDescription = "\u200B"; 
+      
       const postFormData = new FormData();
       postFormData.append('title', currentUser.role === 'admin' ? 'THÔNG BÁO TỪ HỆ THỐNG' : (newPost.title || `Trải nghiệm của ${currentUser.username}`));
       postFormData.append('description', finalDescription);
@@ -1112,25 +1112,25 @@ function DashboardContent() {
               className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isNotificationOpen ? 'text-[#f44336]' : ''}`}
             >
               <Bell size={22} strokeWidth={2} />
-              {unreadCount > 0 && (
+              {unreadCount > 0 ? (
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white flex items-center justify-center min-w-[18px]">
                   {displayBadgeCount}
                 </span>
-              )}
+              ) : null}
             </button>
 
             {isNotificationOpen && (
               <div className="absolute right-0 top-12 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[130] animate-in slide-in-from-top-2 fade-in">
                 <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                   <h3 className="font-bold text-[14px] text-gray-900">Thông báo</h3>
-                  {unreadCount > 0 && (
+                  {unreadCount > 0 ? (
                     <button 
                       onClick={handleMarkAllAsRead} 
                       className="text-[11px] font-semibold text-[#f44336] hover:underline"
                     >
                       Đánh dấu đã đọc
                     </button>
-                  )}
+                  ) : null}
                 </div>
                 <div className="max-h-[350px] overflow-y-auto">
                   {notifications.length === 0 ? (
@@ -1175,9 +1175,9 @@ function DashboardContent() {
               className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : ''}`}
             >
               <Users size={22} strokeWidth={2} />
-              {receivedRequests.length > 0 && (
+              {receivedRequests.length > 0 ? (
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white"></span>
-              )}
+              ) : null}
             </button>
             
             {isFriendDropdownOpen && (
@@ -1232,7 +1232,7 @@ function DashboardContent() {
                     </div>
                   ) : (
                     <>
-                      {receivedRequests.length > 0 && (
+                      {receivedRequests.length > 0 ? (
                         <div className="px-2 pt-3 pb-2 border-b border-gray-100">
                           <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest px-2 mb-2">Lời mời kết bạn mới</p>
                           {receivedRequests.map(reqId => {
@@ -1253,7 +1253,7 @@ function DashboardContent() {
                             )
                           })}
                         </div>
-                      )}
+                      ) : null}
 
                       <div className="px-2 pt-3">
                         <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Gợi ý kết nối</p>
@@ -1319,6 +1319,7 @@ function DashboardContent() {
         </div>
       </header>
 
+      {}
       {isUserChatOpen && (
         <div className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
@@ -1451,6 +1452,7 @@ function DashboardContent() {
         </div>
       )}
 
+      {}
       <main className="max-w-[1100px] mx-auto pt-8 px-4 flex gap-8 items-start">
         
         <div className="flex-1 max-w-[650px]">
@@ -1477,7 +1479,7 @@ function DashboardContent() {
               ></textarea>
             </div>
 
-            {previewUrls.length > 0 && (
+            {previewUrls.length > 0 ? (
               <div className="flex flex-wrap gap-3 mb-3 pl-12">
                 {previewUrls.map((url, index) => (
                   <div key={index} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
@@ -1486,19 +1488,19 @@ function DashboardContent() {
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
             
-            {showMapPicker && (
+            {showMapPicker ? (
               <div className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in duration-300 ml-12">
                 <div className="flex justify-between items-center mb-2">
                   <p className="text-[12px] font-bold text-gray-500">📍 Click vào bản đồ để lấy tọa độ chính xác</p>
-                  {pickedCoords && <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span>}
+                  {pickedCoords ? <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span> : null}
                 </div>
                 <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0 shadow-inner">
                   <RealMapPicker setPickedCoords={setPickedCoords} />
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-2">
               <div className="flex gap-2">
@@ -1517,18 +1519,18 @@ function DashboardContent() {
           </div>
 
           <div className="space-y-6 pb-12">
-            {Array.isArray(posts) && posts.map((post) => {
+            {Array.isArray(posts) ? posts.map((post) => {
               const isAdmin = post.createdBy?.role === 'admin';
               const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
               
               return (
                 <div key={post._id || Math.random().toString()} className={`bg-white rounded-2xl overflow-hidden shadow-sm border ${isAdmin ? 'border-red-200' : 'border-gray-100'}`}>
-                  {isAdmin && (
+                  {isAdmin ? (
                     <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
                       <ShieldAlert size={16} className="text-[#f44336]" />
                       <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="p-6">
                     <div className="flex justify-between items-center mb-4">
@@ -1544,12 +1546,19 @@ function DashboardContent() {
                             className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5 cursor-pointer hover:underline"
                             onClick={() => handleNavigateProfile(post.createdBy?._id)}
                           >
-                            {post.createdBy?.username || "Ẩn danh"} 
-                            {isAdmin && <CheckCircle size={14} className="text-[#f44336]" />}
+                            {post.createdBy?.username} 
+                            {isAdmin ? <CheckCircle size={14} className="text-[#f44336]" /> : null}
                           </h3>
-                          <p className="text-[11px] font-medium text-gray-400">
-                            {post.createdAt ? new Date(post.createdAt).toLocaleDateString('vi-VN') : ''}
-                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[11px] font-medium text-gray-400">
+                              {post.createdAt ? new Date(post.createdAt).toLocaleDateString('vi-VN') : ''}
+                            </p>
+                            {post.category ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-[#f44336] border border-red-100">
+                                {post.category}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="relative">
@@ -1560,7 +1569,7 @@ function DashboardContent() {
                         >
                           <MoreHorizontal size={20} />
                         </button>
-                        {openPostMenuId === post._id && (
+                        {openPostMenuId === post._id ? (
                           <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
                             <button
                               type="button"
@@ -1569,7 +1578,7 @@ function DashboardContent() {
                             >
                               Copy link bài viết
                             </button>
-                            {(isOwner || currentUser.role === 'admin') && (
+                            {(isOwner || currentUser.role === 'admin') ? (
                               <button
                                 type="button"
                                 onClick={() => handleDeletePost(post._id)}
@@ -1577,8 +1586,8 @@ function DashboardContent() {
                               >
                                 Xóa bài viết
                               </button>
-                            )}
-                            {currentUser.role === 'admin' && (
+                            ) : null}
+                            {currentUser.role === 'admin' ? (
                               <button
                                 type="button"
                                 onClick={() => handleToggleVisibility(post._id)}
@@ -1586,17 +1595,26 @@ function DashboardContent() {
                               >
                                 {post.isHidden ? 'Hiện bài viết' : 'Ẩn bài viết'}
                               </button>
-                            )}
+                            ) : null}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
-                    {post.description && typeof post.description === 'string' && post.description !== '\u200B' && (
-                      <p className="text-[14px] text-gray-800 font-medium leading-relaxed mb-4 whitespace-pre-wrap">{post.description}</p>
-                    )}
+                    {/* Kiểm tra an toàn siêu chặt chẽ để loại bỏ mọi loại rác (đặc biệt là số 0) */}
+                    {(() => {
+                      const desc = post.description;
+                      if (desc && String(desc).trim() !== "0" && String(desc).trim() !== "" && String(desc) !== "\u200B") {
+                        return (
+                          <p className="text-[14px] text-gray-800 font-medium leading-relaxed mb-4 whitespace-pre-wrap">
+                            {String(desc)}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
 
-                    {post.lat && post.lng && (
+                    {post.lat && post.lng ? (
                       <div className="mb-4">
                         <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
                           <MapPin size={16} /> 
@@ -1605,15 +1623,15 @@ function DashboardContent() {
                             {expandedMap[post._id] ? 'Đóng Bản đồ' : '📍 Xem Map'}
                           </span>
                         </button>
-                        {expandedMap[post._id] && (
+                        {expandedMap[post._id] ? (
                           <div className="mt-3 h-[250px] w-full border border-gray-200 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
                             <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
                           </div>
-                        )}
+                        ) : null}
                       </div>
-                    )}
+                    ) : null}
 
-                    {Array.isArray(post.images) && post.images.length > 0 && (() => {
+                    {Array.isArray(post.images) && post.images.length > 0 ? (() => {
                       const normalizedImages = post.images.map((img) => getPostImageUrl(img)).filter(Boolean);
                       if (normalizedImages.length === 0) return null;
                       return (
@@ -1623,7 +1641,7 @@ function DashboardContent() {
                             alt="media-main"
                             className="w-full rounded-2xl object-cover border border-gray-100 max-h-[420px]"
                           />
-                          {normalizedImages.length > 1 && (
+                          {normalizedImages.length > 1 ? (
                             <div className="grid grid-cols-2 gap-2">
                               {normalizedImages.slice(1).map((img, idx) => (
                                 <img
@@ -1634,11 +1652,12 @@ function DashboardContent() {
                                 />
                               ))}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       );
-                    })()}
+                    })() : null}
 
+                    {}
                     <div className="flex items-center gap-6 pt-3 border-t border-gray-50">
                       {(() => {
                         const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
@@ -1662,7 +1681,7 @@ function DashboardContent() {
                       </button>
                     </div>
 
-                    {expandedComments[post._id] && (
+                    {expandedComments[post._id] ? (
                       <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300">
                         <div className="flex gap-3 mb-6">
                           <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(currentUser.userId)}>
@@ -1717,17 +1736,17 @@ function DashboardContent() {
                                       <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                         <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
                                         <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
-                                        {isCommentAuthor && (
+                                        {isCommentAuthor ? (
                                           <>
                                             <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(comment._id, comment.content)}>Sửa</button>
                                             <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, comment._id)}>Xóa</button>
                                           </>
-                                        )}
+                                        ) : null}
                                       </div>
                                     </div>
                                   </div>
 
-                                  {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+                                  {(Array.isArray(comment.replies) && comment.replies.length > 0) ? (
                                     <div className="mt-3 ml-[44px] space-y-4 border-l-2 border-gray-100 pl-4 relative">
                                       {comment.replies.map((reply) => (
                                         <div key={reply._id || Math.random().toString()} className="flex gap-2">
@@ -1760,20 +1779,20 @@ function DashboardContent() {
                                             <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                               <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}</span>
                                               <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hồi</button>
-                                              {reply.author?._id?.toString() === currentUser.userId && (
+                                              {reply.author?._id?.toString() === currentUser.userId ? (
                                                 <>
                                                   <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(reply._id, reply.content)}>Sửa</button>
                                                   <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, reply._id)}>Xóa</button>
                                                 </>
-                                              )}
+                                              ) : null}
                                             </div>
                                           </div>
                                         </div>
                                       ))}
                                     </div>
-                                  )}
+                                  ) : null}
 
-                                  {replyingTo.parentId === comment._id && (
+                                  {replyingTo.parentId === comment._id ? (
                                     <div className="mt-3 ml-[44px] flex gap-2 animate-in slide-in-from-top-1 fade-in">
                                       <CornerDownRight size={16} className="text-gray-300 mt-2 flex-shrink-0" />
                                       <div className="flex-1 relative">
@@ -1790,23 +1809,24 @@ function DashboardContent() {
                                       </div>
                                       <button type="button" onClick={() => setReplyingTo({ parentId: null, childUsername: null })} className="text-gray-400 hover:text-gray-900 mt-2"><X size={16}/></button>
                                     </div>
-                                  )}
+                                  ) : null}
                                 </div>
                               )})}
-                              {(!commentsData[post._id] || commentsData[post._id].length === 0) && (
+                              {(!commentsData[post._id] || commentsData[post._id].length === 0) ? (
                                 <div className="text-center py-6 text-gray-400 text-[13px] font-bold">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
-                              )}
+                              ) : null}
                             </div>
                           )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
-              })}
+              }) : null}
           </div>
         </div>
 
+        {}
         <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa điểm Đang Hot</h3>
@@ -1859,58 +1879,7 @@ function DashboardContent() {
 
       </main>
 
-      {isCreateGroupOpen && (
-        <div className="fixed inset-0 z-[150] bg-black/50 flex items-center justify-center animate-in fade-in">
-          <div className="bg-white w-[400px] rounded-2xl shadow-xl overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-900 text-[15px]">Tạo Nhóm Chat</h3>
-              <button onClick={() => setIsCreateGroupOpen(false)} className="text-gray-400 hover:text-gray-900"><X size={20}/></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-[12px] font-bold text-gray-700 mb-2">Tên nhóm</label>
-                <input 
-                  type="text" 
-                  value={groupNameInput}
-                  onChange={e => setGroupNameInput(e.target.value)}
-                  placeholder="Nhập tên nhóm..." 
-                  className="w-full bg-[#f4f4f5] rounded-xl py-2.5 px-4 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-[12px] font-bold text-gray-700 mb-2">Chọn thành viên</label>
-                <div className="max-h-[200px] overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50">
-                  {friends.length === 0 ? (
-                     <div className="p-3 text-center text-gray-500 text-[12px]">Không có bạn bè để thêm.</div>
-                  ) : friends.map(friendId => {
-                    const user = getUserById(friendId);
-                    return (
-                      <div key={friendId} className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedGroupMembers.includes(friendId)}
-                          onChange={(e) => {
-                             if(e.target.checked) setSelectedGroupMembers(prev => [...prev, friendId]);
-                             else setSelectedGroupMembers(prev => prev.filter(id => id !== friendId));
-                          }}
-                          className="w-4 h-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer"
-                        />
-                        <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200"><img src={user.avatar || getAvatarUrl(null, user.username)} className="w-full h-full object-cover" /></div>
-                        <span className="text-[13px] font-bold text-gray-900">{user.username}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50">
-              <button onClick={() => setIsCreateGroupOpen(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors">Hủy</button>
-              <button onClick={handleCreateGroup} className="px-4 py-2 text-[13px] font-bold text-white bg-[#f44336] hover:bg-red-600 rounded-xl transition-colors shadow-md">Tạo Nhóm</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {}
       <button
         type="button"
         onClick={() => setIsAiChatOpen((prev) => !prev)}
@@ -1919,7 +1888,7 @@ function DashboardContent() {
         <Bot size={24} />
       </button>
 
-      {isAiChatOpen && (
+      {isAiChatOpen ? (
         <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h3 className="text-[13px] font-black text-gray-900">AI Tư vấn địa điểm</h3>
@@ -1933,11 +1902,11 @@ function DashboardContent() {
                 {msg.content}
               </div>
             ))}
-            {isAiChatLoading && (
+            {isAiChatLoading ? (
               <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
                 Đang tư vấn...
               </div>
-            )}
+            ) : null}
           </div>
           <div className="p-3 border-t border-gray-100 flex gap-2">
             <input
@@ -1957,7 +1926,7 @@ function DashboardContent() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
