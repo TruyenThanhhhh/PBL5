@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
+import { Link, useNavigate, useInRouterContext } from 'react-router-dom';
 import { Compass, Search, Bell, ArrowLeft, ShieldAlert, CheckCircle, X } from 'lucide-react';
 
 // Hàm hash để tạo màu ngẫu nhiên dựa trên username
@@ -228,6 +228,7 @@ function ExploreContent() {
           <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Home</Link>
           <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">Explore</Link>
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
+          <Link to="/friends" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Friends</Link>
         </nav>
 
         <div className="w-1/4 flex items-center justify-end gap-5">
@@ -262,10 +263,4 @@ function ExploreContent() {
   );
 }
 
-export default function Explore() {
-  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
-  if (!hasRouter) {
-    return <BrowserRouter><ExploreContent /></BrowserRouter>;
-  }
-  return <ExploreContent />;
-}
+export default ExploreContent;

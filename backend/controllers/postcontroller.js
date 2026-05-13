@@ -24,7 +24,7 @@ const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
       const notifications = user.friends.map(friendId => ({
         receiver: friendId,
         sender: userId,
-        type: "system", 
+        type: "system",
         content: `vừa chia sẻ ${locationName} trên bản đồ.`,
         link: `/explore`
       }));
@@ -247,7 +247,7 @@ exports.createPostWithMedia = async (req, res) => {
 
 exports.deleteImage = async (req, res) => {
   try {
-    const { publicId } = req.body; 
+    const { publicId } = req.body;
     await cloudinary.uploader.destroy(publicId);
     res.json({ message: "Xóa ảnh thành công" });
   } catch (error) {
@@ -265,7 +265,7 @@ exports.getPosts = async (req, res) => {
     if (req.user?.role !== "admin") filter.isHidden = false;
 
     const posts = await Post.find(filter)
-      .populate("createdBy", "username email avatar role") 
+      .populate("createdBy", "username email avatar role")
       .sort({ createdAt: -1 });
 
     res.json(posts);
@@ -287,8 +287,8 @@ exports.getExplorePosts = async (req, res) => {
       lng: { $ne: null },
       isHidden: false
     })
-    .populate("createdBy", "username email avatar role")
-    .sort({ createdAt: -1 });
+      .populate("createdBy", "username email avatar role")
+      .sort({ createdAt: -1 });
 
     res.json(posts);
   } catch (error) {
@@ -360,21 +360,21 @@ exports.toggleVisibility = async (req, res) => {
 exports.getTrendingPosts = async (req, res) => {
   try {
     const posts = await Post.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           isHidden: false,
           lat: { $ne: null }, // Đã sửa: Chỉ lấy bài có tọa độ lat
           lng: { $ne: null }  // Đã sửa: Chỉ lấy bài có tọa độ lng
-        } 
+        }
       }, // Chỉ lấy bài không bị ẩn và có ghim vị trí thực sự
       { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, // Đếm số lượng phần tử trong mảng likes
       { $sort: { likeCount: -1, createdAt: -1 } }, // Sắp xếp giảm dần theo like, sau đó là thời gian tạo
       { $limit: 5 } // Lấy top 5
     ]);
-    
+
     // Populate thông tin người tạo (vì aggregate không tự populate)
     await Post.populate(posts, { path: "createdBy", select: "username avatar role" });
-    
+
     res.json(posts);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -597,3 +597,40 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.toggleSavePost = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const postId = req.params.postId;
+
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    const isSaved = user.savedPosts.includes(postId);
+    if (isSaved) {
+      user.savedPosts.pull(postId);
+      await user.save();
+      return res.json({ message: "Đã bỏ lưu bài viết", isSaved: false });
+    } else {
+      user.savedPosts.push(postId);
+      await user.save();
+      return res.json({ message: "Đã lưu bài viết", isSaved: true });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getSavedPosts = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).populate({
+      path: 'savedPosts',
+      populate: { path: 'createdBy', select: 'username avatar' }
+    });
+    
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+    
+    res.json(user.savedPosts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

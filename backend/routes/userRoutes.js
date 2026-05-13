@@ -37,4 +37,10 @@ router.put("/follow/:id", protect, userController.toggleFollow);
 router.get("/:id/follow-info", userController.getFollowers);
 router.get("/:id/profile", protect, userController.getUserProfile); 
 
+// ==========================================
+// 📌 BÀI VIẾT ĐÃ LƯU
+// ==========================================
+router.post("/save-post/:postId", protect, userController.toggleSavePost);
+router.get("/saved-posts", protect, userController.getSavedPosts);
+
 module.exports = router;
