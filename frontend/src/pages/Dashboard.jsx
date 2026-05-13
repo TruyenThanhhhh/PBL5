@@ -164,7 +164,6 @@ function RealMapViewer({ lat, lng, role, location }) {
 }
 
 function DashboardContent() {
-  console.log('DashboardContent rendering, isDarkMode:', localStorage.getItem('theme'));
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
@@ -1330,7 +1329,6 @@ function DashboardContent() {
   const currentKey = currentConversationId || (selectedGroup ? selectedGroup._id : (selectedChatUser ? String(selectedChatUser._id) : null));
   const currentChatMessages = currentKey ? (userMessages[currentKey] || []) : [];
 
-  console.log('DashboardContent logic finished, rendering UI. Posts count:', posts.length, 'Notifications count:', notifications.length);
   return (
     <div className={`min-h-screen w-full transition-colors duration-300 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-[#f8f9fa]'} font-sans relative`}>
       {notification.text && (
