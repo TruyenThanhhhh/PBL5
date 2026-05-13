@@ -77,6 +77,8 @@ console.log("Using MONGO_URI:", mongoUri);
 
 const User = require("./models/User");
 const Post = require("./models/Post");
+const Community = require("./models/Community");
+const { normalizeCommunityKey } = require("./utils/communityName");
 
 const authMiddleware = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
@@ -96,8 +98,10 @@ const chatRoutes = require("./routes/chatRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const collectionRoutes = require("./routes/collectionRoutes");
+const communityRoutes = require("./routes/communityRoutes");
 
 app.use("/api/posts", postRoutes);
+app.use("/api/communities", communityRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/messages", messageRoutes);
@@ -243,6 +247,19 @@ async function startServer() {
       }));
       await User.bulkWrite(bulkOps);
       console.log(`Backfilled ${usersMissingDisplayName.length} display names from usernames.`);
+    }
+
+    const needCommKey = await Community.find({
+      $or: [{ nameKey: { $exists: false } }, { nameKey: null }, { nameKey: "" }],
+    }).select("_id name");
+    if (needCommKey.length > 0) {
+      for (const c of needCommKey) {
+        await Community.updateOne(
+          { _id: c._id },
+          { $set: { nameKey: normalizeCommunityKey(c.name) } }
+        );
+      }
+      console.log(`Backfilled nameKey for ${needCommKey.length} communities.`);
     }
 
     server.listen(PORT, "0.0.0.0", () => {

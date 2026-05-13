@@ -217,7 +217,14 @@ exports.getUserProfile = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    const posts = await Post.find({ createdBy: req.params.id })
+    const posts = await Post.find({
+      createdBy: req.params.id,
+      $or: [
+        { publishedToProfile: true },
+        { community: null },
+        { community: { $exists: false } },
+      ],
+    })
       .sort({ createdAt: -1 })
       .limit(20);
 

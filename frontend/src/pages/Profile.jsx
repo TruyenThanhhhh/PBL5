@@ -1,15 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom'; 
-import { 
-  Bell, MessageSquare, Home, Compass, TrendingUp, 
-  Bookmark, Settings, MoreHorizontal, ArrowUp, 
-  ArrowDown, Share2, Heart, FolderHeart, Trash2, Loader2
-} from 'lucide-react';
+import { MessageSquare, MoreHorizontal, Share2, Heart, FolderHeart, Trash2, Loader2 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
+import AccountMenu from '../components/AccountMenu';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const copy = {
+  vi: {
+    posts: 'Bài viết',
+    media: 'Media',
+    about: 'Giới thiệu',
+    map: 'Bản đồ',
+    home: 'Trang chủ',
+    explore: 'Khám phá',
+    trending: 'Xu hướng',
+    saved: 'Đã lưu',
+    settings: 'Cài đặt',
+    editProfile: 'Chỉnh sửa hồ sơ',
+    traveler: 'Người du hành',
+    followers: 'Người theo dõi',
+    following: 'Đang theo dõi',
+    trendingKeywords: 'Từ khóa xu hướng',
+    suggestedForYou: 'Gợi ý cho bạn',
+    mentions: 'lượt nhắc đến',
+    follow: 'Theo dõi',
+    coverAlt: 'Ảnh bìa',
+  },
+  en: {
+    posts: 'Posts',
+    media: 'Media',
+    about: 'About',
+    map: 'Map',
+    home: 'Home',
+    explore: 'Explore',
+    trending: 'Trending',
+    saved: 'Saved',
+    settings: 'Settings',
+    editProfile: 'Edit Profile',
+    traveler: 'Traveler',
+    followers: 'Followers',
+    following: 'Following',
+    trendingKeywords: 'Trending Keywords',
+    suggestedForYou: 'Suggested For You',
+    mentions: 'mentions',
+    follow: 'Follow',
+    coverAlt: 'Cover',
+  },
+};
 
 // 🚀 Tách phần giao diện chính ra một Component con
 function ProfileContent() {
   const navigate = useNavigate(); // Khởi tạo hàm chuyển trang an toàn
+  const { language } = useLanguage();
+  const t = copy[language] || copy.vi;
   const [profile, setProfile] = useState({
     username: '',
     bio: '',
@@ -30,6 +73,9 @@ function ProfileContent() {
   const [isFetchingComments, setIsFetchingComments] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [trendingKeywords, setTrendingKeywords] = useState([]);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
 
   const handlePostClick = () => {
     navigate('/post-detail');
@@ -43,10 +89,13 @@ function ProfileContent() {
     navigate('/settings');
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.dispatchEvent(new CustomEvent('authChange'));
-    navigate('/login');
+  const handleSavedClick = () => {
+    setActiveTab('collections');
+    fetchCollections();
+  };
+
+  const handleTrendingClick = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const fetchComments = async (postId) => {
@@ -163,6 +212,40 @@ function ProfileContent() {
     loadProfile();
   }, []);
 
+  // 🔥 Fetch trending keywords và suggested users
+  useEffect(() => {
+    const fetchTrendingAndUsers = async () => {
+      setIsLoadingTrending(true);
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Lấy trending keywords
+        const trendingRes = await fetch('http://localhost:5000/api/posts/trending/keywords');
+        if (trendingRes.ok) {
+          const trendingData = await trendingRes.json();
+          setTrendingKeywords(Array.isArray(trendingData) ? trendingData : []);
+        }
+
+        // Lấy suggested users (phải đăng nhập)
+        if (token) {
+          const usersRes = await fetch('http://localhost:5000/api/users/search', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setSuggestedUsers(Array.isArray(usersData) ? usersData.slice(0, 5) : []);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching trending data:', err);
+      } finally {
+        setIsLoadingTrending(false);
+      }
+    };
+
+    fetchTrendingAndUsers();
+  }, []);
+
   const fetchCollections = async () => {
     setIsLoadingCollections(true);
     const token = localStorage.getItem('token');
@@ -209,53 +292,37 @@ function ProfileContent() {
 
         <div className="flex-1 flex justify-center">
           <nav className="hidden md:flex items-center gap-8 text-[14px] font-bold text-gray-500">
-            <button className="text-[#f44336] border-b-2 border-[#f44336] py-4 -mb-[17px]">Posts</button>
-            <button className="hover:text-gray-900 transition-colors py-4">Media</button>
-            <button className="hover:text-gray-900 transition-colors py-4">About</button>
-            <button className="hover:text-gray-900 transition-colors py-4">Map</button>
+            <button className="text-[#f44336] border-b-2 border-[#f44336] py-4 -mb-[17px]">{t.posts}</button>
+            <button className="hover:text-gray-900 transition-colors py-4">{t.media}</button>
+            <button className="hover:text-gray-900 transition-colors py-4">{t.about}</button>
+            <button className="hover:text-gray-900 transition-colors py-4">{t.map}</button>
           </nav>
         </div>
 
-        <div className="flex items-center justify-end gap-5 w-1/4">
+        <div className="flex items-center justify-end gap-4 w-1/4">
           <NotificationBell />
           <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900">
             <MessageSquare size={22} strokeWidth={2} />
           </button>
+          <AccountMenu
+            avatar={profile.avatar}
+            username={profile.username}
+            onSavedClick={handleSavedClick}
+            onTrendingClick={handleTrendingClick}
+          />
         </div>
       </header>
 
       {/* MAIN LAYOUT */}
-      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 flex gap-6 lg:gap-8 items-start">
-        
-        {/* LEFT SIDEBAR */}
-        <aside className="w-[240px] hidden md:block flex-shrink-0 sticky top-[88px]">
-          <nav className="space-y-1 text-[14px] font-bold text-gray-600 mb-6">
-            <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <Home size={20} strokeWidth={2} /> Home
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <Compass size={20} strokeWidth={2} /> Explore
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <TrendingUp size={20} strokeWidth={2} /> Trending
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <Bookmark size={20} strokeWidth={2} /> Saved
-            </button>
-            
-            <button onClick={handleSettingsClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all text-left">
-              <Settings size={20} strokeWidth={2} /> Settings
-            </button>
-          </nav>
-        </aside>
+      <main className="max-w-[1360px] mx-auto px-6 2xl:px-8 pt-6 flex gap-6 lg:gap-8 items-start">
 
         {/* CENTER CONTENT */}
-        <section className="flex-1 max-w-[650px]">
+        <section className="flex-1 min-w-0">
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 mb-6">
             <div className="h-[220px] w-full bg-gray-200 relative">
               <img
                 src={profile.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'}
-                alt="Cover"
+                  alt={t.coverAlt}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -272,13 +339,13 @@ function ProfileContent() {
                 
                 <div className="flex gap-2">
                   <button onClick={() => navigate('/settings')} className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors">
-                    Edit Profile
+                    {t.editProfile}
                   </button>
                 </div>
               </div>
 
               <div>
-                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username || 'Traveler'}</h1>
+                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username || t.traveler}</h1>
                 <p className="text-[13px] font-medium text-gray-500 mb-4">@{(profile.username || 'unknown').toLowerCase().replace(/\s+/g, '_')}</p>
                 <p className="text-[14px] text-gray-700 leading-relaxed font-medium mb-6">
                   {profile.bio || 'Bạn chưa cập nhật thông tin cá nhân.'}
@@ -287,15 +354,15 @@ function ProfileContent() {
                 <div className="flex gap-8 border-t border-gray-100 pt-5">
                   <div className="text-center">
                     <p className="text-xl font-black text-gray-900">{postsCount}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Posts</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.posts}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-xl font-black text-gray-900">{followersCount}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Followers</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.followers}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-xl font-black text-gray-900">{followingCount}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Following</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.following}</p>
                   </div>
                 </div>
               </div>
@@ -303,12 +370,12 @@ function ProfileContent() {
           </div>
 
           <div className="bg-white rounded-xl p-2 flex text-center text-[13px] font-bold text-gray-500 mb-6 shadow-sm border border-gray-100">
-            <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>Posts</button>
-            <button onClick={() => { setActiveTab('media'); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>Media</button>
+            <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.posts}</button>
+            <button onClick={() => { setActiveTab('media'); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.media}</button>
             <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>
               🗂️ Bộ sưu tập
             </button>
-            <button onClick={() => setActiveTab('about')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'about' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>About</button>
+            <button onClick={() => setActiveTab('about')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'about' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.about}</button>
           </div>
 
           {/* COLLECTIONS TAB */}
@@ -364,7 +431,7 @@ function ProfileContent() {
           {activeTab !== 'collections' && (
             <>
               {activeTab === 'posts' && (
-                <div className="space-y-6">
+                <div className="flex flex-col gap-14">
                   {profilePosts.length === 0 ? (
                     <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 text-center text-gray-500">
                       <p className="text-[15px] font-bold mb-2">Bạn chưa có bài viết nào.</p>
@@ -510,7 +577,7 @@ function ProfileContent() {
 
               {activeTab === 'about' && (
                 <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-gray-700">
-                  <h3 className="text-xl font-black text-gray-900 mb-4">About</h3>
+                  <h3 className="text-xl font-black text-gray-900 mb-4">{t.about}</h3>
                   <p className="text-[14px] leading-relaxed">{profile.bio || 'Bạn chưa cập nhật phần giới thiệu.'}</p>
                 </div>
               )}
@@ -519,50 +586,48 @@ function ProfileContent() {
         </section>
 
         {/* RIGHT SIDEBAR */}
-        <aside className="w-[300px] hidden xl:block flex-shrink-0 space-y-6">
+        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">Quick Stats</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-50 p-4 rounded-xl text-center">
-                <p className="text-2xl font-black text-[#f44336]">42</p>
-                <p className="text-[11px] font-bold text-gray-500">Countries</p>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-xl text-center">
-                <p className="text-2xl font-black text-[#00897b]">156</p>
-                <p className="text-[11px] font-bold text-gray-500">Cities</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">Trending Today</h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Adventure</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Backpacking the Dolomites</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">1.2k people discussing this</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Luxury</p>
-                <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Overwater Bungalows in Maldives</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">Suggested For You</h3>
-            <div className="space-y-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80" alt="Marco" className="w-9 h-9 rounded-full object-cover" />
-                  <div>
-                    <p className="text-[12px] font-bold text-gray-900">Marco Polo Jr</p>
-                    <p className="text-[10px] text-gray-500">Global Nomad</p>
+            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">🔥 {t.trendingKeywords}</h3>
+            {isLoadingTrending ? (
+              <p className="text-[13px] text-gray-500">Đang tải...</p>
+            ) : trendingKeywords.length > 0 ? (
+              <div className="space-y-4">
+                {trendingKeywords.slice(0, 5).map((item, idx) => (
+                  <div key={idx}>
+                    <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">{item.category}</p>
+                    <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline capitalize">{item.keyword}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{item.count} {t.mentions}</p>
                   </div>
-                </div>
-                <button className="text-[12px] font-bold text-[#f44336] hover:underline">Follow</button>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-[13px] text-gray-400">Chưa có dữ liệu</p>
+            )}
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">👥 {t.suggestedForYou}</h3>
+            {isLoadingTrending ? (
+              <p className="text-[13px] text-gray-500">Đang tải...</p>
+            ) : suggestedUsers.length > 0 ? (
+              <div className="space-y-4 mb-4">
+                {suggestedUsers.map((user) => (
+                  <div key={user._id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <img src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} alt={user.username} className="w-9 h-9 rounded-full object-cover" />
+                      <div>
+                        <p className="text-[12px] font-bold text-gray-900">{user.username}</p>
+                        <p className="text-[10px] text-gray-500">{user.followersCount} {t.followers}</p>
+                      </div>
+                    </div>
+                    <button className="text-[12px] font-bold text-[#f44336] hover:underline">{t.follow}</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-gray-400">Chưa có dữ liệu</p>
+            )}
           </div>
         </aside>
       </main>

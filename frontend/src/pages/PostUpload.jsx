@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
   Bell, Search, MapPin, X, Upload, ChevronDown
 } from 'lucide-react';
+import AccountMenu from '../components/AccountMenu';
 
 export default function PostUpload() {
   const [dragActive, setDragActive] = useState(false);
@@ -50,19 +51,13 @@ export default function PostUpload() {
             <button className="text-gray-500 hover:text-gray-900 relative">
               <Bell size={20} />
             </button>
-            <a href="/profile" className="block cursor-pointer">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
-                className="w-8 h-8 rounded-full border border-gray-200 object-cover hover:ring-2 hover:ring-[#f44336]/50 transition-all"
-                alt="Profile"
-              />
-            </a>
+            <AccountMenu />
           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="max-w-[800px] mx-auto px-4 sm:px-6 pt-10">
+      <main className="max-w-[1180px] mx-auto px-6 2xl:px-8 pt-10">
         <div className="mb-8">
           <h1 className="text-3xl font-black text-gray-900 mb-2">Create a New Post</h1>
           <p className="text-[14px] text-gray-500 font-medium">Share your latest discovery with the community.</p>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link, MemoryRouter, useInRouterContext } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { 
-  Bell, MessageSquare, Compass, Settings, 
+  Bell, MessageSquare,
   MapPin, Image as ImageIcon, Send, ShieldAlert,
-  Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot
+  Heart, Share2, MoreHorizontal, CheckCircle, X, CornerDownRight, Loader2,
+  ArrowLeft, UserMinus
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import SavePostButton from '../components/SavePostButton';
@@ -86,6 +87,19 @@ const copy = {
     serverError: 'Lỗi server khi đăng bài',
     systemError: 'Lỗi hệ thống',
     notFound: 'Không tìm thấy profile hiện tại',
+    backToList: 'Danh sách cộng đồng',
+    communityFeed: 'Bảng tin nhóm',
+    shareToProfile: 'Đồng thời hiển thị trên trang cá nhân',
+    pendingBanner: 'Bạn đã xin tham gia. Chờ chủ cộng đồng duyệt để đăng bài và xem bài.',
+    moderation: 'Quản lý thành viên',
+    pendingRequests: 'Chờ duyệt',
+    approve: 'Duyệt',
+    reject: 'Từ chối',
+    members: 'Thành viên',
+    kick: 'Mời ra',
+    shareProfileBtn: 'Chia sẻ lên hồ sơ',
+    onProfile: 'Đã lên hồ sơ',
+    postsBlocked: 'Chưa thể xem bài — chờ được duyệt.',
   },
   en: {
     home: 'Home',
@@ -161,17 +175,33 @@ const copy = {
     serverError: 'Server error posting',
     systemError: 'System error',
     notFound: 'Could not load current profile',
+    backToList: 'All communities',
+    communityFeed: 'Group feed',
+    shareToProfile: 'Also show on my profile',
+    pendingBanner: 'Your join request is pending. Wait for the owner to approve.',
+    moderation: 'Member management',
+    pendingRequests: 'Pending',
+    approve: 'Approve',
+    reject: 'Reject',
+    members: 'Members',
+    kick: 'Remove',
+    shareProfileBtn: 'Share to profile',
+    onProfile: 'On profile',
+    postsBlocked: 'Posts unavailable until approved.',
   },
 };
 
-// ==========================================
-// GIAO DIỆN CHÍNH
-// ==========================================
-function DashboardContent() {
+const API_BASE = 'http://localhost:5000/api';
+
+function CommunityDetailPage() {
   const navigate = useNavigate();
+  const { id: routeCommunityId } = useParams();
   const { language } = useLanguage();
   const t = copy[language] || copy.vi;
   const [posts, setPosts] = useState([]);
+  const [community, setCommunity] = useState(null);
+  const [sharingPostId, setSharingPostId] = useState(null);
+  const [shareProfile, setShareProfile] = useState(false);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
   const [newPost, setNewPost] = useState({ title: '', description: '', category: 'General' });
@@ -195,13 +225,49 @@ function DashboardContent() {
   const [editingCommentContent, setEditingCommentContent] = useState("");
   const [likingPosts, setLikingPosts] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, postId: null, commentId: null });
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'ai', content: 'Xin chào! Mình là trợ lý du lịch 🤖 Bạn muốn đi đâu cuối tuần này?' }
-  ]);
   const [openPostMenuId, setOpenPostMenuId] = useState(null);
+
+  const fetchPosts = async () => {
+    if (!routeCommunityId) return;
+    const tok = localStorage.getItem('token');
+    if (!tok) return;
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}/posts`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (!res.ok) {
+        setPosts([]);
+        return;
+      }
+      const data = await res.json();
+      setPosts(Array.isArray(data) ? data : []);
+    } catch {
+      setPosts([]);
+    }
+  };
+
+  const fetchCommunity = async () => {
+    if (!routeCommunityId) return;
+    const tok = localStorage.getItem('token');
+    if (!tok) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        navigate('/community');
+        return;
+      }
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCommunity(data);
+    } catch {
+      navigate('/community');
+    }
+  };
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -213,7 +279,7 @@ function DashboardContent() {
 
       if (token) {
         try {
-          const res = await fetch('http://localhost:5000/api/profile', {
+          const res = await fetch(`${API_BASE}/profile`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
@@ -234,39 +300,25 @@ function DashboardContent() {
 
     loadCurrentUser();
     loadLeafletAssets().catch(() => {});
-    fetchPosts();
-  }, [navigate]);
+  }, []);
+
+  useEffect(() => {
+    if (!routeCommunityId) return;
+    fetchCommunity();
+  }, [routeCommunityId]);
+
+  useEffect(() => {
+    if (!community) return;
+    if (community.isMember && !community.isPending) {
+      fetchPosts();
+    } else {
+      setPosts([]);
+    }
+  }, [community, routeCommunityId]);
 
   const showToast = (type, text) => {
     setNotification({ type, text: String(text) });
     setTimeout(() => setNotification({ type: '', text: '' }), 5000);
-  };
-
-  const mockPostData = [{
-    _id: 'mock_1',
-    title: 'Hệ thống giả lập',
-    description: 'Do chưa kết nối được Backend, đây là bài viết mô phỏng.',
-    location: 'Đà Nẵng',
-    lat: 16.047, lng: 108.206,
-    createdBy: { username: 'Admin', role: 'admin' },
-    createdAt: new Date().toISOString(),
-    likes: [],
-    images: [],
-    totalReviews: 0
-  }];
-
-  const fetchPosts = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/posts');
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(Array.isArray(data) ? data : mockPostData);
-      } else {
-        setPosts(mockPostData);
-      }
-    } catch (error) { 
-      setPosts(mockPostData); 
-    }
   };
 
   const toggleComments = async (postId) => {
@@ -276,7 +328,7 @@ function DashboardContent() {
     if (!isExpanded && !commentsData[postId]) {
       setIsFetchingComments(prev => ({ ...prev, [postId]: true }));
       try {
-        const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
+        const res = await fetch(`${API_BASE}/posts/${postId}/comments`);
         if (res.ok) {
           const data = await res.json();
           setCommentsData(prev => ({ ...prev, [postId]: Array.isArray(data.comments) ? data.comments : [] }));
@@ -295,7 +347,7 @@ function DashboardContent() {
 
   const refreshComments = async (postId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
+      const res = await fetch(`${API_BASE}/posts/${postId}/comments`);
       if (!res.ok) throw new Error('Không thể tải bình luận');
       const data = await res.json();
       const newComments = Array.isArray(data.comments) ? data.comments : [];
@@ -317,7 +369,7 @@ function DashboardContent() {
 
     setIsSubmittingComment(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`, {
+      const res = await fetch(`${API_BASE}/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -349,7 +401,7 @@ function DashboardContent() {
     if (!token) return showToast('error', 'Vui lòng đăng nhập để xóa bình luận.');
 
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments/${commentId}`, {
+      const res = await fetch(`${API_BASE}/posts/${postId}/comments/${commentId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -406,7 +458,7 @@ function DashboardContent() {
     if (!token) return showToast('error', 'Vui lòng đăng nhập để sửa bình luận.');
 
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments/${commentId}`, {
+      const res = await fetch(`${API_BASE}/posts/${postId}/comments/${commentId}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -471,9 +523,11 @@ function DashboardContent() {
       postFormData.append('category', currentUser.role === 'admin' ? 'System' : newPost.category);
       postFormData.append('lat', String(pickedCoords?.lat ?? ''));
       postFormData.append('lng', String(pickedCoords?.lng ?? ''));
+      postFormData.append('communityId', routeCommunityId);
+      postFormData.append('publishedToProfile', shareProfile ? 'true' : 'false');
       selectedFiles.forEach((file) => postFormData.append('images', file));
 
-      const res = await fetch('http://localhost:5000/api/posts/create-with-media', {
+      const res = await fetch(`${API_BASE}/posts/create-with-media`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: postFormData
@@ -481,6 +535,7 @@ function DashboardContent() {
       if (res.ok) {
         setNewPost({ title: '', description: '', category: 'General' });
         setPickedCoords(null); setShowMapPicker(false); setSelectedFiles([]); setPreviewUrls([]);
+        setShareProfile(false);
         fetchPosts(); showToast('success', t.postSuccess);
       } else {
         const data = await res.json().catch(() => ({}));
@@ -502,7 +557,7 @@ function DashboardContent() {
 
     setLikingPosts((prev) => ({ ...prev, [postId]: true }));
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/like/${postId}`, {
+      const res = await fetch(`${API_BASE}/posts/like/${postId}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -555,7 +610,7 @@ function DashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, {
+      const res = await fetch(`${API_BASE}/posts/${postId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -576,7 +631,7 @@ function DashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/toggle-visibility`, {
+      const res = await fetch(`${API_BASE}/posts/${postId}/toggle-visibility`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -594,38 +649,86 @@ function DashboardContent() {
     }
   };
 
-  const handleSendChat = async () => {
-    const text = chatInput.trim();
-    if (!text || isChatLoading) return;
-
-    const nextMessages = [...chatMessages, { role: 'user', content: text }];
-    setChatMessages(nextMessages);
-    setChatInput('');
-    setIsChatLoading(true);
-
+  const handlePublishToProfile = async (postId) => {
+    const tok = localStorage.getItem('token');
+    if (!tok) return showToast('error', t.loginRequired);
+    setSharingPostId(postId);
     try {
-      const history = nextMessages.slice(0, -1).map((m) => ({
-        role: m.role === 'ai' ? 'assistant' : 'user',
-        content: m.content
-      }));
-
-      const res = await fetch('http://localhost:5000/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history })
+      const res = await fetch(`${API_BASE}/posts/${postId}/publish-profile`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${tok}` },
       });
-
-      if (!res.ok) throw new Error('Không gọi được trợ lý AI');
-      const data = await res.json();
-      const reply = data.reply || 'Mình chưa có câu trả lời phù hợp, bạn thử lại nhé.';
-      setChatMessages((prev) => [...prev, { role: 'ai', content: reply }]);
-    } catch (error) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: 'ai', content: 'Hiện tại AI đang bận hoặc thiếu cấu hình `GROQ_API_KEY` ở backend.' }
-      ]);
+      if (!res.ok) throw new Error();
+      showToast('success', language === 'vi' ? 'Đã chia sẻ lên hồ sơ' : 'Shared to profile');
+      fetchPosts();
+    } catch {
+      showToast('error', language === 'vi' ? 'Không chia sẻ được' : 'Could not share');
     } finally {
-      setIsChatLoading(false);
+      setSharingPostId(null);
+    }
+  };
+
+  const refreshCommunity = async () => {
+    const tok = localStorage.getItem('token');
+    if (!tok || !routeCommunityId) return;
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCommunity(data);
+      }
+    } catch {}
+  };
+
+  const approveMember = async (userId) => {
+    const tok = localStorage.getItem('token');
+    if (!tok) return;
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}/pending/${userId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (!res.ok) throw new Error();
+      showToast('success', language === 'vi' ? 'Đã duyệt thành viên' : 'Member approved');
+      await refreshCommunity();
+      fetchPosts();
+    } catch {
+      showToast('error', language === 'vi' ? 'Không duyệt được' : 'Approve failed');
+    }
+  };
+
+  const rejectMember = async (userId) => {
+    const tok = localStorage.getItem('token');
+    if (!tok) return;
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}/pending/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (!res.ok) throw new Error();
+      showToast('success', language === 'vi' ? 'Đã từ chối' : 'Rejected');
+      await refreshCommunity();
+    } catch {
+      showToast('error', language === 'vi' ? 'Lỗi' : 'Error');
+    }
+  };
+
+  const kickMember = async (userId) => {
+    const tok = localStorage.getItem('token');
+    if (!tok) return;
+    try {
+      const res = await fetch(`${API_BASE}/communities/${routeCommunityId}/members/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (!res.ok) throw new Error();
+      showToast('success', language === 'vi' ? 'Đã mời thành viên ra' : 'Member removed');
+      await refreshCommunity();
+      fetchPosts();
+    } catch {
+      showToast('error', language === 'vi' ? 'Không thực hiện được' : 'Could not remove');
     }
   };
 
@@ -657,9 +760,9 @@ function DashboardContent() {
           <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight">The Wanderer</Link>
         </div>
         <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
-          <Link to="/dashboard" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.home}</Link>
           <Link to="/explore" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.explore}</Link>
-          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
+          <Link to="/community" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.community}</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
           <NotificationBell />
@@ -668,10 +771,92 @@ function DashboardContent() {
         </div>
       </header>
 
-      <main className="max-w-[1480px] mx-auto pt-8 px-6 2xl:px-8 flex gap-8 items-start">
-        
-        <div className="flex-1 min-w-0 flex justify-center">
-          <div className="w-full max-w-[680px] flex flex-col gap-14 pb-12">
+      <main className="max-w-[680px] mx-auto pt-8 px-6 2xl:px-8 pb-16">
+        <div className="flex flex-col gap-10">
+          <Link to="/community" className="inline-flex items-center gap-2 text-[13px] font-bold text-gray-600 hover:text-[#f44336] w-fit">
+            <ArrowLeft size={18} /> {t.backToList}
+          </Link>
+
+          {community && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <h1 className="text-xl font-black text-gray-900">{community.name}</h1>
+              {community.description ? (
+                <p className="text-[13px] text-gray-600 font-medium mt-2 whitespace-pre-wrap">{community.description}</p>
+              ) : null}
+              <p className="text-[11px] text-gray-400 font-bold mt-3 uppercase tracking-wider">
+                {community.memberCount ?? 0} {t.members.toLowerCase()} · {community.postCount ?? 0}{' '}
+                {language === 'vi' ? 'bài viết' : 'posts'}
+              </p>
+            </div>
+          )}
+
+          {community?.isPending && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-[13px] font-bold text-amber-900">
+              {t.pendingBanner}
+            </div>
+          )}
+
+          {community?.isOwner && Array.isArray(community.pendingMembers) && community.pendingMembers.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <h3 className="text-[13px] font-black text-gray-900 mb-4">{t.pendingRequests}</h3>
+              <div className="flex flex-col gap-3">
+                {community.pendingMembers.map((u) => (
+                  <div key={u._id} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50 last:border-0">
+                    <span className="text-[13px] font-bold text-gray-900">{u.username || u.displayName}</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => approveMember(u._id)}
+                        className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-[12px] font-bold hover:bg-green-700"
+                      >
+                        {t.approve}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => rejectMember(u._id)}
+                        className="px-3 py-1.5 rounded-lg bg-gray-200 text-gray-800 text-[12px] font-bold hover:bg-gray-300"
+                      >
+                        {t.reject}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {community?.isOwner && Array.isArray(community.members) && community.members.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <h3 className="text-[13px] font-black text-gray-900 mb-4">{t.members}</h3>
+              <div className="flex flex-col gap-2">
+                {community.members.map((u) => {
+                  const uid = String(u._id || u);
+                  const isCreator = uid === String(community.createdBy?._id || community.createdBy);
+                  return (
+                    <div key={uid} className="flex items-center justify-between gap-2 py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-[13px] font-bold text-gray-900">
+                        {u.username || u.displayName}
+                        {isCreator ? (
+                          <span className="ml-2 text-[10px] uppercase text-amber-700 font-black">Owner</span>
+                        ) : null}
+                      </span>
+                      {!isCreator && (
+                        <button
+                          type="button"
+                          onClick={() => kickMember(uid)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11px] font-bold hover:bg-black"
+                        >
+                          <UserMinus size={14} /> {t.kick}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {community && community.isMember && !community.isPending && (
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
               <div>
@@ -679,7 +864,7 @@ function DashboardContent() {
                 <p className="text-[11px] font-semibold text-gray-500">{t.createPostHint}</p>
               </div>
               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-50 text-[#f44336]">
-                {t.travelFeed}
+                {t.communityFeed}
               </span>
             </div>
             <div className="flex gap-3 mb-3">
@@ -718,6 +903,16 @@ function DashboardContent() {
               </div>
             )}
 
+            <label className="flex items-center gap-2 text-[13px] font-bold text-gray-700 cursor-pointer mb-3 ml-12">
+              <input
+                type="checkbox"
+                checked={shareProfile}
+                onChange={(e) => setShareProfile(e.target.checked)}
+                className="rounded border-gray-300 accent-[#f44336]"
+              />
+              {t.shareToProfile}
+            </label>
+
             <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-2">
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors select-none ${pickedCoords || showMapPicker ? 'bg-red-50 text-[#f44336]' : 'text-gray-600 hover:bg-gray-100'}`}>
@@ -733,7 +928,9 @@ function DashboardContent() {
               </button>
             </div>
           </div>
+          )}
 
+          <div className="flex flex-col gap-14">
             {Array.isArray(posts) && posts.map((post) => {
               const isAdmin = post.createdBy?.role === 'admin';
               const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
@@ -884,6 +1081,20 @@ function DashboardContent() {
                         <MessageSquare size={20} strokeWidth={2.5} /> {commentCount ? commentCount : 'Bình luận'}
                       </button>
                       <SavePostButton postId={post._id} postImage={post.images?.[0]} />
+                      {post.community && isOwner && post.publishedToProfile === false && (
+                        <button
+                          type="button"
+                          onClick={() => handlePublishToProfile(post._id)}
+                          disabled={sharingPostId === post._id}
+                          className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-black disabled:opacity-50"
+                        >
+                          {sharingPostId === post._id ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}
+                          {t.shareProfileBtn}
+                        </button>
+                      )}
+                      {post.community && post.publishedToProfile && (
+                        <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-md">{t.onProfile}</span>
+                      )}
                       <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
                         <Share2 size={20} strokeWidth={2.5} />
                       </button>
@@ -1034,98 +1245,11 @@ function DashboardContent() {
           </div>
         </div>
 
-        <aside className="w-[340px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 {t.hotPlaces}</h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">{t.beach}</p>
-                <p onClick={() => showToast('success', t.savedBaySao)} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">{t.baySao}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">{t.culture}</p>
-                <p onClick={() => showToast('success', t.savedPhoCo)} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">{t.phoCo}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ {t.quickSuggestions}</h3>
-            <div className="space-y-2">
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput(t.chatTrip); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickTrip}
-              </button>
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput(t.chatFood); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickFood}
-              </button>
-              <button type="button" onClick={() => { setIsChatOpen(true); setChatInput(t.chatCheckin); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickCheckin}
-              </button>
-            </div>
-          </div>
-          <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-5 rounded-2xl shadow-sm text-white">
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">{t.travelTip}</p>
-            <p className="text-[13px] font-bold leading-relaxed">
-              Đăng bài có ảnh thật + tọa độ ghim sẽ giúp bài nổi bật hơn và dễ được cộng đồng tương tác.
-            </p>
-          </div>
-        </aside>
-
       </main>
-
-      <button
-        type="button"
-        onClick={() => setIsChatOpen((prev) => !prev)}
-        className="fixed right-6 bottom-6 z-[101] bg-[#f44336] text-white w-14 h-14 rounded-full shadow-xl shadow-red-500/30 hover:bg-[#e53935] flex items-center justify-center"
-      >
-        <Bot size={24} />
-      </button>
-
-      {isChatOpen && (
-        <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[13px] font-black text-gray-900">{t.chatTitle}</h3>
-            <button type="button" onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-gray-700">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="h-[320px] overflow-y-auto px-3 py-3 space-y-3 bg-[#fafafa]">
-            {chatMessages.map((msg, index) => (
-              <div key={index} className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'ml-auto bg-[#f44336] text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'}`}>
-                {msg.content}
-              </div>
-            ))}
-            {isChatLoading && (
-              <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
-                Đang tư vấn...
-              </div>
-            )}
-          </div>
-          <div className="p-3 border-t border-gray-100 flex gap-2">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-              placeholder="Ví dụ: Gợi ý lịch trình Đà Lạt 2 ngày"
-              className="flex-1 bg-[#f4f4f5] rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
-            />
-            <button
-              type="button"
-              onClick={handleSendChat}
-              disabled={isChatLoading || !chatInput.trim()}
-              className="px-4 py-2 rounded-xl bg-[#f44336] text-white text-[13px] font-bold hover:bg-[#e53935] disabled:opacity-50"
-            >
-              Gửi
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-// Bọc Router
-export default function Dashboard() {
-  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
-  if (!hasRouter) return <MemoryRouter><DashboardContent /></MemoryRouter>;
-  return <DashboardContent />;
+export default function CommunityDetail() {
+  return <CommunityDetailPage />;
 }

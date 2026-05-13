@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+/** Phải khớp với jwt.sign trong userController (login/register). */
+const jwtSecret = () => process.env.JWT_SECRET || "123456789";
+
 // Keep role comparisons consistent across backend.
 const normalizeRole = (role) => {
   if (typeof role !== "string") return "user";
@@ -15,7 +18,7 @@ const protect = (req, res, next) => {
   if (!token) return res.status(401).json({ message: "Chưa đăng nhập" });
 
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = jwt.verify(token, jwtSecret());
     next();
   } catch {
     return res.status(401).json({ message: "Token không hợp lệ" });
@@ -26,7 +29,7 @@ const protect = (req, res, next) => {
 const optionalAuth = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (token) {
-    try { req.user = jwt.verify(token, process.env.JWT_SECRET); } catch {}
+    try { req.user = jwt.verify(token, jwtSecret()); } catch {}
   }
   next();
 };

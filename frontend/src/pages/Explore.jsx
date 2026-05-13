@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { Compass, Search, Bell, ArrowLeft } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import AccountMenu from '../components/AccountMenu';
 
 // ==========================================
 // THÀNH PHẦN BẢN ĐỒ THẬT (Bypass lỗi ESBuild)
@@ -99,6 +101,20 @@ function RealLeafletMap({ posts }) {
 // ==========================================
 function ExploreContent() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const t = language === 'vi'
+    ? {
+        home: 'Trang chủ',
+        explore: 'Khám phá',
+        community: 'Cộng đồng',
+        search: 'Tìm trên bản đồ...',
+      }
+    : {
+        home: 'Home',
+        explore: 'Explore',
+        community: 'Community',
+        search: 'Search map...',
+      };
   const [posts, setPosts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -123,9 +139,9 @@ function ExploreContent() {
       // Dữ liệu mô phỏng để bản đồ Canvas có điểm hiển thị
       setPosts([
         { _id: '1', title: 'Cầu Rồng', location: 'Đà Nẵng', description: 'Biểu tượng của thành phố Đà Nẵng, phun lửa vào cuối tuần.', lat: 16.06, lng: 108.22, category: 'Thành phố', createdBy: { username: 'Admin (Hệ thống)', role: 'admin' } },
-        { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'poster' } },
-        { _id: '3', title: 'Phố Cổ Hội An', location: 'Hội An', description: 'Di sản văn hóa thế giới với những ngôi nhà cổ lồng đèn rực rỡ.', lat: 15.88, lng: 108.33, category: 'Văn hóa', createdBy: { username: 'Jane Wanderlust', role: 'poster' } },
-        { _id: '4', title: 'Đỉnh Fansipan', location: 'Lai Châu', description: 'Nóc nhà Đông Dương, cảnh tượng mây mù hùng vĩ.', lat: 22.30, lng: 103.77, category: 'Khám phá', createdBy: { username: 'Mountain_King', role: 'poster' } }
+        { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'user' } },
+        { _id: '3', title: 'Phố Cổ Hội An', location: 'Hội An', description: 'Di sản văn hóa thế giới với những ngôi nhà cổ lồng đèn rực rỡ.', lat: 15.88, lng: 108.33, category: 'Văn hóa', createdBy: { username: 'Jane Wanderlust', role: 'user' } },
+        { _id: '4', title: 'Đỉnh Fansipan', location: 'Lai Châu', description: 'Nóc nhà Đông Dương, cảnh tượng mây mù hùng vĩ.', lat: 22.30, lng: 103.77, category: 'Khám phá', createdBy: { username: 'Mountain_King', role: 'user' } }
       ]);
     } finally {
       setIsLoading(false);
@@ -146,7 +162,7 @@ function ExploreContent() {
     <div className="h-screen w-full flex flex-col bg-white overflow-hidden">
       {/* HEADER */}
       <header className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-6 z-10 shadow-sm flex-shrink-0 relative">
-        <div className="w-1/4 flex items-center gap-3">
+      <div className="w-1/4 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
@@ -154,9 +170,9 @@ function ExploreContent() {
         </div>
         
         <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
-          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Home</Link>
-          <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">Explore</Link>
-          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
+          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.explore}</Link>
+          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
 
         <div className="w-1/4 flex items-center justify-end gap-5">
@@ -164,7 +180,7 @@ function ExploreContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Search map..." 
+              placeholder={t.search}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] border-transparent rounded-full text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
@@ -173,6 +189,7 @@ function ExploreContent() {
           <button className="text-gray-500 hover:text-gray-900">
             <Bell size={22} strokeWidth={2} />
           </button>
+          <AccountMenu />
         </div>
       </header>
 
