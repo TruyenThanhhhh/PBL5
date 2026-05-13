@@ -281,12 +281,20 @@ exports.getExplorePosts = async (req, res) => {
 
     const targetUsers = [...currentUser.friends, currentUser._id];
 
-    const posts = await Post.find({
+    // 3. Tìm các Post của những người này, có tọa độ và không bị ẩn
+    const { category } = req.query;
+    let filter = {
       createdBy: { $in: targetUsers },
       lat: { $ne: null },
       lng: { $ne: null },
       isHidden: false
-    })
+    };
+
+    if (category) {
+      filter.category = category;
+    }
+
+    const posts = await Post.find(filter)
       .populate("createdBy", "username email avatar role")
       .sort({ createdAt: -1 });
 
@@ -315,6 +323,28 @@ exports.likePost = async (req, res) => {
 
     post.likes.push(req.user.id);
     await post.save();
+
+    // Gửi thông báo cho chủ bài viết (nếu không phải tự like bài mình)
+    if (post.createdBy && post.createdBy.toString() !== req.user.id) {
+      const notif = await Notification.create({
+        receiver: post.createdBy,
+        sender: req.user.id,
+        type: "system",
+        content: `đã thích bài viết của bạn.`,
+        link: `/post/${post._id}`
+      });
+
+      // Emit realtime
+      const io = req.app.get('io');
+      if (io) {
+        const me = await User.findById(req.user.id).select("username avatar");
+        io.emit(`notification_${post.createdBy}`, {
+          ...notif.toObject(),
+          sender: { _id: me._id, username: me.username, avatar: me.avatar }
+        });
+      }
+    }
+
     res.json({ message: "Post liked successfully", liked: true });
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -11,8 +11,11 @@ const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 exports.getConversations = async (req, res) => {
   try {
     const currentUserId = req.user.id;
+    const user = await User.findById(currentUserId).select("deletedConversations");
+    
     const conversations = await Conversation.find({
-      participants: currentUserId
+      participants: currentUserId,
+      _id: { $nin: user.deletedConversations || [] }
     })
     .populate("participants", "username avatar")
     .sort({ updatedAt: -1 });
@@ -87,7 +90,7 @@ exports.getOrCreateConversation = async (req, res) => {
 // Gửi tin nhắn
 exports.sendMessage = async (req, res) => {
   try {
-    const { conversationId, text, receiverId } = req.body;
+    const { conversationId, text, receiverId, image } = req.body;
     const senderId = req.user.id;
 
     const conversation = await Conversation.findById(conversationId);
@@ -106,12 +109,14 @@ exports.sendMessage = async (req, res) => {
     const message = await Message.create({
       conversationId,
       sender: senderId,
-      text
+      text: text || "",
+      image: image || null,
+      readBy: [senderId]
     });
 
     // Cập nhật tin nhắn cuối cùng trong conversation
     await Conversation.findByIdAndUpdate(conversationId, {
-      lastMessage: text
+      lastMessage: text || "Đã gửi một ảnh"
     });
 
     // Tạo thông báo cho người nhận (nếu chat 1-1) hoặc cho các thành viên nhóm
@@ -128,13 +133,23 @@ exports.sendMessage = async (req, res) => {
         });
       }
     } else if (receiverId) {
-      await Notification.create({
+      const notif = await Notification.create({
         receiver: receiverId,
         sender: senderId,
         type: "message",
         content: "đã gửi cho bạn một tin nhắn mới.",
         link: `/dashboard` // Frontend sẽ xử lý việc mở chat
       });
+
+      // Emit realtime if possible
+      const io = req.app.get('io');
+      if (io) {
+        const me = await User.findById(senderId).select("username avatar");
+        io.emit(`notification_${receiverId}`, {
+          ...notif.toObject(),
+          sender: { _id: me._id, username: me.username, avatar: me.avatar }
+        });
+      }
     }
 
     res.status(201).json(message);
@@ -149,8 +164,48 @@ exports.getMessages = async (req, res) => {
     const { conversationId } = req.params;
     const messages = await Message.find({ conversationId })
       .sort({ createdAt: 1 })
-      .populate("sender", "username avatar");
+      .populate("sender", "username avatar")
+      .populate("readBy", "username avatar");
     res.status(200).json(messages);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi server", error: error.message });
+  }
+};
+
+// 👀 ĐÁNH DẤU ĐÃ XEM
+exports.markAsSeen = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.id;
+
+    await Message.updateMany(
+      { conversationId, readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId } }
+    );
+
+    // Emit event socket nếu cần (sẽ xử lý ở server.js)
+    const io = req.app.get('io');
+    if (io) {
+      io.to(conversationId).emit("message_seen", { conversationId, userId });
+    }
+
+    res.status(200).json({ message: "Đã đánh dấu đã xem" });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi server", error: error.message });
+  }
+};
+
+// 🗑️ XÓA CUỘC TRÒ CHUYỆN (Ẩn đi)
+exports.deleteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.id;
+
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { deletedConversations: conversationId }
+    });
+
+    res.status(200).json({ message: "Đã xóa cuộc trò chuyện" });
   } catch (error) {
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }

@@ -135,13 +135,16 @@ function ExploreContent() {
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Tất cả');
   const [isLoading, setIsLoading] = useState(true);
   const [flyToLocation, setFlyToLocation] = useState(null); // Lưu tọa độ để map bay tới
   const [notification, setNotification] = useState({ type: '', text: '' }); // Quản lý Toast thông báo
 
+  const categories = ['Tất cả', 'Biển đảo', 'Núi rừng', 'Thành phố', 'Văn hóa', 'Ẩm thực', 'Khám phá'];
+
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [selectedCategory]);
 
   const showToast = (type, text) => {
     setNotification({ type, text: String(text) });
@@ -149,13 +152,17 @@ function ExploreContent() {
   };
 
   const fetchPosts = async () => {
+    setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Bắt buộc đăng nhập để xem Map (chỉ xem bài của bạn bè)
       if (!token) throw new Error("Vui lòng đăng nhập để sử dụng tính năng này");
 
-      // Gọi vào API Explore mới tạo để chỉ lọc bài của friends
-      const res = await fetch('http://localhost:5000/api/posts/explore', {
+      let url = 'http://localhost:5000/api/posts/explore';
+      if (selectedCategory !== 'Tất cả') {
+        url += `?category=${encodeURIComponent(selectedCategory)}`;
+      }
+
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -249,15 +256,88 @@ function ExploreContent() {
         </div>
       </header>
 
-      {/* BẢN ĐỒ FULL MÀN HÌNH */}
-      <div className="flex-1 relative z-0 bg-[#e5e3df]">
-        {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-50">
-            <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
+      {/* KHU VỰC CHIA ĐÔI MÀN HÌNH (SPLIT-SCREEN) */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* PANEL BÊN TRÁI - DANH SÁCH BÀI VIẾT */}
+        <aside className="w-[420px] bg-[#f8f9fa] border-r border-gray-200 flex flex-col z-10 shadow-lg relative h-full">
+          <div className="p-5 border-b border-gray-200 bg-white">
+            <h2 className="text-[18px] font-black text-gray-900 flex items-center gap-2 mb-1">
+              <Compass size={22} className="text-[#f44336]" /> Khám phá địa điểm
+            </h2>
+            <p className="text-[13px] font-medium text-gray-500">Khám phá {posts.length} địa điểm thú vị từ cộng đồng.</p>
           </div>
-        ) : (
-          <RealLeafletMap posts={posts} flyToLocation={flyToLocation} />
-        )}
+
+          <div className="px-5 py-3 bg-white border-b border-gray-100 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all ${
+                  selectedCategory === cat 
+                  ? 'bg-[#f44336] text-white shadow-md' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+            {isLoading ? (
+              <div className="flex justify-center py-10"><div className="animate-spin w-8 h-8 border-4 border-[#f44336] border-t-transparent rounded-full"></div></div>
+            ) : posts.length === 0 ? (
+              <div className="text-center text-gray-500 text-[13px] py-10 font-medium">Không tìm thấy địa điểm nào.</div>
+            ) : (
+              posts.map((post) => (
+                <div 
+                  key={post._id}
+                  onClick={() => post.lat && post.lng && setFlyToLocation([post.lat, post.lng])}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#f44336]/30 transition-all cursor-pointer group flex flex-col gap-3"
+                >
+                  {post.images && post.images.length > 0 && (
+                    <div className="w-full h-[160px] rounded-xl overflow-hidden relative">
+                      <img src={post.images[0]} alt="Địa điểm" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold shadow-sm">
+                        {post.category || 'Khám phá'}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h3 className="text-[15px] font-black text-gray-900 group-hover:text-[#f44336] transition-colors line-clamp-1 mb-1">
+                      {post.title || post.location || 'Chưa rõ'}
+                    </h3>
+                    <p className="text-[12px] font-medium text-gray-500 line-clamp-2 leading-relaxed mb-3">
+                      {post.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto border-t border-gray-50 pt-3">
+                      <div className="flex items-center gap-2">
+                        <img src={post.createdBy?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.createdBy?.username || 'U')}&background=f44336&color=fff`} className="w-5 h-5 rounded-full object-cover" alt="User" />
+                        <span className="text-[11px] font-bold text-gray-700">{post.createdBy?.username || 'Ẩn danh'}</span>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); navigate(`/post-detail?postId=${post._id}`); }} className="text-[11px] font-bold text-[#f44336] bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                        Chi tiết
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
+
+        {/* BẢN ĐỒ BÊN PHẢI */}
+        <div className="flex-1 relative z-0 bg-[#e5e3df]">
+          {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-50">
+              <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <RealLeafletMap posts={posts} flyToLocation={flyToLocation} />
+          )}
+        </div>
       </div>
     </div>
   );

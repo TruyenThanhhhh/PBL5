@@ -24,6 +24,8 @@ router.post("/admin/approve-request", protect, requireAdmin, userController.appr
 router.post("/friend-request/:id", protect, userController.sendFriendRequest); 
 router.post("/accept-friend/:id", protect, userController.acceptFriendRequest); 
 router.delete("/unfriend/:id", protect, userController.unfriend); 
+router.post("/block/:id", protect, userController.blockUser);
+router.post("/unblock/:id", protect, userController.unblockUser); 
 
 // ==========================================
 // 👤 CÁC TÍNH NĂNG CƠ BẢN

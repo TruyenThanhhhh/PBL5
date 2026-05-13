@@ -1,5 +1,7 @@
 const Comment = require("../models/Comment");
 const Post = require("../models/Post");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 // ➕ THÊM COMMENT / REVIEW
 exports.addComment = async (req, res) => {
@@ -24,6 +26,27 @@ exports.addComment = async (req, res) => {
     }
 
     const populated = await comment.populate("author", "username avatar");
+
+    // Gửi thông báo cho chủ bài viết (nếu không phải tự comment bài mình)
+    if (post.createdBy && post.createdBy.toString() !== req.user.id) {
+      const notif = await Notification.create({
+        receiver: post.createdBy,
+        sender: req.user.id,
+        type: "system",
+        content: `đã bình luận về bài viết của bạn.`,
+        link: `/post/${post._id}`
+      });
+
+      // Emit realtime
+      const io = req.app.get('io');
+      if (io) {
+        io.emit(`notification_${post.createdBy}`, {
+          ...notif.toObject(),
+          sender: { _id: populated.author._id, username: populated.author.username, avatar: populated.author.avatar }
+        });
+      }
+    }
+
     res.status(201).json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });

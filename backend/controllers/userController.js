@@ -216,13 +216,23 @@ exports.sendFriendRequest = async (req, res) => {
       await targetUser.save();
 
       // Gửi thông báo
-      await Notification.create({
+      const notif = await Notification.create({
         receiver: targetId,
         sender: myId,
         type: "friend_request",
         content: "đã gửi cho bạn một lời mời kết bạn.",
         link: `/profile`
       });
+
+      // Emit realtime if possible
+      const io = req.app.get('io');
+      if (io) {
+        const me = await User.findById(myId).select("username avatar");
+        io.emit(`notification_${targetId}`, {
+          ...notif.toObject(),
+          sender: { _id: me._id, username: me.username, avatar: me.avatar }
+        });
+      }
 
       return res.json({ status: "pending", message: "Đã gửi lời mời kết bạn" });
     }
@@ -257,13 +267,22 @@ exports.acceptFriendRequest = async (req, res) => {
     await Promise.all([me.save(), sender.save()]);
 
     // Thông báo cho người gửi là mình đã chấp nhận
-    await Notification.create({
+    const notif = await Notification.create({
       receiver: senderId,
       sender: myId,
       type: "system",
       content: "đã chấp nhận lời mời kết bạn của bạn.",
       link: `/profile`
     });
+
+    // Emit realtime if possible
+    const io = req.app.get('io');
+    if (io) {
+      io.emit(`notification_${senderId}`, {
+        ...notif.toObject(),
+        sender: { _id: me._id, username: me.username, avatar: me.avatar }
+      });
+    }
 
     res.json({ status: "friends", message: "Đã trở thành bạn bè" });
   } catch (error) {
@@ -346,6 +365,49 @@ exports.toggleFollow = async (req, res) => {
       message: isFollowing ? "Đã unfollow" : "Đã follow",
       followersCount: target.followers.length,
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 🚫 BLOCK USER
+exports.blockUser = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    if (targetId === myId) return res.status(400).json({ message: "Không thể tự chặn chính mình" });
+
+    const me = await User.findById(myId);
+    if (!me.blockedUsers.includes(targetId)) {
+      me.blockedUsers.push(targetId);
+      // Khi chặn thì đồng thời unfriend luôn cho chắc
+      me.friends.pull(targetId);
+      const target = await User.findById(targetId);
+      if (target) {
+        target.friends.pull(myId);
+        await target.save();
+      }
+      await me.save();
+    }
+
+    res.json({ message: "Đã chặn người dùng này" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 🔓 UNBLOCK USER
+exports.unblockUser = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    const me = await User.findById(myId);
+    me.blockedUsers.pull(targetId);
+    await me.save();
+
+    res.json({ message: "Đã bỏ chặn người dùng này" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
