@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useInRouterContext } from 'react-router-dom';
+import { Link, useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { Compass, Search, Bell, ArrowLeft, ShieldAlert, CheckCircle, X } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import AccountMenu from '../components/AccountMenu';
 
 // Hàm hash để tạo màu ngẫu nhiên dựa trên username
 const stringToColor = (str) => {
@@ -12,6 +14,9 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
+// ==========================================
+// THÀNH PHẦN BẢN ĐỒ THẬT
+// ==========================================
 function RealLeafletMap({ posts, flyToLocation }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -131,8 +136,31 @@ function RealLeafletMap({ posts, flyToLocation }) {
   return <div ref={mapRef} className="w-full h-full z-0" />;
 }
 
+// ==========================================
 function ExploreContent() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  
+  const t = language === 'vi' 
+    ? {
+        home: 'Trang chủ',
+        explore: 'Khám phá',
+        community: 'Cộng đồng',
+        search: 'Tìm trên bản đồ...',
+        loginRequired: 'Vui lòng đăng nhập để sử dụng tính năng này',
+        notFound: 'Không tìm thấy vị trí',
+        connError: 'Lỗi kết nối đến máy chủ bản đồ.'
+      }
+    : {
+        home: 'Home',
+        explore: 'Explore',
+        community: 'Community',
+        search: 'Search map...',
+        loginRequired: 'Please login to use this feature',
+        notFound: 'Location not found',
+        connError: 'Error connecting to map server.'
+      };
+
   const [posts, setPosts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -152,7 +180,7 @@ function ExploreContent() {
     try {
       const token = localStorage.getItem('token');
       // Bắt buộc đăng nhập để xem Map (chỉ xem bài của bạn bè)
-      if (!token) throw new Error("Vui lòng đăng nhập để sử dụng tính năng này");
+      if (!token) throw new Error(t.loginRequired);
 
       // Gọi vào API Explore mới tạo để chỉ lọc bài của friends
       const res = await fetch('http://localhost:5000/api/posts/explore', {
@@ -170,9 +198,9 @@ function ExploreContent() {
       // Dữ liệu mô phỏng trong quá trình dev nếu không kết nối được backend
       setPosts([
         { _id: '1', title: 'Cầu Rồng', location: 'Đà Nẵng', description: 'Biểu tượng của thành phố Đà Nẵng, phun lửa vào cuối tuần.', lat: 16.06, lng: 108.22, category: 'Thành phố', createdBy: { username: 'Admin (Hệ thống)', role: 'admin' } },
-        { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'poster' } },
-        { _id: '3', title: 'Phố Cổ Hội An', location: 'Hội An', description: 'Di sản văn hóa thế giới với những ngôi nhà cổ lồng đèn rực rỡ.', lat: 15.88, lng: 108.33, category: 'Văn hóa', createdBy: { username: 'Jane Wanderlust', role: 'poster' } },
-        { _id: '4', title: 'Đỉnh Fansipan', location: 'Lai Châu', description: 'Nóc nhà Đông Dương, cảnh tượng mây mù hùng vĩ.', lat: 22.30, lng: 103.77, category: 'Khám phá', createdBy: { username: 'Mountain_King', role: 'poster' } }
+        { _id: '2', title: 'Bãi Sao Phú Quốc', location: 'Phú Quốc', description: 'Bãi biển cát trắng mịn tuyệt đẹp nằm ở phía Nam đảo.', lat: 10.05, lng: 104.02, category: 'Biển đảo', createdBy: { username: 'Traveler_Vn', role: 'user' } },
+        { _id: '3', title: 'Phố Cổ Hội An', location: 'Hội An', description: 'Di sản văn hóa thế giới với những ngôi nhà cổ lồng đèn rực rỡ.', lat: 15.88, lng: 108.33, category: 'Văn hóa', createdBy: { username: 'Jane Wanderlust', role: 'user' } },
+        { _id: '4', title: 'Đỉnh Fansipan', location: 'Lai Châu', description: 'Nóc nhà Đông Dương, cảnh tượng mây mù hùng vĩ.', lat: 22.30, lng: 103.77, category: 'Khám phá', createdBy: { username: 'Mountain_King', role: 'user' } }
       ]);
     } finally {
       setIsLoading(false);
@@ -195,10 +223,10 @@ function ExploreContent() {
           // Cập nhật state để trigger useEffect trong RealLeafletMap bay tới tọa độ này
           setFlyToLocation([parseFloat(lat), parseFloat(lon)]);
         } else {
-          showToast('error', `Không tìm thấy vị trí: ${keyword}`);
+          showToast('error', `${t.notFound}: ${keyword}`);
         }
       } catch (error) {
-        showToast('error', 'Lỗi kết nối đến máy chủ bản đồ.');
+        showToast('error', t.connError);
       }
     }
   };
@@ -225,10 +253,9 @@ function ExploreContent() {
         </div>
         
         <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
-          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Home</Link>
-          <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">Explore</Link>
-          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Community</Link>
-          <Link to="/friends" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">Friends</Link>
+          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.explore}</Link>
+          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
 
         <div className="w-1/4 flex items-center justify-end gap-5">
@@ -236,7 +263,7 @@ function ExploreContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Nhấn Enter để tìm vị trí..." 
+              placeholder={t.search} 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyPress} // Bắt sự kiện phím Enter
@@ -246,6 +273,7 @@ function ExploreContent() {
           <button className="text-gray-500 hover:text-gray-900" onClick={() => navigate('/dashboard')}>
             <Bell size={22} strokeWidth={2} />
           </button>
+          <AccountMenu />
         </div>
       </header>
 
@@ -263,4 +291,10 @@ function ExploreContent() {
   );
 }
 
-export default ExploreContent;
+export default function Explore() {
+  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
+  if (!hasRouter) {
+    return <BrowserRouter><ExploreContent /></BrowserRouter>;
+  }
+  return <ExploreContent />;
+}

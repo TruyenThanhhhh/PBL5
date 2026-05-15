@@ -1,62 +1,123 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, User, Loader2 } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const copy = {
+  vi: {
+    heroTitle: 'Khám phá và chia sẻ những nơi tuyệt vời',
+    heroText: 'Tham gia cộng đồng du lịch toàn cầu và tìm ra điểm đến đặc biệt tiếp theo của bạn.',
+    terms: 'Điều khoản',
+    privacy: 'Riêng tư',
+    welcome: 'Chào mừng trở lại',
+    subtitle: 'Vui lòng nhập thông tin để đăng nhập',
+    identifier: 'Email hoặc tên người dùng',
+    identifierPlaceholder: 'Ví dụ: wanderer@travel.com hoặc username',
+    password: 'Mật khẩu',
+    remember: 'Ghi nhớ đăng nhập',
+    forgot: 'Quên mật khẩu?',
+    submit: 'Đăng nhập',
+    submitting: 'Đang đăng nhập...',
+    or: 'HOẶC',
+    google: 'Tiếp tục với Google',
+    noAccount: 'Chưa có tài khoản?',
+    signUp: 'Đăng ký',
+    success: 'Đăng nhập thành công!',
+    invalid: 'Sai thông tin đăng nhập!',
+    network: 'Lỗi mạng: không thể kết nối backend.',
+  },
+  en: {
+    heroTitle: 'Discover and share amazing places',
+    heroText: 'Join a global travel community and find your next hidden gem.',
+    terms: 'Terms',
+    privacy: 'Privacy',
+    welcome: 'Welcome Back',
+    subtitle: 'Please enter your details to sign in',
+    identifier: 'Email or Username',
+    identifierPlaceholder: 'e.g. wanderer@travel.com or username',
+    password: 'Password',
+    remember: 'Remember me',
+    forgot: 'Forgot password?',
+    submit: 'Login',
+    submitting: 'Logging in...',
+    or: 'OR',
+    google: 'Continue with Google',
+    noAccount: "Don't have an account?",
+    signUp: 'Sign up',
+    success: 'Login successful!',
+    invalid: 'Invalid login credentials!',
+    network: 'Network error: unable to reach backend.',
+  },
+};
 
 export default function Login() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const t = copy[language] || copy.vi;
+  const formRef = useRef(null);
+  
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const [identifier, setIdentifier] = useState(''); 
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
   // Lấy Client ID từ biến môi trường
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID";
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setMessage({ type: '', text: '' });
     setIsLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const submittedIdentifier = String(formData.get('wanderer_identifier') || identifier).trim();
+    const submittedPassword = String(formData.get('wanderer_passcode') || password);
+
+    setIdentifier(submittedIdentifier);
+    setPassword(submittedPassword);
 
     try {
       const response = await fetch('http://localhost:5000/api/users/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          identifier: identifier.trim(),
-          password: password,
+          identifier: submittedIdentifier,
+          password: submittedPassword,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Đăng nhập thành công!' });
+        setMessage({ type: 'success', text: t.success });
         
-        const userRole = data.role ? data.role.toLowerCase() : 'viewer';
+        const userRole = data.role ? data.role.toLowerCase() : 'user';
 
         localStorage.setItem('token', data.token);
         localStorage.setItem('userId', data.userId);
         localStorage.setItem('username', data.username);
+        localStorage.setItem('displayName', data.displayName || data.username);
+        localStorage.setItem('avatar', data.avatar || '');
         localStorage.setItem('role', userRole);
         localStorage.setItem('roleRequestStatus', data.roleRequestStatus || 'none');
-        if (data.avatar) localStorage.setItem('avatar', data.avatar);
 
+        // CHUYỂN HƯỚNG THEO ROLE (Hỗ trợ Community / Dashboard)
         setTimeout(() => {
-          if (userRole === 'admin') navigate('/admin');
-          else navigate('/dashboard');
-        }, 1000);
-        
+          if (userRole === 'admin') {
+            navigate('/admin'); // Chuyển thẳng tới Admin Panel
+          } else {
+            navigate('/dashboard'); // Chuyển về trang Dashboard/Community
+          }
+        }, 800);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Sai thông tin đăng nhập!' });
+        setMessage({ type: 'error', text: data.message || t.invalid });
       }
     } catch (error) {
       console.error("Lỗi Network:", error);
-      setMessage({ type: 'error', text: 'Lỗi Mạng: Không thể kết nối Backend.' });
+      setMessage({ type: 'error', text: t.network });
     } finally {
       setIsLoading(false);
     }
@@ -78,28 +139,29 @@ export default function Login() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Đăng nhập Google thành công!' });
+        setMessage({ type: 'success', text: t.success });
         
-        const userRole = data.role ? data.role.toLowerCase() : 'viewer';
+        const userRole = data.role ? data.role.toLowerCase() : 'user';
 
         localStorage.setItem('token', data.token);
         localStorage.setItem('userId', data.userId);
         localStorage.setItem('username', data.username);
+        localStorage.setItem('displayName', data.displayName || data.username);
+        localStorage.setItem('avatar', data.avatar || '');
         localStorage.setItem('role', userRole);
         localStorage.setItem('roleRequestStatus', data.roleRequestStatus || 'none');
-        if (data.avatar) localStorage.setItem('avatar', data.avatar);
 
         setTimeout(() => {
           if (userRole === 'admin') navigate('/admin');
           else navigate('/dashboard');
-        }, 1000);
+        }, 800);
       } else {
         setMessage({ type: 'error', text: data.message || 'Đăng nhập Google thất bại tại Server.' });
       }
 
     } catch (error) {
       console.error("Google Login Error:", error);
-      setMessage({ type: 'error', text: 'Lỗi Mạng khi kết nối Backend.' });
+      setMessage({ type: 'error', text: t.network });
     } finally {
       setIsLoading(false);
     }
@@ -112,32 +174,30 @@ export default function Login() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="flex min-h-screen bg-white font-sans w-full">
+        {/* LEFT PANEL */}
         <div className="hidden lg:flex w-[45%] bg-gradient-to-br from-[#8a7a5e] to-[#544d3c] p-12 flex-col justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest">
-              <span className="w-1.5 h-1.5 rounded-full bg-white"></span> THE WANDERER
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest w-fit">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" /> THE WANDERER
             </span>
           </div>
           <div className="text-white pr-8">
-            <h1 className="text-[2.75rem] font-bold leading-[1.1] mb-6 tracking-tight">
-              Discover & Share<br />Amazing Places
-            </h1>
-            <p className="text-[15px] text-white/80 max-w-sm leading-relaxed font-light">
-              Join a community of global travelers and find your next hidden gem before anyone else does.
-            </p>
+            <h1 className="text-[2.75rem] font-bold leading-[1.1] mb-6 tracking-tight">{t.heroTitle}</h1>
+            <p className="text-[15px] text-white/80 max-w-sm leading-relaxed font-light">{t.heroText}</p>
           </div>
           <div className="text-white/50 text-[11px] flex gap-4 font-medium tracking-wide">
             <span>© 2026 The Wanderer</span>
-            <span className="cursor-pointer hover:text-white transition-colors">Terms</span>
-            <span className="cursor-pointer hover:text-white transition-colors">Privacy</span>
+            <span className="cursor-pointer hover:text-white transition-colors">{t.terms}</span>
+            <span className="cursor-pointer hover:text-white transition-colors">{t.privacy}</span>
           </div>
         </div>
 
+        {/* RIGHT PANEL - LOGIN FORM */}
         <div className="w-full lg:w-[55%] flex flex-col items-center justify-center p-8 overflow-y-auto">
           <div className="w-full max-w-[380px]">
             <div className="mb-10 text-center lg:text-left">
-              <h2 className="text-3xl font-bold text-[#f44336] mb-2">Welcome Back</h2>
-              <p className="text-gray-500 text-[13px] font-medium">Please enter your details to sign in</p>
+              <h2 className="text-3xl font-bold text-[#f44336] mb-2">{t.welcome}</h2>
+              <p className="text-gray-500 text-[13px] font-medium">{t.subtitle}</p>
             </div>
 
             {message.text && (
@@ -146,43 +206,47 @@ export default function Login() {
               </div>
             )}
 
-            <form className="space-y-4" onSubmit={handleLogin}>
+            <form ref={formRef} className="space-y-4" onSubmit={handleLogin} autoComplete="off">
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">Email or Username</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">{t.identifier}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                     <User size={16} strokeWidth={2.5} />
                   </div>
                   <input
                     type="text"
+                    name="wanderer_identifier"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                    placeholder="e.g. wanderer@travel.com or username"
+                    className="block w-full pl-10 pr-3 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white transition-all placeholder-gray-400 font-medium"
+                    placeholder={t.identifierPlaceholder}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">Password</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">{t.password}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                     <Lock size={16} strokeWidth={2.5} />
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="wanderer_passcode"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 pr-10 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
+                    className="block w-full pl-10 pr-10 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white transition-all placeholder-gray-400 font-medium"
                     placeholder="••••••••"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600"
-                  >
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600">
                     {showPassword ? <EyeOff size={16} strokeWidth={2.5} /> : <Eye size={16} strokeWidth={2.5} />}
                   </button>
                 </div>
@@ -190,41 +254,21 @@ export default function Login() {
 
               <div className="flex items-center justify-between pt-1 pb-4">
                 <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-[12px] text-gray-600 font-medium cursor-pointer">
-                    Remember me
-                  </label>
+                  <input id="remember-me" type="checkbox" className="h-4 w-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer" />
+                  <label htmlFor="remember-me" className="ml-2 block text-[12px] text-gray-600 font-medium cursor-pointer">{t.remember}</label>
                 </div>
-                <div className="text-[12px]">
-                  <a href="#" className="font-semibold text-[#f44336] hover:text-[#d32f2f]">
-                    Forgot password?
-                  </a>
-                </div>
+                <a href="#" className="font-semibold text-[#f44336] hover:text-[#d32f2f] text-[12px]">{t.forgot}</a>
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f44336] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <><Loader2 className="animate-spin mr-2" size={18} /> Logging in...</>
-                ) : (
-                  "Login"
-                )}
+              <button type="submit" disabled={isLoading} className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] transition-all disabled:opacity-70">
+                {isLoading ? <><Loader2 className="animate-spin mr-2" size={18} /> {t.submitting}</> : t.submit}
               </button>
             </form>
 
             <div className="mt-8 mb-6 relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
               <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                <span className="bg-white px-4 text-gray-400">OR</span>
+                <span className="bg-white px-4 text-gray-400">{t.or}</span>
               </div>
             </div>
 
@@ -261,10 +305,8 @@ export default function Login() {
 
             <div className="mt-8 text-center space-y-4">
               <p className="text-[13px] font-medium text-gray-600">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-[#f44336] font-bold hover:underline">
-                  Sign up
-                </Link>
+                {t.noAccount}{' '}
+                <Link to="/register" className="text-[#f44336] font-bold hover:underline">{t.signUp}</Link>
               </p>
             </div>
           </div>

@@ -6,6 +6,51 @@ import {
   ArrowDown, Share2, FolderHeart, Trash2, Loader2, MapPin, Edit3, X, Camera,
   ShieldAlert, Image as ImageIcon, Check, Heart, Send, Maximize2, UserPlus, UserMinus, Clock
 } from 'lucide-react';
+import AccountMenu from '../components/AccountMenu';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const copy = {
+  vi: {
+    posts: 'Bài viết',
+    media: 'Hình ảnh',
+    about: 'Giới thiệu',
+    map: 'Bản đồ',
+    home: 'Trang chủ',
+    explore: 'Khám phá',
+    trending: 'Xu hướng',
+    saved: 'Đã lưu',
+    settings: 'Cài đặt',
+    editProfile: 'Chỉnh sửa hồ sơ',
+    traveler: 'Người du hành',
+    followers: 'Người theo dõi',
+    following: 'Đang theo dõi',
+    trendingKeywords: 'Từ khóa xu hướng',
+    suggestedForYou: 'Gợi ý cho bạn',
+    mentions: 'lượt nhắc đến',
+    follow: 'Theo dõi',
+    coverAlt: 'Ảnh bìa',
+  },
+  en: {
+    posts: 'Posts',
+    media: 'Media',
+    about: 'About',
+    map: 'Map',
+    home: 'Home',
+    explore: 'Explore',
+    trending: 'Trending',
+    saved: 'Saved',
+    settings: 'Settings',
+    editProfile: 'Edit Profile',
+    traveler: 'Traveler',
+    followers: 'Followers',
+    following: 'Following',
+    trendingKeywords: 'Trending Keywords',
+    suggestedForYou: 'Suggested For You',
+    mentions: 'mentions',
+    follow: 'Follow',
+    coverAlt: 'Cover',
+  },
+};
 
 const NotificationBell = () => (
   <button type="button" className="text-gray-500 hover:text-gray-900 transition-colors relative">
@@ -121,6 +166,8 @@ function ProfileMap({ posts, username }) {
 function ProfileContent() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { language } = useLanguage();
+  const t = copy[language] || copy.vi;
   
   const myUserId = localStorage.getItem('userId');
   const targetUserId = location.state?.targetUserId || myUserId;
@@ -133,7 +180,11 @@ function ProfileContent() {
   const [activeTab, setActiveTab] = useState('posts');
   const [collections, setCollections] = useState([]);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
-  const [friendStatus, setFriendStatus] = useState('none'); // 'none', 'pending', 'friends'
+  const [friendStatus, setFriendStatus] = useState('none'); 
+
+  const [trendingKeywords, setTrendingKeywords] = useState([]);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
 
   const [zoomedImage, setZoomedImage] = useState(null); 
   const [zoomedImageType, setZoomedImageType] = useState(null); 
@@ -142,7 +193,6 @@ function ProfileContent() {
   const [editBioModal, setEditBioModal] = useState({ open: false, bio: '' });
 
   const handlePostClick = (postId) => navigate(`/post-detail?postId=${postId}`);
-  const handleActionClick = (e) => e.stopPropagation();
   const handleSettingsClick = () => navigate('/settings');
 
   const openImageZoom = (url, type) => {
@@ -207,6 +257,38 @@ function ProfileContent() {
   useEffect(() => {
     loadProfile();
   }, [targetUserId]);
+
+  useEffect(() => {
+    const fetchTrendingAndUsers = async () => {
+      setIsLoadingTrending(true);
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Fetch trending keywords (thay bằng API của bạn, ví dụ logic lấy tags nhiều nhất)
+        // Hiện tại giả định API:
+        const trendingRes = await fetch('http://localhost:5000/api/posts/trending/keywords').catch(() => null);
+        if (trendingRes && trendingRes.ok) {
+          const trendingData = await trendingRes.json();
+          setTrendingKeywords(Array.isArray(trendingData) ? trendingData : []);
+        }
+
+        if (token) {
+          const usersRes = await fetch('http://localhost:5000/api/users/search', {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(() => null);
+          if (usersRes && usersRes.ok) {
+            const usersData = await usersRes.json();
+            setSuggestedUsers(Array.isArray(usersData) ? usersData.slice(0, 5) : []);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching trending data:', err);
+      } finally {
+        setIsLoadingTrending(false);
+      }
+    };
+    fetchTrendingAndUsers();
+  }, []);
 
   const handleFriendAction = async (action) => {
     const token = localStorage.getItem('token');
@@ -277,6 +359,10 @@ function ProfileContent() {
     }
     return acc;
   }, []);
+
+  const postsCount = userPosts.length;
+  const followersCount = profile.followers?.length || 0;
+  const followingCount = profile.following?.length || 0;
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] font-sans text-gray-900 pb-12 relative">
@@ -369,70 +455,41 @@ function ProfileContent() {
         </div>
       )}
 
-      {}
-      <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100">
-        <div className="flex items-center gap-8 w-1/4">
-          <button onClick={() => navigate('/dashboard')} className="text-[#f44336] font-extrabold text-xl tracking-tight">The Wanderer</button>
+      {/* HEADER TƯƠNG ĐỒNG KHẮP APP */}
+      <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100 h-[72px]">
+        <div className="w-1/4 flex items-center gap-3">
+          <button onClick={() => navigate('/dashboard')} className="text-[#f44336] font-extrabold text-xl tracking-tight hidden sm:block">The Wanderer</button>
         </div>
 
-        <div className="flex-1 flex justify-center">
-          <nav className="hidden md:flex items-center gap-8 text-[14px] font-bold text-gray-500">
-            <button onClick={() => setActiveTab('posts')} className={`py-4 transition-colors ${activeTab === 'posts' ? 'text-[#f44336] border-b-2 border-[#f44336] -mb-[17px]' : 'hover:text-gray-900'}`}>Posts</button>
-            <button onClick={() => setActiveTab('media')} className={`py-4 transition-colors ${activeTab === 'media' ? 'text-[#f44336] border-b-2 border-[#f44336] -mb-[17px]' : 'hover:text-gray-900'}`}>Media</button>
-            <button onClick={() => setActiveTab('collections')} className={`py-4 transition-colors ${activeTab === 'collections' ? 'text-[#f44336] border-b-2 border-[#f44336] -mb-[17px]' : 'hover:text-gray-900'}`}>Collections</button>
-            <button onClick={() => setActiveTab('map')} className={`py-4 transition-colors ${activeTab === 'map' ? 'text-[#f44336] border-b-2 border-[#f44336] -mb-[17px]' : 'hover:text-gray-900'}`}>Map</button>
-          </nav>
-        </div>
+        <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
+          <button onClick={() => navigate('/dashboard')} className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.home}</button>
+          <button onClick={() => navigate('/explore')} className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.explore}</button>
+          <button onClick={() => navigate('/community')} className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</button>
+        </nav>
 
-        <div className="flex items-center justify-end gap-5 w-1/4">
+        <div className="w-1/4 flex items-center justify-end gap-5">
           <NotificationBell />
           <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900">
             <MessageSquare size={22} strokeWidth={2} />
           </button>
+          <AccountMenu avatar={profile.avatar} username={profile.username} />
         </div>
       </header>
 
-      {}
-      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 flex gap-6 lg:gap-8 items-start">
-        <aside className="w-[240px] hidden md:block flex-shrink-0 sticky top-[88px]">
-          <div className="flex items-center gap-3 mb-8 px-2 cursor-pointer group" onClick={() => openImageZoom(displayAvatar, 'avatar')}>
-            <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200 group-hover:opacity-80 transition-opacity" />
-            <div className="min-w-0">
-              <h3 className="text-[13px] font-extrabold text-gray-900 leading-tight truncate">{profile.username}</h3>
-              <p className="text-[11px] font-medium text-gray-500 truncate">@{profile.username?.toLowerCase().replace(/\s+/g, '_')}</p>
-            </div>
-          </div>
-
-          <nav className="space-y-1 text-[14px] font-bold text-gray-600 mb-6">
-            <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <Home size={20} strokeWidth={2} /> Home
-            </button>
-            <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <Compass size={20} strokeWidth={2} /> Explore
-            </button>
-            <button onClick={() => navigate('/trending')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <TrendingUp size={20} strokeWidth={2} /> Trending
-            </button>
-            {isMyProfile && (
-              <>
-                <button onClick={() => navigate('/saved')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-                  <Bookmark size={20} strokeWidth={2} /> Saved
-                </button>
-                <button onClick={handleSettingsClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white hover:shadow-sm rounded-xl transition-all text-left">
-                  <Settings size={20} strokeWidth={2} /> Settings
-                </button>
-              </>
-            )}
-          </nav>
-        </aside>
-
-        <section className="flex-1 max-w-[650px]">
+      <main className="max-w-[1360px] mx-auto px-6 2xl:px-8 pt-6 flex gap-6 lg:gap-8 items-start">
+        
+        {/* CENTER CONTENT */}
+        <section className="flex-1 min-w-0">
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 mb-6">
             <div 
               className="h-[220px] w-full bg-gray-200 relative cursor-pointer group"
               onClick={() => openImageZoom(displayCover, 'cover')}
             >
-              <img src={displayCover} alt="Cover" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <img 
+                src={displayCover} 
+                alt={t.coverAlt} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+              />
               <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Maximize2 className="text-white drop-shadow-md" size={32} />
               </div>
@@ -451,11 +508,10 @@ function ProfileContent() {
                   </div>
                 </div>
                 
-                {}
                 {isMyProfile ? (
                   <div className="flex gap-2">
                     <button onClick={() => setEditBioModal({ open: true, bio: profile.bio || '' })} className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors flex items-center gap-1.5 shadow-md shadow-red-500/20">
-                      <Edit3 size={16} /> Edit Profile
+                      <Edit3 size={16} /> {t.editProfile}
                     </button>
                     <button onClick={handleSettingsClick} className="bg-gray-100 text-gray-600 p-2 rounded-lg hover:bg-gray-200 transition-colors inline-block">
                       <Settings size={18} strokeWidth={2.5} />
@@ -500,31 +556,40 @@ function ProfileContent() {
               </div>
 
               <div>
-                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username}</h1>
-                <p className="text-[13px] font-medium text-gray-500 mb-4">@{profile.username?.toLowerCase().replace(/\s+/g, '_')}</p>
+                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username || t.traveler}</h1>
+                <p className="text-[13px] font-medium text-gray-500 mb-4">@{(profile.username || 'unknown').toLowerCase().replace(/\s+/g, '_')}</p>
                 <p className="text-[14px] text-gray-700 leading-relaxed font-medium mb-6 whitespace-pre-wrap">
                   {profile.bio || (isMyProfile ? 'Bạn chưa cập nhật thông tin giới thiệu (Bio). Hãy nhấn Edit Profile để chia sẻ nhiều hơn nhé!' : 'Người dùng này chưa có thông tin giới thiệu.')}
                 </p>
 
                 <div className="flex gap-4 border-t border-gray-100 pt-6">
                   <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-default border border-gray-100/50">
-                    <p className="text-2xl font-black text-gray-900 mb-1">{userPosts.length}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Posts</p>
-                  </div>
-                  <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-pointer border border-gray-100/50 shadow-sm" onClick={() => setFollowModal({ open: true, type: 'Bạn bè', list: profile.friends || [] })}>
-                    <p className="text-2xl font-black text-[#f44336] mb-1">{profile.friends?.length || 0}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Friends</p>
+                    <p className="text-2xl font-black text-gray-900 mb-1">{postsCount}</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.posts}</p>
                   </div>
                   <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-pointer border border-gray-100/50 shadow-sm" onClick={() => setFollowModal({ open: true, type: 'Người theo dõi', list: profile.followers || [] })}>
-                    <p className="text-2xl font-black text-[#f44336] mb-1">{profile.followers?.length || 0}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Followers</p>
+                    <p className="text-2xl font-black text-[#f44336] mb-1">{followersCount}</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.followers}</p>
+                  </div>
+                  <div className="flex-1 bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 text-center transition-colors cursor-pointer border border-gray-100/50 shadow-sm" onClick={() => setFollowModal({ open: true, type: 'Đang theo dõi', list: profile.following || [] })}>
+                    <p className="text-2xl font-black text-[#f44336] mb-1">{followingCount}</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">{t.following}</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {}
+          <div className="bg-white rounded-xl p-2 flex text-center text-[13px] font-bold text-gray-500 mb-6 shadow-sm border border-gray-100">
+            <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.posts}</button>
+            <button onClick={() => setActiveTab('media')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.media}</button>
+            <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>
+              🗂️ {t.saved}
+            </button>
+            <button onClick={() => setActiveTab('about')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'about' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.about}</button>
+            <button onClick={() => setActiveTab('map')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'map' ? 'text-[#f44336] bg-red-50' : 'hover:bg-gray-50'}`}>{t.map}</button>
+          </div>
+
           <div className="pb-12">
             {activeTab === 'map' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -573,6 +638,13 @@ function ProfileContent() {
               </div>
             )}
 
+            {activeTab === 'about' && (
+              <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-gray-700">
+                <h3 className="text-xl font-black text-gray-900 mb-4">{t.about}</h3>
+                <p className="text-[14px] leading-relaxed">{profile.bio || 'Bạn chưa cập nhật phần giới thiệu.'}</p>
+              </div>
+            )}
+
             {activeTab === 'posts' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                 {userPosts.length === 0 ? (
@@ -616,6 +688,53 @@ function ProfileContent() {
             )}
           </div>
         </section>
+
+        {/* RIGHT SIDEBAR */}
+        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">🔥 {t.trendingKeywords}</h3>
+            {isLoadingTrending ? (
+              <p className="text-[13px] text-gray-500">Đang tải...</p>
+            ) : trendingKeywords.length > 0 ? (
+              <div className="space-y-4">
+                {trendingKeywords.slice(0, 5).map((item, idx) => (
+                  <div key={idx}>
+                    <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">{item.category}</p>
+                    <p className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline capitalize">{item.keyword}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{item.count} {t.mentions}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-gray-400">Chưa có dữ liệu</p>
+            )}
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-4">👥 {t.suggestedForYou}</h3>
+            {isLoadingTrending ? (
+              <p className="text-[13px] text-gray-500">Đang tải...</p>
+            ) : suggestedUsers.length > 0 ? (
+              <div className="space-y-4 mb-4">
+                {suggestedUsers.map((user) => (
+                  <div key={user._id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <img src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} alt={user.username} className="w-9 h-9 rounded-full object-cover" />
+                      <div>
+                        <p className="text-[12px] font-bold text-gray-900 cursor-pointer hover:underline" onClick={() => navigate('/profile', { state: { targetUserId: user._id } })}>{user.username}</p>
+                        <p className="text-[10px] text-gray-500">{(user.followers || []).length} {t.followers}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => navigate('/profile', { state: { targetUserId: user._id } })} className="text-[12px] font-bold text-[#f44336] hover:underline">{t.follow}</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-gray-400">Chưa có dữ liệu</p>
+            )}
+          </div>
+        </aside>
+
       </main>
     </div>
   );

@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Search, Bell, Home, TrendingUp, Utensils, Plane, 
   Bed, Compass, Bookmark, MapPin, Star, CalendarPlus, 
-  MessageSquare, ArrowUp, ArrowDown, Map, Share2, CornerDownRight, Flag, ChevronDown
+  MessageSquare, ArrowUp, ArrowDown, Share2, ChevronDown
 } from 'lucide-react';
+import AccountMenu from '../components/AccountMenu';
 
 export default function PostDetail() {
+  const [toast, setToast] = useState({ open: false, message: '', type: 'info' });
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900 pb-16">
       {/* NAVBAR */}
@@ -27,15 +30,15 @@ export default function PostDetail() {
 
         <div className="flex items-center justify-end gap-6 w-1/4">
           <nav className="hidden lg:flex items-center gap-6 text-[13px] font-bold text-gray-500">
-            <a href="#" className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Explore</a>
-            <a href="#" className="hover:text-gray-900 transition-colors">Journals</a>
-            <a href="#" className="hover:text-gray-900 transition-colors">Community</a>
+            <a href="/explore" className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Explore</a>
+            <a href="/community" className="hover:text-gray-900 transition-colors">Community</a>
           </nav>
           
           <div className="flex items-center gap-4">
             <button className="text-gray-500 hover:text-gray-900 relative">
               <Bell size={20} />
             </button>
+            <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900"><MessageSquare size={20} /></button>
             <a href="/profile" className="block cursor-pointer">
               <img 
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" 
@@ -43,12 +46,13 @@ export default function PostDetail() {
                 alt="Profile"
               />
             </a>
+            <AccountMenu />
           </div>
         </div>
       </header>
 
       {/* MAIN LAYOUT */}
-      <main className="max-w-[1400px] mx-auto px-6 py-6 flex gap-8">
+      <main className="max-w-[1500px] mx-auto px-6 2xl:px-8 py-6 flex gap-8">
         
         {/* LEFT SIDEBAR */}
         <aside className="w-[220px] hidden md:block flex-shrink-0">
@@ -86,7 +90,7 @@ export default function PostDetail() {
         </aside>
 
         {/* FEED CONTENT (POST DETAIL) */}
-        <section className="flex-1 max-w-3xl pt-2">
+        <section className="flex-1 min-w-0 pt-2">
           
           {/* Tags & Rating */}
           <div className="flex items-center gap-3 mb-4">
@@ -266,7 +270,7 @@ export default function PostDetail() {
         </section>
 
         {/* RIGHT SIDEBAR */}
-        <aside className="w-[300px] hidden xl:block flex-shrink-0 space-y-6">
+        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
           
           {/* Aesthetic Blocks */}
           <div className="bg-[#fdf4e6] h-[220px] rounded-3xl flex items-center justify-center relative overflow-hidden shadow-sm">
