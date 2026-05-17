@@ -6,8 +6,20 @@ import {
   ArrowDown, Share2, FolderHeart, Trash2, Loader2, MapPin, Edit3, X, Camera,
   ShieldAlert, Image as ImageIcon, Check, Heart, Send, Maximize2, UserPlus, UserMinus, Clock
 } from 'lucide-react';
-import AccountMenu from '../components/AccountMenu';
-import { useLanguage } from '../contexts/LanguageContext';
+
+// Chú ý: Bỏ comment 2 dòng import dưới đây khi copy vào code của bạn, 
+// và xóa phần mô phỏng (Mock) ở bên dưới nhé.
+// import AccountMenu from '../components/AccountMenu';
+// import { useLanguage } from '../contexts/LanguageContext';
+
+// --- MOCK COMPONENTS ĐỂ CANVAS BIÊN DỊCH (XÓA KHI ĐƯA VÀO DỰ ÁN) ---
+const useLanguage = () => ({ language: 'vi', setLanguage: () => {} });
+const AccountMenu = ({ avatar, username }) => (
+  <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-300">
+     <img src={avatar || `https://ui-avatars.com/api/?name=${username || 'User'}`} alt="avatar" className="w-full h-full object-cover" />
+  </div>
+);
+// -------------------------------------------------------------------
 
 const copy = {
   vi: {
@@ -67,8 +79,19 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
+// Hàm chuẩn hóa đường dẫn ảnh an toàn
+const getImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  
+  // Xử lý loại bỏ gạch chéo kép và nối chuỗi an toàn cho upload cục bộ
+  const cleanUrl = url.replace(/\\/g, '/');
+  return `http://localhost:5000/${cleanUrl.startsWith('/') ? cleanUrl.slice(1) : cleanUrl}`;
+};
+
 const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  const finalUrl = getImageUrl(url);
+  return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
 let leafletAssetsPromise = null;
@@ -264,8 +287,6 @@ function ProfileContent() {
       try {
         const token = localStorage.getItem('token');
         
-        // Fetch trending keywords (thay bằng API của bạn, ví dụ logic lấy tags nhiều nhất)
-        // Hiện tại giả định API:
         const trendingRes = await fetch('http://localhost:5000/api/posts/trending/keywords').catch(() => null);
         if (trendingRes && trendingRes.ok) {
           const trendingData = await trendingRes.json();
@@ -313,7 +334,7 @@ function ProfileContent() {
       });
 
       if (res.ok) {
-        loadProfile(); // Tải lại để lấy status mới
+        loadProfile(); 
       }
     } catch (error) {
       console.error(error);
@@ -350,12 +371,13 @@ function ProfileContent() {
     );
   }
 
-  const displayAvatar = getAvatarUrl(profile.avatar, profile.username);
-  const displayCover = profile.cover || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
+  // Sử dụng helper function cho Avatar và Cover
+  const displayAvatar = getAvatarUrl(profile.avatar, profile.displayName || profile.username);
+  const displayCover = getImageUrl(profile.cover) || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
 
   const allImages = userPosts.reduce((acc, post) => {
     if (Array.isArray(post.images) && post.images.length > 0) {
-      post.images.forEach(img => acc.push({ url: img, postId: post._id }));
+      post.images.forEach(img => acc.push({ url: getImageUrl(img), postId: post._id }));
     }
     return acc;
   }, []);
@@ -387,6 +409,7 @@ function ProfileContent() {
             <img 
               src={zoomedImage} 
               alt="Zoomed Profile Media" 
+              onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
               className={`${zoomedImageType === 'avatar' ? 'rounded-full w-[300px] h-[300px] md:w-[400px] md:h-[400px] object-cover' : 'rounded-xl max-w-full max-h-[80vh] object-contain'} shadow-2xl`}
             />
           </div>
@@ -411,9 +434,14 @@ function ProfileContent() {
                 followModal.list.map(u => (
                   <div key={u._id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-2xl transition-colors">
                     <div className="flex items-center gap-3">
-                      <img src={getAvatarUrl(u.avatar, u.username)} alt="avt" className="w-11 h-11 rounded-full object-cover border border-gray-100" />
+                      <img 
+                        src={getAvatarUrl(u.avatar, u.displayName || u.username)} 
+                        alt="avt" 
+                        onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || u.username || 'User')}&background=f44336&color=fff`; }}
+                        className="w-11 h-11 rounded-full object-cover border border-gray-100" 
+                      />
                       <div>
-                        <p className="font-extrabold text-[14px] text-gray-900 leading-tight">{u.username}</p>
+                        <p className="font-extrabold text-[14px] text-gray-900 leading-tight">{u.displayName || u.username}</p>
                         <p className="text-[11px] font-medium text-gray-400">@{u.username?.toLowerCase().replace(/\s+/g, '_')}</p>
                       </div>
                     </div>
@@ -488,6 +516,7 @@ function ProfileContent() {
               <img 
                 src={displayCover} 
                 alt={t.coverAlt} 
+                onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
               />
               <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -501,6 +530,7 @@ function ProfileContent() {
                   <img
                     src={displayAvatar}
                     alt="Avatar"
+                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName || profile.username || 'User')}&background=f44336&color=fff&size=200`; }}
                     className="w-32 h-32 rounded-full border-4 border-white object-cover bg-white shadow-sm transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 border-4 border-transparent rounded-full flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -556,7 +586,7 @@ function ProfileContent() {
               </div>
 
               <div>
-                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.username || t.traveler}</h1>
+                <h1 className="text-2xl font-black text-gray-900 leading-none mb-1">{profile.displayName || profile.username || t.traveler}</h1>
                 <p className="text-[13px] font-medium text-gray-500 mb-4">@{(profile.username || 'unknown').toLowerCase().replace(/\s+/g, '_')}</p>
                 <p className="text-[14px] text-gray-700 leading-relaxed font-medium mb-6 whitespace-pre-wrap">
                   {profile.bio || (isMyProfile ? 'Bạn chưa cập nhật thông tin giới thiệu (Bio). Hãy nhấn Edit Profile để chia sẻ nhiều hơn nhé!' : 'Người dùng này chưa có thông tin giới thiệu.')}
@@ -615,7 +645,12 @@ function ProfileContent() {
                   <div className="grid grid-cols-3 gap-3">
                     {allImages.map((img, idx) => (
                       <div key={idx} className="aspect-square bg-gray-100 cursor-pointer overflow-hidden rounded-2xl relative group shadow-sm border border-gray-100" onClick={() => openImageZoom(img.url, 'post')}>
-                        <img src={img.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                        <img 
+                           src={img.url} 
+                           onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
+                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                           alt="" 
+                        />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                           <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" size={28} />
                         </div>
@@ -661,9 +696,14 @@ function ProfileContent() {
                     >
                       <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-3">
-                          <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                          <img 
+                             src={displayAvatar} 
+                             alt="Avatar" 
+                             onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName || profile.username || 'User')}&background=f44336&color=fff`; }}
+                             className="w-10 h-10 rounded-full object-cover border border-gray-100" 
+                          />
                           <div>
-                            <h3 className="text-[14px] font-bold text-gray-900">{profile.username}</h3>
+                            <h3 className="text-[14px] font-bold text-gray-900">{profile.displayName || profile.username}</h3>
                             <p className="text-[11px] font-medium text-gray-400">
                               {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
                               {new Date(post.createdAt).toLocaleDateString('vi-VN')}
@@ -679,7 +719,12 @@ function ProfileContent() {
                       <div className="text-[14px] text-gray-700 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
 
                       {Array.isArray(post.images) && post.images.length > 0 && (
-                        <img src={post.images[0]} alt="Post Media" className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100" />
+                        <img 
+                          src={getImageUrl(post.images[0])} 
+                          alt="Post Media" 
+                          onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
+                          className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100" 
+                        />
                       )}
                     </div>
                   ))
@@ -719,9 +764,14 @@ function ProfileContent() {
                 {suggestedUsers.map((user) => (
                   <div key={user._id} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <img src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} alt={user.username} className="w-9 h-9 rounded-full object-cover" />
+                      <img 
+                        src={getAvatarUrl(user.avatar, user.displayName || user.username)} 
+                        alt={user.username} 
+                        onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.username || 'User')}&background=f44336&color=fff`; }}
+                        className="w-9 h-9 rounded-full object-cover" 
+                      />
                       <div>
-                        <p className="text-[12px] font-bold text-gray-900 cursor-pointer hover:underline" onClick={() => navigate('/profile', { state: { targetUserId: user._id } })}>{user.username}</p>
+                        <p className="text-[12px] font-bold text-gray-900 cursor-pointer hover:underline" onClick={() => navigate('/profile', { state: { targetUserId: user._id } })}>{user.displayName || user.username}</p>
                         <p className="text-[10px] text-gray-500">{(user.followers || []).length} {t.followers}</p>
                       </div>
                     </div>
@@ -740,7 +790,8 @@ function ProfileContent() {
   );
 }
 
-export default function Profile() {
+// Chú ý: Đổi tên function App() thành Profile() nếu bạn đưa vào React Router nhé!
+export default function App() {
   const hasRouter = useInRouterContext();
   if (!hasRouter) {
     return (

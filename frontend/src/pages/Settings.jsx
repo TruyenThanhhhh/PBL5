@@ -4,8 +4,15 @@ import {
   User, Shield, Lock, Palette, Bell, LogOut, Languages,
   Camera, CheckCircle, AlertCircle, Loader2, Check
 } from 'lucide-react';
-import AccountMenu from '../components/AccountMenu';
-import { useLanguage } from '../contexts/LanguageContext';
+
+// --- MOCK COMPONENTS ĐỂ CANVAS BIÊN DỊCH DƯỚI DẠNG XEM TRƯỚC (XÓA KHI ĐƯA VÀO DỰ ÁN VÀ UNCOMMENT CÁC DÒNG IMPORT CHÍNH THỨC CỦA BẠN) ---
+const useLanguage = () => ({ language: 'vi', setLanguage: () => {} });
+const AccountMenu = ({ avatar, username }) => (
+  <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-300">
+     <img src={avatar || `https://ui-avatars.com/api/?name=${username || 'User'}`} alt="avatar" className="w-full h-full object-cover" />
+  </div>
+);
+// -------------------------------------------------------------------
 
 const copy = {
   vi: {
@@ -76,6 +83,13 @@ const copy = {
   },
 };
 
+// Hàm chuẩn hóa URL ảnh 
+const getImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  return `http://localhost:5000/${url.replace(/\\/g, '/')}`;
+};
+
 function SettingsContent() {
   const navigate = useNavigate();
   const { language, setLanguage } = useLanguage();
@@ -137,8 +151,8 @@ function SettingsContent() {
             avatar: user.avatar || '',
             cover: user.cover || ''
           });
-          setAvatarPreview(user.avatar || '');
-          setCoverPreview(user.cover || '');
+          setAvatarPreview(getImageUrl(user.avatar) || '');
+          setCoverPreview(getImageUrl(user.cover) || '');
         }
       } catch (error) {
         setAuthError(t.loadError);
@@ -183,29 +197,39 @@ function SettingsContent() {
       formData.append('username', profileData.displayName); 
       formData.append('displayName', profileData.displayName);
       formData.append('bio', profileData.bio);
-      if (avatarFile) formData.append('avatar', avatarFile); 
-      if (coverFile) formData.append('cover', coverFile);    
+      
+      // Đảm bảo file được đẩy vào FormData đúng định dạng
+      if (avatarFile) formData.append('avatar', avatarFile, avatarFile.name); 
+      if (coverFile) formData.append('cover', coverFile, coverFile.name);    
+
+      // Debug: Log xem FormData có đủ dữ liệu ảnh không
+      console.log('--- FormData Đang Gửi Lên Backend ---');
+      for (let pair of formData.entries()) {
+          console.log(pair[0] + ':', pair[1]); 
+      }
 
       const res = await fetch(`http://localhost:5000/api/users/update-profile`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }, // Bắt buộc KHÔNG set Content-Type khi gửi FormData
         body: formData
       });
 
       const result = await res.json().catch(() => ({}));
       
+      console.log('--- Kết Quả Trả Về Từ Backend ---', result); // Xem backend lưu ảnh và trả về url như thế nào
+
       if (res.ok) {
         const user = result.user || {};
         setProfileData(prev => ({
           ...prev,
-          displayName: user.username || prev.displayName,
+          displayName: user.displayName || user.username || prev.displayName,
           bio: user.bio || prev.bio,
           avatar: user.avatar || prev.avatar,
           cover: user.cover || prev.cover
         }));
         
-        setAvatarPreview(user.avatar || avatarPreview);
-        setCoverPreview(user.cover || coverPreview);
+        setAvatarPreview(getImageUrl(user.avatar) || avatarPreview);
+        setCoverPreview(getImageUrl(user.cover) || coverPreview);
 
         if (user.username) localStorage.setItem('username', user.username);
         if (user.displayName) localStorage.setItem('displayName', user.displayName);
@@ -213,6 +237,7 @@ function SettingsContent() {
         
         setProfileMessage(t.saveSuccess);
         
+        // Reset file để tránh bị gửi đúp lần sau
         setAvatarFile(null);
         setCoverFile(null);
 
@@ -274,8 +299,9 @@ function SettingsContent() {
           <button onClick={() => navigate('/profile')} className="block cursor-pointer hover:opacity-80 transition-opacity">
             <img 
               src={avatarPreview || profileData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'} 
-              className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+              className="w-8 h-8 rounded-full border border-gray-200 object-cover bg-white"
               alt="Profile"
+              onError={(e) => { e.target.src = 'https://ui-avatars.com/api/?name=User&background=f44336&color=fff'; }}
             />
           </button>
         </div>
@@ -342,6 +368,7 @@ function SettingsContent() {
                         <img
                           src={avatarPreview || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
                           alt={t.avatarAlt}
+                          onError={(e) => { e.target.src = 'https://ui-avatars.com/api/?name=User&background=f44336&color=fff'; }}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

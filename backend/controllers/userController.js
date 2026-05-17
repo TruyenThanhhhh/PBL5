@@ -28,29 +28,22 @@ exports.googleLogin = async (req, res) => {
       return res.status(400).json({ message: "Không tìm thấy Google Token" });
     }
 
-    // 1. Xác thực Token này với Google Server
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,  // Đảm bảo request này dành cho App của bạn
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    // 2. Lấy thông tin User từ Google (Payload)
     const payload = ticket.getPayload();
-    const { email, name, picture, sub } = payload; // sub là Google ID duy nhất
+    const { email, name, picture, sub } = payload; 
 
-    // 3. Kiểm tra xem User này đã tồn tại trong DB chưa
     let user = await User.findOne({ email });
 
     if (!user) {
-      // NẾU CHƯA CÓ TÀI KHOẢN -> TỰ ĐỘNG ĐĂNG KÝ
-      // Mật khẩu sẽ được random sinh ra (hoặc lấy chính ID google hash đi) vì họ login qua Google
       const randomPassword = email + sub + process.env.JWT_SECRET;
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      // Định dạng username: Bỏ khoảng trắng, xóa kí tự đặc biệt để làm username duy nhất
       let baseUsername = name.replace(/\s+/g, '').toLowerCase();
       
-      // Kiểm tra trùng username
       let existUsername = await User.findOne({ username: baseUsername });
       if(existUsername) {
         baseUsername = baseUsername + Math.floor(Math.random() * 10000);
@@ -61,17 +54,15 @@ exports.googleLogin = async (req, res) => {
         email: email,
         password: hashedPassword,
         avatar: picture,
-        role: "viewer", // Mặc định tài khoản Google mới cấp là viewer
+        role: "viewer", 
       });
     } else {
-      // NẾU ĐÃ CÓ TÀI KHOẢN NHƯNG CHƯA CÓ AVATAR -> Cập nhật avatar từ google
       if (!user.avatar || user.avatar === "") {
          user.avatar = picture;
          await user.save();
       }
     }
 
-    // 4. Sinh Token đăng nhập của riêng hệ thống chúng ta
     const normalizedRole = normalizeRole(user.role);
     const jwtToken = jwt.sign(
       { id: user._id, role: normalizedRole },
@@ -79,7 +70,6 @@ exports.googleLogin = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // 5. Trả dữ liệu về cho Frontend giống hệt Login bình thường
     res.json({ 
       message: "Đăng nhập Google thành công", 
       token: jwtToken, 
@@ -96,7 +86,6 @@ exports.googleLogin = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Đăng ký và đăng nhập (Manual)... */
 // 🚀 ĐĂNG KÝ TÀI KHOẢN BẰNG TAY (CŨ)
 exports.registerUser = async (req, res) => {
   try {
@@ -180,15 +169,12 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Hệ thống bạn bè... */
 // ==========================================
 // 🤝 HỆ THỐNG BẠN BÈ 
 // ==========================================
-
-// 1. Gửi hoặc Hủy yêu cầu kết bạn
 exports.sendFriendRequest = async (req, res) => {
   try {
-    const targetId = req.params.id; // Người mình muốn kết bạn
+    const targetId = req.params.id; 
     const myId = req.user.id;
 
     if (targetId === myId) return res.status(400).json({ message: "Không thể tự kết bạn" });
@@ -196,7 +182,6 @@ exports.sendFriendRequest = async (req, res) => {
     const targetUser = await User.findById(targetId);
     if (!targetUser) return res.status(404).json({ message: "User không tồn tại" });
 
-    // Kiểm tra xem đã là bạn chưa
     if (targetUser.friends.includes(myId)) {
       return res.status(400).json({ message: "Đã là bạn bè" });
     }
@@ -204,20 +189,13 @@ exports.sendFriendRequest = async (req, res) => {
     const isRequested = targetUser.friendRequests.includes(myId);
 
     if (isRequested) {
-      // Nếu ĐÃ GỬI => HỦY YÊU CẦU (Hoàn tác)
       targetUser.friendRequests.pull(myId);
       await targetUser.save();
-      
-      // (Tùy chọn) Xóa thông báo cũ nếu muốn
       await Notification.findOneAndDelete({ receiver: targetId, sender: myId, type: "friend_request" });
-
       return res.json({ status: "none", message: "Đã hủy lời mời kết bạn" });
     } else {
-      // CHƯA GỬI => TIẾN HÀNH GỬI
       targetUser.friendRequests.push(myId);
       await targetUser.save();
-
-      // Gửi thông báo
       await Notification.create({
         receiver: targetId,
         sender: myId,
@@ -225,7 +203,6 @@ exports.sendFriendRequest = async (req, res) => {
         content: "đã gửi cho bạn một lời mời kết bạn.",
         link: `/profile`
       });
-
       return res.json({ status: "pending", message: "Đã gửi lời mời kết bạn" });
     }
   } catch (error) {
@@ -233,11 +210,10 @@ exports.sendFriendRequest = async (req, res) => {
   }
 };
 
-// 2. Chấp nhận yêu cầu kết bạn
 exports.acceptFriendRequest = async (req, res) => {
   try {
-    const senderId = req.params.id; // Người đã gửi lời mời
-    const myId = req.user.id; // Mình (người nhận)
+    const senderId = req.params.id; 
+    const myId = req.user.id; 
 
     const [me, sender] = await Promise.all([
       User.findById(myId),
@@ -246,19 +222,16 @@ exports.acceptFriendRequest = async (req, res) => {
 
     if (!me || !sender) return res.status(404).json({ message: "User không tồn tại" });
 
-    // Kiểm tra xem có lời mời không
     if (!me.friendRequests.includes(senderId)) {
       return res.status(400).json({ message: "Không tìm thấy lời mời kết bạn" });
     }
 
-    // Chấp nhận: Bỏ khỏi mảng request, thêm vào mảng friends của cả 2
     me.friendRequests.pull(senderId);
     me.friends.push(senderId);
     sender.friends.push(myId);
 
     await Promise.all([me.save(), sender.save()]);
 
-    // Thông báo cho người gửi là mình đã chấp nhận
     await Notification.create({
       receiver: senderId,
       sender: myId,
@@ -273,7 +246,6 @@ exports.acceptFriendRequest = async (req, res) => {
   }
 };
 
-// 3. Xóa bạn bè (Unfriend) / Từ chối lời mời
 exports.unfriend = async (req, res) => {
   try {
     const targetId = req.params.id;
@@ -286,13 +258,11 @@ exports.unfriend = async (req, res) => {
 
     if (!me || !target) return res.status(404).json({ message: "User không tồn tại" });
 
-    // Xóa khỏi danh sách bạn bè
     if (me.friends.includes(targetId)) {
       me.friends.pull(targetId);
       target.friends.pull(myId);
     }
 
-    // Nếu đây là hành động từ chối lời mời (reject request)
     if (me.friendRequests.includes(targetId)) {
         me.friendRequests.pull(targetId);
     }
@@ -305,7 +275,6 @@ exports.unfriend = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Follow, Profile, Feed... */
 // ➕ FOLLOW / UNFOLLOW USER 
 exports.toggleFollow = async (req, res) => {
   try {
@@ -375,10 +344,18 @@ exports.searchUsers = async (req, res) => {
   }
 };
 
+// ==========================================
+// 🛠️ HÀM CẬP NHẬT HỒ SƠ ĐÃ BỔ SUNG LOG GỠ LỖI & SỬA LỖI MẤT URL
+// ==========================================
 exports.updateProfile = async (req, res) => {
   try {
+    console.log("\n=============================================");
+    console.log("🚀 BẮT ĐẦU CẬP NHẬT HỒ SƠ");
+    console.log("Body nhận được:", req.body);
+    console.log("Files nhận được từ Multer:", req.files ? Object.keys(req.files) : "🚨 Không có file nào!");
+
     const userId = req.user.id;
-    const { bio } = req.body;
+    const { bio, username, displayName } = req.body;
     const user = await User.findById(userId);
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
@@ -386,52 +363,90 @@ exports.updateProfile = async (req, res) => {
     let hasChanged = false;
     let changeType = "";
 
+    // Hàm lấy URL an toàn cho các phiên bản khác nhau của multer-storage-cloudinary
+    const getFileUrl = (fileArray, fieldName) => {
+      if (!fileArray || !fileArray[0]) return "";
+      const f = fileArray[0];
+      console.log(`Chi tiết file [${fieldName}]:`, { path: f.path, secure_url: f.secure_url, url: f.url });
+      return f.path || f.secure_url || f.url || "";
+    };
+
+    // Cập nhật ảnh qua Cloudinary
     if (req.files) {
       if (req.files.avatar) {
-        user.avatar = req.files.avatar[0].path;
-        hasChanged = true;
-        changeType = changeType ? "both" : "avatar";
+        const url = getFileUrl(req.files.avatar, 'avatar');
+        if (url) {
+          user.avatar = url; 
+          hasChanged = true;
+          changeType = changeType ? "both" : "avatar";
+        } else {
+          console.log("🚨 Lỗi: Có file avatar nhưng không lấy được URL!");
+        }
       }
       if (req.files.cover) {
-        user.cover = req.files.cover[0].path;
-        hasChanged = true;
-        changeType = changeType ? "both" : "cover";
+        const url = getFileUrl(req.files.cover, 'cover');
+        if (url) {
+          user.cover = url;
+          hasChanged = true;
+          changeType = changeType ? "both" : "cover";
+        } else {
+          console.log("🚨 Lỗi: Có file cover nhưng không lấy được URL!");
+        }
       }
     }
 
-    if (bio !== undefined) {
+    // Cập nhật các trường text
+    if (bio !== undefined && bio !== user.bio) {
       user.bio = bio;
+      hasChanged = true;
+    }
+    
+    if (username !== undefined && username.trim() !== "" && username !== user.username) {
+      user.username = username.trim();
+      hasChanged = true;
+    }
+
+    if (displayName !== undefined && displayName.trim() !== "" && displayName !== user.displayName) {
+      user.displayName = displayName.trim();
+      hasChanged = true;
     }
 
     await user.save();
+    console.log("✅ Đã lưu vào Database! Avatar:", user.avatar, "| Cover:", user.cover);
+    console.log("=============================================\n");
 
-    if (hasChanged) {
+    // Tạo bài viết (Post) hệ thống thông báo thay đổi
+    if (hasChanged && changeType !== "") {
       let title = "";
       let images = [];
 
       if (changeType === "avatar") {
-        title = `${user.username} đã cập nhật ảnh đại diện mới`;
-        images = [user.avatar];
+        title = `${user.displayName || user.username} đã cập nhật ảnh đại diện mới`;
+        if (user.avatar) images.push(user.avatar);
       } else if (changeType === "cover") {
-        title = `${user.username} đã cập nhật ảnh bìa mới`;
-        images = [user.cover];
+        title = `${user.displayName || user.username} đã cập nhật ảnh bìa mới`;
+        if (user.cover) images.push(user.cover);
       } else {
-        title = `${user.username} đã làm mới trang cá nhân`;
-        images = [user.avatar, user.cover];
+        title = `${user.displayName || user.username} đã làm mới trang cá nhân`;
+        if (user.avatar) images.push(user.avatar);
+        if (user.cover) images.push(user.cover);
       }
 
-      await Post.create({
-        title,
-        description: `Mọi người thấy thế nào? ✨`,
-        images,
-        createdBy: user._id,
-        category: "System",
-        location: "Cập nhật hồ sơ"
-      });
+      if (images.length > 0) {
+         await Post.create({
+          title,
+          description: `Mọi người thấy thế nào? ✨`,
+          images,
+          createdBy: user._id,
+          category: "System",
+          location: "Cập nhật hồ sơ"
+        });
+      }
     }
 
     res.json({ message: "Cập nhật thành công", user });
   } catch (error) {
+    console.error("❌ Lỗi updateProfile:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -488,7 +503,6 @@ exports.getFollowers = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Merge chức năng getUserProfile (lọc Community)... */
 exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
@@ -499,7 +513,6 @@ exports.getUserProfile = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    // ✅ ĐÃ SỬA: Lọc posts theo Community (Tích hợp dựa trên image Github)
     const posts = await Post.find({ 
       createdBy: req.params.id,
       $or: [
@@ -526,7 +539,6 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Các tính năng quản lý quyền, profile, password... */
 exports.requestPosterRole = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
