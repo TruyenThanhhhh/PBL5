@@ -6,10 +6,8 @@ const Notification = require("../models/Notification");
 
 // Khởi tạo thư viện Auth của Google
 const { OAuth2Client } = require('google-auth-library');
-// Khởi tạo client với ID lấy từ file .env
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Hàm hỗ trợ chuẩn hóa role
 const normalizeRole = (role) => {
   if (typeof role !== "string") return "viewer";
   const r = role.trim().toLowerCase();
@@ -23,16 +21,9 @@ const normalizeRole = (role) => {
 exports.googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ message: "Không tìm thấy Google Token" });
-    }
+    if (!token) return res.status(400).json({ message: "Không tìm thấy Google Token" });
 
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
+    const ticket = await client.verifyIdToken({ idToken: token, audience: process.env.GOOGLE_CLIENT_ID });
     const payload = ticket.getPayload();
     const { email, name, picture, sub } = payload; 
 
@@ -41,16 +32,14 @@ exports.googleLogin = async (req, res) => {
     if (!user) {
       const randomPassword = email + sub + process.env.JWT_SECRET;
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
-
       let baseUsername = name.replace(/\s+/g, '').toLowerCase();
-      
       let existUsername = await User.findOne({ username: baseUsername });
-      if(existUsername) {
-        baseUsername = baseUsername + Math.floor(Math.random() * 10000);
-      }
+      
+      if(existUsername) baseUsername = baseUsername + Math.floor(Math.random() * 10000);
 
       user = await User.create({
         username: baseUsername,
+        displayName: name,
         email: email,
         password: hashedPassword,
         avatar: picture,
@@ -86,15 +75,12 @@ exports.googleLogin = async (req, res) => {
   }
 };
 
-// 🚀 ĐĂNG KÝ TÀI KHOẢN BẰNG TAY (CŨ)
+// 🚀 ĐĂNG KÝ TÀI KHOẢN BẰNG TAY
 exports.registerUser = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
-
     const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(400).json({ message: "Email đã được sử dụng" });
-    }
+    if (exists) return res.status(400).json({ message: "Email đã được sử dụng" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const allowedRoles = ["viewer", "poster"];
@@ -102,9 +88,7 @@ exports.registerUser = async (req, res) => {
     const assignedRole = allowedRoles.includes(normalizedRole) ? normalizedRole : "viewer";
 
     let avatarUrl = "";
-    if (req.file && req.file.path) {
-      avatarUrl = req.file.path; 
-    }
+    if (req.file && req.file.path) avatarUrl = req.file.path; 
 
     const newUser = await User.create({
       username: username.trim(),
@@ -120,32 +104,21 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// 🚀 ĐĂNG NHẬP BẰNG TAY (CŨ)
+// 🚀 ĐĂNG NHẬP BẰNG TAY
 exports.loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
-    
-    if (!identifier || !password) {
-      return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin!" });
-    }
+    if (!identifier || !password) return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin!" });
 
     const cleanIdentifier = identifier.trim();
-
     const user = await User.findOne({
-      $or: [
-        { email: cleanIdentifier }, 
-        { username: cleanIdentifier }
-      ]
+      $or: [{ email: cleanIdentifier }, { username: cleanIdentifier }]
     });
 
-    if (!user) {
-      return res.status(400).json({ message: "Tài khoản không tồn tại!" });
-    }
+    if (!user) return res.status(400).json({ message: "Tài khoản không tồn tại!" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Sai mật khẩu!" });
-    }
+    if (!isMatch) return res.status(400).json({ message: "Sai mật khẩu!" });
 
     const normalizedRole = normalizeRole(user.role);
     const token = jwt.sign(
@@ -182,9 +155,7 @@ exports.sendFriendRequest = async (req, res) => {
     const targetUser = await User.findById(targetId);
     if (!targetUser) return res.status(404).json({ message: "User không tồn tại" });
 
-    if (targetUser.friends.includes(myId)) {
-      return res.status(400).json({ message: "Đã là bạn bè" });
-    }
+    if (targetUser.friends.includes(myId)) return res.status(400).json({ message: "Đã là bạn bè" });
 
     const isRequested = targetUser.friendRequests.includes(myId);
 
@@ -215,16 +186,10 @@ exports.acceptFriendRequest = async (req, res) => {
     const senderId = req.params.id; 
     const myId = req.user.id; 
 
-    const [me, sender] = await Promise.all([
-      User.findById(myId),
-      User.findById(senderId)
-    ]);
-
+    const [me, sender] = await Promise.all([User.findById(myId), User.findById(senderId)]);
     if (!me || !sender) return res.status(404).json({ message: "User không tồn tại" });
 
-    if (!me.friendRequests.includes(senderId)) {
-      return res.status(400).json({ message: "Không tìm thấy lời mời kết bạn" });
-    }
+    if (!me.friendRequests.includes(senderId)) return res.status(400).json({ message: "Không tìm thấy lời mời kết bạn" });
 
     me.friendRequests.pull(senderId);
     me.friends.push(senderId);
@@ -251,44 +216,30 @@ exports.unfriend = async (req, res) => {
     const targetId = req.params.id;
     const myId = req.user.id;
 
-    const [me, target] = await Promise.all([
-      User.findById(myId),
-      User.findById(targetId)
-    ]);
-
+    const [me, target] = await Promise.all([User.findById(myId), User.findById(targetId)]);
     if (!me || !target) return res.status(404).json({ message: "User không tồn tại" });
 
     if (me.friends.includes(targetId)) {
       me.friends.pull(targetId);
       target.friends.pull(myId);
     }
-
-    if (me.friendRequests.includes(targetId)) {
-        me.friendRequests.pull(targetId);
-    }
+    if (me.friendRequests.includes(targetId)) me.friendRequests.pull(targetId);
 
     await Promise.all([me.save(), target.save()]);
-
     res.json({ status: "none", message: "Đã hủy kết bạn/từ chối lời mời" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// ➕ FOLLOW / UNFOLLOW USER 
 exports.toggleFollow = async (req, res) => {
   try {
     const targetId = req.params.id;
     const myId = req.user.id;
 
-    if (targetId === myId)
-      return res.status(400).json({ message: "Không thể follow chính mình" });
+    if (targetId === myId) return res.status(400).json({ message: "Không thể follow chính mình" });
 
-    const [me, target] = await Promise.all([
-      User.findById(myId),
-      User.findById(targetId),
-    ]);
-
+    const [me, target] = await Promise.all([User.findById(myId), User.findById(targetId)]);
     if (!target) return res.status(404).json({ message: "User không tồn tại" });
 
     const isFollowing = me.following.some(id => id.toString() === targetId);
@@ -313,11 +264,7 @@ exports.toggleFollow = async (req, res) => {
       });
     }
 
-    res.json({
-      following: !isFollowing,
-      message: isFollowing ? "Đã unfollow" : "Đã follow",
-      followersCount: target.followers.length,
-    });
+    res.json({ following: !isFollowing, message: isFollowing ? "Đã unfollow" : "Đã follow", followersCount: target.followers.length });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -328,16 +275,10 @@ exports.searchUsers = async (req, res) => {
     const { q } = req.query;
     const myId = req.user.id;
 
-    const query = {
-      role: { $ne: "admin" },
-      _id: { $ne: myId }
-    };
+    const query = { role: { $ne: "admin" }, _id: { $ne: myId } };
+    if (q) query.username = { $regex: q, $options: "i" };
 
-    if (q) {
-      query.username = { $regex: q, $options: "i" };
-    }
-
-    const users = await User.find(query).select("username avatar role followers following friends friendRequests"); 
+    const users = await User.find(query).select("username displayName avatar role followers following friends friendRequests"); 
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -345,17 +286,12 @@ exports.searchUsers = async (req, res) => {
 };
 
 // ==========================================
-// 🛠️ HÀM CẬP NHẬT HỒ SƠ ĐÃ BỔ SUNG LOG GỠ LỖI & SỬA LỖI MẤT URL
+// 🛠️ HÀM CẬP NHẬT HỒ SƠ 
 // ==========================================
 exports.updateProfile = async (req, res) => {
   try {
-    console.log("\n=============================================");
-    console.log("🚀 BẮT ĐẦU CẬP NHẬT HỒ SƠ");
-    console.log("Body nhận được:", req.body);
-    console.log("Files nhận được từ Multer:", req.files ? Object.keys(req.files) : "🚨 Không có file nào!");
-
     const userId = req.user.id;
-    const { bio, username, displayName } = req.body;
+    const { bio, displayName } = req.body;
     const user = await User.findById(userId);
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
@@ -363,63 +299,31 @@ exports.updateProfile = async (req, res) => {
     let hasChanged = false;
     let changeType = "";
 
-    // Hàm lấy URL an toàn cho các phiên bản khác nhau của multer-storage-cloudinary
-    const getFileUrl = (fileArray, fieldName) => {
+    const getFileUrl = (fileArray) => {
       if (!fileArray || !fileArray[0]) return "";
       const f = fileArray[0];
-      console.log(`Chi tiết file [${fieldName}]:`, { path: f.path, secure_url: f.secure_url, url: f.url });
       return f.path || f.secure_url || f.url || "";
     };
 
-    // Cập nhật ảnh qua Cloudinary
     if (req.files) {
       if (req.files.avatar) {
-        const url = getFileUrl(req.files.avatar, 'avatar');
-        if (url) {
-          user.avatar = url; 
-          hasChanged = true;
-          changeType = changeType ? "both" : "avatar";
-        } else {
-          console.log("🚨 Lỗi: Có file avatar nhưng không lấy được URL!");
-        }
+        const url = getFileUrl(req.files.avatar);
+        if (url) { user.avatar = url; hasChanged = true; changeType = changeType ? "both" : "avatar"; }
       }
       if (req.files.cover) {
-        const url = getFileUrl(req.files.cover, 'cover');
-        if (url) {
-          user.cover = url;
-          hasChanged = true;
-          changeType = changeType ? "both" : "cover";
-        } else {
-          console.log("🚨 Lỗi: Có file cover nhưng không lấy được URL!");
-        }
+        const url = getFileUrl(req.files.cover);
+        if (url) { user.cover = url; hasChanged = true; changeType = changeType ? "both" : "cover"; }
       }
     }
 
-    // Cập nhật các trường text
-    if (bio !== undefined && bio !== user.bio) {
-      user.bio = bio;
-      hasChanged = true;
-    }
-    
-    if (username !== undefined && username.trim() !== "" && username !== user.username) {
-      user.username = username.trim();
-      hasChanged = true;
-    }
-
-    if (displayName !== undefined && displayName.trim() !== "" && displayName !== user.displayName) {
-      user.displayName = displayName.trim();
-      hasChanged = true;
-    }
+    if (bio !== undefined && bio !== user.bio) { user.bio = bio; hasChanged = true; }
+    if (displayName !== undefined && displayName.trim() !== "" && displayName !== user.displayName) { user.displayName = displayName.trim(); hasChanged = true; }
 
     await user.save();
-    console.log("✅ Đã lưu vào Database! Avatar:", user.avatar, "| Cover:", user.cover);
-    console.log("=============================================\n");
 
-    // Tạo bài viết (Post) hệ thống thông báo thay đổi
     if (hasChanged && changeType !== "") {
       let title = "";
       let images = [];
-
       if (changeType === "avatar") {
         title = `${user.displayName || user.username} đã cập nhật ảnh đại diện mới`;
         if (user.avatar) images.push(user.avatar);
@@ -431,16 +335,8 @@ exports.updateProfile = async (req, res) => {
         if (user.avatar) images.push(user.avatar);
         if (user.cover) images.push(user.cover);
       }
-
       if (images.length > 0) {
-         await Post.create({
-          title,
-          description: `Mọi người thấy thế nào? ✨`,
-          images,
-          createdBy: user._id,
-          category: "System",
-          location: "Cập nhật hồ sơ"
-        });
+         await Post.create({ title, description: `Mọi người thấy thế nào? ✨`, images, createdBy: user._id, category: "System", location: "Cập nhật hồ sơ" });
       }
     }
 
@@ -456,26 +352,20 @@ exports.getFeed = async (req, res) => {
     const me = await User.findById(req.user.id).select("following friends");
     const targetUsers = [...new Set([...me.following, ...me.friends])];
 
-    if (!targetUsers.length) {
-      return res.json({ posts: [], message: "Hãy kết bạn hoặc follow ai đó để xem feed" });
-    }
+    if (!targetUsers.length) return res.json({ posts: [], message: "Hãy kết bạn hoặc follow ai đó để xem feed" });
 
     const page  = parseInt(req.query.page)  || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip  = (page - 1) * limit;
 
     const posts = await Post.find({ createdBy: { $in: targetUsers } })
-      .populate("createdBy", "username avatar")
+      .populate("createdBy", "username displayName avatar")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
     const total = await Post.countDocuments({ createdBy: { $in: targetUsers } });
-
-    res.json({
-      posts,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    });
+    res.json({ posts, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -484,9 +374,9 @@ exports.getFeed = async (req, res) => {
 exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .populate("followers", "username avatar bio")
-      .populate("following", "username avatar bio")
-      .populate("friends", "username avatar bio"); 
+      .populate("followers", "username displayName avatar bio")
+      .populate("following", "username displayName avatar bio")
+      .populate("friends", "username displayName avatar bio"); 
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -507,22 +397,16 @@ exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select("-password")
-      .populate("followers", "username avatar")
-      .populate("following", "username avatar")
-      .populate("friends", "username avatar"); 
+      .populate("followers", "username displayName avatar")
+      .populate("following", "username displayName avatar")
+      .populate("friends", "username displayName avatar"); 
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     const posts = await Post.find({ 
       createdBy: req.params.id,
-      $or: [
-        { publishedToProfile: true },
-        { community: null },
-        { community: { $exists: false } },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .limit(20);
+      $or: [{ publishedToProfile: true }, { community: null }, { community: { $exists: false } }],
+    }).sort({ createdAt: -1 }).limit(20);
 
     let friendStatus = "none";
     if (req.user) {
@@ -532,7 +416,6 @@ exports.getUserProfile = async (req, res) => {
 
     const userResponse = user.toObject();
     userResponse.friendStatus = friendStatus;
-
     res.json({ user: userResponse, posts });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -544,17 +427,11 @@ exports.requestPosterRole = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    if (user.role === "poster" || user.role === "admin") {
-      return res.status(400).json({ message: "Bạn đã có quyền đăng bài rồi." });
-    }
-
-    if (user.roleRequestStatus === "pending") {
-      return res.status(400).json({ message: "Yêu cầu của bạn đang chờ duyệt." });
-    }
+    if (user.role === "poster" || user.role === "admin") return res.status(400).json({ message: "Bạn đã có quyền đăng bài rồi." });
+    if (user.roleRequestStatus === "pending") return res.status(400).json({ message: "Yêu cầu của bạn đang chờ duyệt." });
 
     user.roleRequestStatus = "pending";
     await user.save();
-
     res.json({ message: "Đã gửi yêu cầu thành công.", status: "pending" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -564,7 +441,6 @@ exports.requestPosterRole = async (req, res) => {
 exports.approveRoleRequest = async (req, res) => {
   try {
     const { userId, action } = req.body; 
-    
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -586,20 +462,22 @@ exports.approveRoleRequest = async (req, res) => {
 
 exports.getPendingRequests = async (req, res) => {
   try {
-    const users = await User.find({ roleRequestStatus: "pending" }).select("username email createdAt");
+    const users = await User.find({ roleRequestStatus: "pending" }).select("username displayName email createdAt");
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+// ĐÃ SỬA: Populate friends để lấy danh sách bạn bè, hiển thị trong GlobalChat
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
         .select("-password")
-        .populate("friendRequests", "username avatar"); 
+        .populate("friendRequests", "username displayName avatar")
+        .populate("friends", "username displayName avatar"); // <-- ĐÂY LÀ DÒNG QUAN TRỌNG ĐÃ ĐƯỢC THÊM
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
-    res.json(user);
+    res.json(user); // Trả về object user trực tiếp
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -649,11 +527,10 @@ exports.getSavedPosts = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate({
       path: 'savedPosts',
-      populate: { path: 'createdBy', select: 'username avatar' }
+      populate: { path: 'createdBy', select: 'username displayName avatar' }
     });
     
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
-    
     res.json(user.savedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });

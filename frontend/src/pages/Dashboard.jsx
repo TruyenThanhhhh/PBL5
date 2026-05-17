@@ -4,8 +4,9 @@ import {
   MessageSquare, Compass, Settings, 
   MapPin, Image as ImageIcon, Send, ShieldAlert,
   Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot,
-  ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock
+  ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell
 } from 'lucide-react';
+
 
 import NotificationBell from '../components/NotificationBell';
 import AccountMenu from '../components/AccountMenu';
@@ -626,7 +627,7 @@ function DashboardContent() {
       const token = localStorage.getItem('token');
       if (userId && token) {
         try {
-          const res = await fetch(`http://localhost:5000/api/profile`, {
+          const res = await fetch(`http://localhost:5000/api/users/profile`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {
@@ -1248,17 +1249,34 @@ function DashboardContent() {
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
+          {/* Component Chuông thật */}
           <NotificationBell />
-          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900"><MessageSquare size={22} strokeWidth={2} /></button>
+          
+          {/* ĐÃ SỬA: Logic Bật/Tắt Chat độc lập, tắt cửa sổ Bạn bè */}
+          <button 
+            type="button" 
+            onClick={() => {
+              setIsUserChatOpen(!isUserChatOpen);
+              if (!isUserChatOpen) {
+                setChatView('list');
+              }
+              setIsFriendDropdownOpen(false); // Đóng menu bạn bè nếu đang mở
+            }} 
+            className={`transition-colors relative ${isUserChatOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <MessageSquare size={22} strokeWidth={2} />
+          </button>
           
           <div className="relative">
+            {/* ĐÃ SỬA: Logic Bật/Tắt Bạn bè độc lập, tắt cửa sổ Chat */}
             <button 
               type="button" 
               onClick={() => {
                 setIsFriendDropdownOpen(!isFriendDropdownOpen);
                 if (!isFriendDropdownOpen) fetchFriendData(); 
+                setIsUserChatOpen(false); // Đóng menu chat nếu đang mở
               }} 
-              className={`text-gray-500 hover:text-gray-900 transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : ''}`}
+              className={`transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <Users size={22} strokeWidth={2} />
               {receivedRequests.length > 0 ? (
@@ -1382,6 +1400,7 @@ function DashboardContent() {
             )}
           </div>
           
+          {/* Component Menu Ảnh Đại Diện Thật */}
           <AccountMenu avatar={currentUser.avatar} username={currentUser.username} />
         </div>
       </header>

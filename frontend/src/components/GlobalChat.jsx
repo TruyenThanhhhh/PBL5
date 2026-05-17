@@ -7,6 +7,13 @@ const token = () => localStorage.getItem('token');
 const currentUserId = () => localStorage.getItem('userId');
 const authHeader = () => ({ Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' });
 
+// Hàm chuẩn hóa đường dẫn ảnh
+const getImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  return `http://localhost:5000/${url.replace(/\\/g, '/')}`;
+};
+
 export default function GlobalChat() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -42,7 +49,11 @@ export default function GlobalChat() {
       fetch(`${API}/users/profile`, { headers: { Authorization: `Bearer ${token()}` } })
         .then(res => res.json())
         .then(data => {
-          if (data.user && Array.isArray(data.user.friends)) {
+          // Sửa lỗi: lấy trực tiếp data.friends vì backend trả thẳng object user ra
+          if (data && Array.isArray(data.friends)) {
+            setFriends(data.friends);
+          } else if (data.user && Array.isArray(data.user.friends)) {
+            // Dự phòng trường hợp API trả về { user: ... }
             setFriends(data.user.friends);
           }
         })
@@ -133,7 +144,7 @@ export default function GlobalChat() {
                 <ArrowLeft size={18} />
               </button>
               <span onClick={() => handleNavigateProfile(selectedUser?._id)} className="font-bold text-[14px] cursor-pointer hover:underline">
-                {selectedUser?.username || 'Trò chuyện'}
+                {selectedUser?.displayName || selectedUser?.username || 'Trò chuyện'}
               </span>
             </>
           ) : (
@@ -157,10 +168,14 @@ export default function GlobalChat() {
               friends.map(friend => (
                 <div key={friend._id} onClick={() => { setSelectedUser(friend); setChatView('conversation'); }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
                   <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 overflow-hidden hover:opacity-80">
-                    {friend.avatar ? <img src={friend.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
+                    {friend.avatar ? (
+                      <img src={getImageUrl(friend.avatar)} onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.displayName || friend.username || 'User')}&background=f44336&color=fff`; }} className="w-full h-full object-cover"/>
+                    ) : (
+                      <User size={20} />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-[13px] text-gray-900 truncate">{friend.username}</p>
+                    <p className="font-bold text-[13px] text-gray-900 truncate">{friend.displayName || friend.username}</p>
                     <p className="text-[11px] text-gray-400 font-medium">Bấm để trò chuyện</p>
                   </div>
                 </div>
@@ -174,7 +189,7 @@ export default function GlobalChat() {
                 <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
               ) : (
                 <>
-                  <div className="text-center text-[11px] text-gray-400 mb-4">Bắt đầu trò chuyện với {selectedUser?.username}</div>
+                  <div className="text-center text-[11px] text-gray-400 mb-4">Bắt đầu trò chuyện với {selectedUser?.displayName || selectedUser?.username}</div>
                   
                   {messages.map((msg, i) => {
                     const isMe = String(msg.sender?._id || msg.sender) === String(currentUserId());
@@ -182,7 +197,11 @@ export default function GlobalChat() {
                       <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         {!isMe && (
                           <div onClick={() => handleNavigateProfile(selectedUser?._id)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
-                            {selectedUser?.avatar ? <img src={selectedUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />}
+                            {selectedUser?.avatar ? (
+                               <img src={getImageUrl(selectedUser.avatar)} onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedUser.displayName || selectedUser.username || 'User')}&background=f44336&color=fff`; }} className="w-full h-full object-cover"/>
+                            ) : (
+                               <User size={14} />
+                            )}
                           </div>
                         )}
                         <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${isMe ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] text-gray-900 rounded-bl-sm border border-gray-100'}`}>
