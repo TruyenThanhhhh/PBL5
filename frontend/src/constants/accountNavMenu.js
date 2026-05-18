@@ -1,0 +1,33 @@
+/** Nhãn menu tài khoản — dùng chung Dashboard (avatar) & AccountMenu */
+export const accountNavMenu = {
+  vi: {
+    sectionAccount: 'Tài khoản',
+    sectionMore: 'Khám phá & cộng đồng',
+    myProfile: 'Hồ sơ của tôi',
+    settings: 'Cài đặt',
+    friends: 'Bạn bè',
+    saved: 'Đã lưu',
+    community: 'Cộng đồng',
+    trending: 'Thịnh hành',
+    explore: 'Khám phá bản đồ',
+    feed: 'Bảng tin',
+    newPost: 'Đăng bài mới',
+    adminPanel: 'Quản trị hệ thống',
+    logout: 'Đăng xuất',
+  },
+  en: {
+    sectionAccount: 'Account',
+    sectionMore: 'Explore & community',
+    myProfile: 'My profile',
+    settings: 'Settings',
+    friends: 'Friends',
+    saved: 'Saved posts',
+    community: 'Community',
+    trending: 'Trending',
+    explore: 'Explore map',
+    feed: 'Home feed',
+    newPost: 'New post',
+    adminPanel: 'Admin panel',
+    logout: 'Log out',
+  },
+};

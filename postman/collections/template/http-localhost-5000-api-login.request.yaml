@@ -1,0 +1,16 @@
+$kind: http-request
+name: http://localhost:5000/api/login
+url: http://localhost:5000/api/login
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"email\": \"binh@gmail.com\",\r
+
+    \  \"password\": \"123456\"\r
+
+    }"
+auth:
+  type: bearer
+order: 1772529495006

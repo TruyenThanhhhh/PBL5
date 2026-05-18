@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f4f4f5;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --border-color: #e5e7eb;
+    --card-bg: #ffffff;
+  }
+
+  .dark {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --card-bg: #1e293b;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s, color 0.3s;
+  }
+}
+
+/* Custom utility classes for components to use variables */
+.bg-theme-primary { background-color: var(--bg-primary); }
+.bg-theme-secondary { background-color: var(--bg-secondary); }
+.bg-theme-card { background-color: var(--card-bg); }
+.text-theme-primary { color: var(--text-primary); }
+.text-theme-secondary { color: var(--text-secondary); }
+.border-theme { border-color: var(--border-color); }
+
+@layer utilities {
+  .dark .bg-white {
+    background-color: var(--card-bg) !important;
+  }
+  .dark .bg-\[\#f4f4f5\],
+  .dark .bg-\[\#f8f9fa\],
+  .dark .bg-gray-50,
+  .dark .bg-gray-100 {
+    background-color: var(--bg-primary) !important;
+  }
+  .dark .text-gray-900,
+  .dark .text-gray-800 {
+    color: var(--text-primary) !important;
+  }
+  .dark .text-gray-700,
+  .dark .text-gray-600,
+  .dark .text-gray-500 {
+    color: var(--text-secondary) !important;
+  }
+  .dark .border-gray-50,
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300 {
+    border-color: var(--border-color) !important;
+  }
+}
