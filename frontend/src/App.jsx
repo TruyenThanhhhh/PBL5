@@ -18,6 +18,7 @@ import CommunityDetail from './pages/CommunityDetail';
 import Friends from './pages/Friends';
 import Trending from './pages/Trending';
 import Saved from './pages/Saved';
+import SearchResults from './pages/SearchResults';
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/friends" caseSensitive element={<Friends />} />
           <Route path="/trending" caseSensitive element={<Trending />} />
           <Route path="/saved" caseSensitive element={<Saved />} />
+          <Route path="/search" caseSensitive element={<SearchResults />} />
           
           {/* Nếu gõ sai link, tự động về Home */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -27,6 +27,7 @@ const postSchema = new mongoose.Schema(
     },
     /** Khi bài thuộc community: chỉ hiện trên bảng tin chính / hồ sơ nếu true */
     publishedToProfile: { type: Boolean, default: true },
+    sharedPost: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null },
   },
   { timestamps: true }
 );

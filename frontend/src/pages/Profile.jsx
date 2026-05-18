@@ -292,11 +292,11 @@ function ProfileContent() {
       let url = '';
       let method = 'POST';
 
-      if (action === 'request' || action === 'undo') {
+      if (action === 'request') {
         url = `http://localhost:5000/api/users/friend-request/${targetUserId}`;
       } else if (action === 'accept') {
         url = `http://localhost:5000/api/users/accept-friend/${targetUserId}`;
-      } else if (action === 'unfriend') {
+      } else if (action === 'undo' || action === 'unfriend') {
         url = `http://localhost:5000/api/users/unfriend/${targetUserId}`;
         method = 'DELETE';
       }
@@ -576,6 +576,22 @@ function ProfileContent() {
                         <Clock size={16} /> Đã gửi yêu cầu (Hủy)
                       </button>
                     )}
+                    {friendStatus === 'received' && (
+                      <>
+                        <button 
+                          onClick={() => handleFriendAction('accept')}
+                          className="bg-[#f44336] text-white text-[13px] font-bold px-5 py-2 rounded-lg hover:bg-[#e53935] transition-colors flex items-center gap-1.5 shadow-md shadow-red-500/20"
+                        >
+                          <Check size={16} /> Chấp nhận
+                        </button>
+                        <button 
+                          onClick={() => handleFriendAction('unfriend')}
+                          className="bg-gray-100 text-gray-600 text-[13px] font-bold px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+                        >
+                          <X size={16} /> Từ chối
+                        </button>
+                      </>
+                    )}
                     {friendStatus === 'none' && (
                       <button 
                         onClick={() => handleFriendAction('request')}
@@ -670,36 +686,83 @@ function ProfileContent() {
                     <p className="text-[14px] font-bold">Chưa có bài viết nào.</p>
                   </div>
                 ) : (
-                  userPosts.map(post => (
-                    <div 
-                      key={post._id}
-                      onClick={() => handlePostClick(post._id)}
-                      className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer group"
-                    >
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                          <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-100" />
-                          <div>
-                            <h3 className="text-[14px] font-bold text-gray-900">{displayName}</h3>
-                            <p className="text-[11px] font-medium text-gray-400">
-                              {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
-                              {new Date(post.createdAt).toLocaleDateString('vi-VN')}
-                            </p>
+                  userPosts.map(post => {
+                    const targetPostId = post.sharedPost ? (post.sharedPost._id || post.sharedPost) : post._id;
+                    return (
+                      <div 
+                        key={post._id}
+                        onClick={() => handlePostClick(targetPostId)}
+                        className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer group"
+                      >
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="flex items-center gap-3">
+                            <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                            <div>
+                              <h3 className="text-[14px] font-bold text-gray-900">{displayName}</h3>
+                              <p className="text-[11px] font-medium text-gray-400">
+                                {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
+                                {new Date(post.createdAt).toLocaleDateString('vi-VN')}
+                              </p>
+                            </div>
                           </div>
                         </div>
+
+                        {post.title && post.title !== `Trải nghiệm của ${profile.username}` && !post.sharedPost && (
+                          <h2 className="text-lg font-extrabold text-gray-900 mb-2 leading-tight group-hover:text-[#f44336] transition-colors">{post.title}</h2>
+                        )}
+                        
+                        <div className="text-[14px] text-gray-700 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
+
+                        {post.sharedPost ? (
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/post-detail?postId=${post.sharedPost._id || post.sharedPost}`);
+                            }}
+                            className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/50 transition-all mb-4 text-[13px]"
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <img 
+                                src={getAvatarUrl(post.sharedPost.createdBy?.avatar, post.sharedPost.createdBy?.username)} 
+                                className="w-7 h-7 rounded-full border object-cover" 
+                                alt="Original Author"
+                              />
+                              <div>
+                                <p className="text-[12px] font-bold text-gray-900">
+                                  {post.sharedPost.createdBy?.username || 'Người dùng'}
+                                </p>
+                                <p className="text-[10px] text-gray-400">
+                                  Bài viết gốc
+                                </p>
+                              </div>
+                            </div>
+
+                            <h4 className="text-[14px] font-black text-gray-900 leading-snug mb-1.5">
+                              {post.sharedPost.title}
+                            </h4>
+                            
+                            {post.sharedPost.description && post.sharedPost.description !== '\u200B' && (
+                              <p className="text-[13px] text-gray-500 line-clamp-3 mb-3">
+                                {post.sharedPost.description}
+                              </p>
+                            )}
+
+                            {Array.isArray(post.sharedPost.images) && post.sharedPost.images.length > 0 && (
+                              <img 
+                                src={post.sharedPost.images[0]} 
+                                className="w-full h-44 object-cover rounded-lg border border-gray-100" 
+                                alt="Original Media"
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          Array.isArray(post.images) && post.images.length > 0 && (
+                            <img src={post.images[0]} alt="Post Media" className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100" />
+                          )
+                        )}
                       </div>
-
-                      {post.title && post.title !== `Trải nghiệm của ${profile.username}` && (
-                        <h2 className="text-lg font-extrabold text-gray-900 mb-2 leading-tight group-hover:text-[#f44336] transition-colors">{post.title}</h2>
-                      )}
-                      
-                      <div className="text-[14px] text-gray-700 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
-
-                      {Array.isArray(post.images) && post.images.length > 0 && (
-                        <img src={post.images[0]} alt="Post Media" className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100" />
-                      )}
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

@@ -56,33 +56,74 @@ io.on("connection", (socket) => {
   // Nhận tin nhắn từ client -> lưu DB -> broadcast cho cả room
   socket.on("send_message", async (data) => {
     try {
-      const { conversationId, text, senderId, senderName, senderAvatar } = data;
-      if (!conversationId || !text || !senderId) return;
+      const {
+        conversationId,
+        text,
+        senderId,
+        senderName,
+        senderAvatar,
+        image,
+        postId,
+        messageType,
+        sharedPost,
+      } = data;
+      if (!conversationId || !senderId) return;
+      if (!text && !image && !postId && !sharedPost) return;
 
       const Message = require("./models/Message");
       const Conversation = require("./models/Conversation");
 
-      // Lưu tin nhắn vào DB
-      const message = await Message.create({
+      const payload = {
         conversationId,
         sender: senderId,
-        text
+        text: text || "",
+        image: image || null,
+      };
+
+      const linkedPostId = postId || sharedPost?._id || sharedPost;
+      if (linkedPostId) {
+        payload.sharedPost = linkedPostId;
+        payload.messageType = "post";
+        if (!payload.text) payload.text = "Đã chia sẻ một bài viết";
+      } else if (image) {
+        payload.messageType = messageType || "image";
+      } else {
+        payload.messageType = messageType || "text";
+      }
+
+      const message = await Message.create(payload);
+
+      const preview = payload.messageType === "post"
+        ? "Đã chia sẻ bài viết"
+        : payload.text || (payload.image ? "Đã gửi ảnh" : "");
+      await Conversation.findByIdAndUpdate(conversationId, { lastMessage: preview });
+
+      let populated = await Message.findById(message._id)
+        .populate("sender", "username displayName avatar")
+        .populate({
+          path: "sharedPost",
+          select: "title description images location createdBy",
+          populate: { path: "createdBy", select: "username displayName avatar" },
+        })
+        .lean();
+
+      if (!populated) populated = message.toObject();
+
+      io.to(String(conversationId)).emit("receive_message", {
+        _id: populated._id,
+        conversationId: String(conversationId),
+        text: populated.text,
+        image: populated.image,
+        messageType: populated.messageType,
+        sharedPost: populated.sharedPost || null,
+        readBy: populated.readBy || [],
+        sender: populated.sender || {
+          _id: senderId,
+          username: senderName,
+          avatar: senderAvatar,
+        },
+        createdAt: populated.createdAt,
       });
-
-      // Cập nhật lastMessage trong conversation
-      await Conversation.findByIdAndUpdate(conversationId, { lastMessage: text });
-
-      // Broadcast tin nhắn tới tất cả user trong room (kể cả người gửi)
-      io.to(conversationId).emit("receive_message", {
-        _id: message._id,
-        conversationId,
-        text: message.text,
-        image: message.image,
-        readBy: message.readBy,
-        sender: { _id: senderId, username: senderName, avatar: senderAvatar },
-        createdAt: message.createdAt
-      });
-
     } catch (error) {
       console.error("❌ Socket send_message error:", error.message);
       socket.emit("message_error", { error: error.message });
@@ -94,13 +135,22 @@ io.on("connection", (socket) => {
     io.to(conversationId).emit("message_seen", { conversationId, userId });
   });
 
-  // Typing indicator
+  // Typing indicator (realtime)
   socket.on("typing", ({ conversationId, userId, username }) => {
-    socket.to(conversationId).emit("user_typing", { userId, username });
+    if (!conversationId || !userId) return;
+    socket.to(String(conversationId)).emit("user_typing", {
+      conversationId: String(conversationId),
+      userId: String(userId),
+      username: username || "Người dùng",
+    });
   });
 
   socket.on("stop_typing", ({ conversationId, userId }) => {
-    socket.to(conversationId).emit("user_stop_typing", { userId });
+    if (!conversationId || !userId) return;
+    socket.to(String(conversationId)).emit("user_stop_typing", {
+      conversationId: String(conversationId),
+      userId: String(userId),
+    });
   });
 
   // Ngắt kết nối

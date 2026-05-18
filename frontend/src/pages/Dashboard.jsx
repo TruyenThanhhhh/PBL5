@@ -369,6 +369,7 @@ function DashboardContent() {
   const [receivedRequests, setReceivedRequests] = useState([]); 
   const [isFriendDropdownOpen, setIsFriendDropdownOpen] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isUserChatOpen, setIsUserChatOpen] = useState(false);
   const [chatView, setChatView] = useState('list'); 
@@ -389,6 +390,21 @@ function DashboardContent() {
   const [chatImageFile, setChatImageFile] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const { isDarkMode, toggleTheme } = useTheme();
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const postsFeedRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const handleOutsideClick = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showSuggestions]);
+
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const avatarMenuRef = useRef(null);
   
@@ -710,6 +726,15 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
+    const handleShared = () => {
+      fetchPosts();
+      fetchTrendingPosts();
+    };
+    window.addEventListener('postSharedSuccess', handleShared);
+    return () => window.removeEventListener('postSharedSuccess', handleShared);
+  }, []);
+
+  useEffect(() => {
     const userRole = localStorage.getItem('role') || 'user';
     const userId = localStorage.getItem('userId') || ''; 
     const username = localStorage.getItem('username') || '';
@@ -817,7 +842,7 @@ function DashboardContent() {
       });
 
       if (res.ok) {
-        showToast('success', 'Đã trx thành bạn bè');
+        showToast('success', 'Đã trở thành bạn bè');
         setReceivedRequests(prev => prev.filter(id => id !== strUserId));
         setFriends(prev => [...prev, strUserId]);
         fetchFriendData(); 
@@ -1391,6 +1416,20 @@ function DashboardContent() {
            !sentRequests.includes(targetIdStr); 
   });
 
+  const searchQueryTrimmed = searchQuery.toLowerCase().trim();
+  const matchedPosts = searchQueryTrimmed ? posts.filter(post => 
+    post.title?.toLowerCase().includes(searchQueryTrimmed) ||
+    post.description?.toLowerCase().includes(searchQueryTrimmed) ||
+    post.location?.toLowerCase().includes(searchQueryTrimmed) ||
+    post.category?.toLowerCase().includes(searchQueryTrimmed)
+  ).slice(0, 4) : [];
+
+  const matchedUsers = searchQueryTrimmed ? allUsers.filter(user => 
+    user.role !== 'admin' && 
+    String(user._id) !== currentUserIdStr &&
+    user.username?.toLowerCase().includes(searchQueryTrimmed)
+  ).slice(0, 3) : [];
+
   const currentKey = currentConversationId || (selectedGroup ? selectedGroup._id : (selectedChatUser ? String(selectedChatUser._id) : null));
   const currentChatMessages = currentKey ? (userMessages[currentKey] || []) : [];
 
@@ -1422,14 +1461,95 @@ function DashboardContent() {
         ${isDarkMode ? 'bg-[#1e293b]/80 backdrop-blur-md border-gray-700' : 'bg-white/80 backdrop-blur-md border-gray-100'}`}>
         <div className="flex-1 flex items-center gap-6">
           <Link to="/dashboard" className="text-[#f44336] font-extrabold text-2xl tracking-tighter hover:opacity-80 transition-opacity whitespace-nowrap">The Wanderer</Link>
-          <div className="relative w-full max-w-[350px] hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder={t.searchAll}
-              className={`w-full pl-9 pr-3 py-2.5 rounded-full text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all shadow-sm border
-                ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-[#f8f9fa] border-gray-200 hover:bg-white focus:bg-white'}`}
-            />
+          <div className="relative w-full max-w-[350px] hidden md:block" ref={suggestionsRef}>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setShowSuggestions(false);
+              if (searchQuery.trim()) {
+                navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              }
+            }}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text" 
+                placeholder={t.searchAll}
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                className={`w-full pl-9 pr-3 py-2.5 rounded-full text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all shadow-sm border
+                  ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-[#f8f9fa] border-gray-200 hover:bg-white focus:bg-white'}`}
+              />
+            </form>
+
+            {showSuggestions && searchQuery.trim() !== '' && (matchedPosts.length > 0 || matchedUsers.length > 0) && (
+              <div className={`absolute left-0 right-0 top-12 z-[200] max-h-[380px] overflow-y-auto rounded-2xl border shadow-2xl p-2 animate-in fade-in slide-in-from-top-2 duration-150
+                ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+                
+                {matchedPosts.length > 0 && (
+                  <div className="mb-3">
+                    <p className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Bài viết liên quan
+                    </p>
+                    {matchedPosts.map(post => (
+                      <div
+                        key={post._id}
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          setSearchQuery('');
+                          navigate(`/post-detail?postId=${post._id}`);
+                        }}
+                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 shrink-0 flex items-center justify-center">
+                          {post.images?.[0] ? (
+                            <img src={post.images[0]} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <Compass size={16} className="text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[12px] truncate">{post.title || post.location || 'Bài viết'}</p>
+                          <p className="text-[10px] text-gray-400 truncate flex items-center gap-1">
+                            <MapPin size={10} /> {post.location || 'Chưa xác định'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {matchedUsers.length > 0 && (
+                  <div>
+                    <p className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Người dùng liên quan
+                    </p>
+                    {matchedUsers.map(user => (
+                      <div
+                        key={user._id}
+                        onClick={() => {
+                          setShowSuggestions(false);
+                          setSearchQuery('');
+                          handleNavigateProfile(user._id);
+                        }}
+                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border">
+                          <img src={getAvatarUrl(user.avatar, user.username)} className="w-full h-full object-cover" alt="" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[12px] truncate">{user.username}</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-400 shrink-0 pr-2">Cá nhân</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+              </div>
+            )}
           </div>
         </div>
         
@@ -1902,8 +2022,29 @@ function DashboardContent() {
             </div>
           )}
 
-          <div className="space-y-6 pb-12">
-            {Array.isArray(posts) ? posts.map((post) => {
+          <div ref={postsFeedRef} className="space-y-6 pb-12 scroll-mt-20">
+            {(() => {
+              const filteredPosts = Array.isArray(posts) ? posts.filter(post => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.toLowerCase();
+                return (
+                  post.title?.toLowerCase().includes(q) ||
+                  post.description?.toLowerCase().includes(q) ||
+                  post.location?.toLowerCase().includes(q) ||
+                  post.createdBy?.username?.toLowerCase().includes(q) ||
+                  post.category?.toLowerCase().includes(q)
+                );
+              }) : [];
+              if (filteredPosts.length === 0) {
+                return (
+                  <div className={`p-8 text-center rounded-2xl border ${isDarkMode ? 'bg-[#1e293b] border-gray-700 text-gray-400' : 'bg-white border-gray-100 text-gray-500'} animate-in fade-in duration-300`}>
+                    <Search size={32} className="mx-auto mb-3 opacity-40 text-[#f44336]" />
+                    <p className="font-extrabold text-[14px]">Không tìm thấy bài viết nào phù hợp.</p>
+                    <p className="text-[12px] opacity-75 mt-1">Hãy thử nhập từ khóa khác.</p>
+                  </div>
+                );
+              }
+              return filteredPosts.map((post) => {
               const isAdmin = post.createdBy?.role === 'admin';
               const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
               
@@ -1997,48 +2138,96 @@ function DashboardContent() {
                       return null;
                     })()}
 
-                    {post.lat && post.lng ? (
-                      <div className="mb-4">
-                        <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
-                          <MapPin size={16} /> 
-                          {typeof post.location === 'string' && post.location !== t.unknownLocation ? post.location : t.pinnedLocation}
-                          <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white text-[#f44336] shadow-sm'}`}>
-                            {expandedMap[post._id] ? t.closeMap : t.viewMap}
-                          </span>
-                        </button>
-                        {expandedMap[post._id] ? (
-                          <div className="mt-3 h-[250px] w-full border border-gray-200 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
-                            <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
+                    {post.sharedPost ? (
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/post-detail?postId=${post.sharedPost._id || post.sharedPost}`);
+                        }}
+                        className={`p-4 rounded-xl border cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-all ${
+                          isDarkMode ? 'border-gray-700 bg-gray-800/30' : 'border-gray-200 bg-gray-50/50'
+                        } mb-4`}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <img 
+                            src={getAvatarUrl(post.sharedPost.createdBy?.avatar, post.sharedPost.createdBy?.username)} 
+                            className="w-7 h-7 rounded-full border object-cover" 
+                            alt="Original Author"
+                          />
+                          <div>
+                            <p className={`text-[12px] font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {post.sharedPost.createdBy?.username || 'Người dùng'}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              Bài viết gốc
+                            </p>
+                          </div>
+                        </div>
+
+                        <h4 className={`text-[14px] font-black leading-snug mb-1.5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {post.sharedPost.title}
+                        </h4>
+                        
+                        {post.sharedPost.description && post.sharedPost.description !== '\u200B' && (
+                          <p className="text-[13px] text-gray-500 line-clamp-3 mb-3">
+                            {post.sharedPost.description}
+                          </p>
+                        )}
+
+                        {Array.isArray(post.sharedPost.images) && post.sharedPost.images.length > 0 && (
+                          <img 
+                            src={post.sharedPost.images[0]} 
+                            className="w-full h-44 object-cover rounded-lg border border-gray-100" 
+                            alt="Original Media"
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {post.lat && post.lng ? (
+                          <div className="mb-4">
+                            <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
+                              <MapPin size={16} /> 
+                              {typeof post.location === 'string' && post.location !== t.unknownLocation ? post.location : t.pinnedLocation}
+                              <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white text-[#f44336] shadow-sm'}`}>
+                                {expandedMap[post._id] ? t.closeMap : t.viewMap}
+                              </span>
+                            </button>
+                            {expandedMap[post._id] ? (
+                              <div className="mt-3 h-[250px] w-full border border-gray-200 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                                <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
-                      </div>
-                    ) : null}
 
-                    {Array.isArray(post.images) && post.images.length > 0 ? (() => {
-                      const normalizedImages = post.images.map((img) => getPostImageUrl(img)).filter(Boolean);
-                      if (normalizedImages.length === 0) return null;
-                      return (
-                        <div className="mb-4 space-y-2">
-                          <img
-                            src={normalizedImages[0]}
-                            alt="media-main"
-                            className={`w-full rounded-2xl object-cover border ${isDarkMode ? 'border-gray-700' : 'border-gray-100'} max-h-[420px]`}
-                          />
-                          {normalizedImages.length > 1 ? (
-                            <div className="grid grid-cols-2 gap-2">
-                              {normalizedImages.slice(1).map((img, idx) => (
-                                <img
-                                  key={idx}
-                                  src={img}
-                                  alt={`media-${idx + 1}`}
-                                  className={`w-full h-[150px] rounded-xl object-cover border ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}
-                                />
-                              ))}
+                        {Array.isArray(post.images) && post.images.length > 0 ? (() => {
+                          const normalizedImages = post.images.map((img) => getPostImageUrl(img)).filter(Boolean);
+                          if (normalizedImages.length === 0) return null;
+                          return (
+                            <div className="mb-4 space-y-2">
+                              <img
+                                src={normalizedImages[0]}
+                                alt="media-main"
+                                className={`w-full rounded-2xl object-cover border ${isDarkMode ? 'border-gray-700' : 'border-gray-100'} max-h-[420px]`}
+                              />
+                              {normalizedImages.length > 1 ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {normalizedImages.slice(1).map((img, idx) => (
+                                    <img
+                                      key={idx}
+                                      src={img}
+                                      alt={`media-${idx + 1}`}
+                                      className={`w-full h-[150px] rounded-xl object-cover border ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
-                        </div>
-                      );
-                    })() : null}
+                          );
+                        })() : null}
+                      </>
+                    )}
 
                     <div className={`flex items-center gap-6 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-50'}`}>
                       {(() => {
@@ -2058,7 +2247,12 @@ function DashboardContent() {
                         <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || t.comments}
                       </button>
                       <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(String(post._id))} onToggleSave={handleToggleSavedPost} />
-                      <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('sharePost', { detail: { post } }))}
+                        title="Chia sẻ qua tin nhắn"
+                        className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto"
+                      >
                         <Share2 size={20} strokeWidth={2.5} />
                       </button>
                     </div>
@@ -2204,7 +2398,8 @@ function DashboardContent() {
                     </div>
                   </div>
                 );
-              }) : null}
+              });
+            })()}
           </div>
         </div>
 

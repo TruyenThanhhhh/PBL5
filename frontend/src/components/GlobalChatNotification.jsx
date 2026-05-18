@@ -1,21 +1,77 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import {
   MessageSquare, X, ArrowLeft, Send, User, Image as ImageIcon,
-  Search, Users, Loader2, MoreHorizontal, Trash2
+  Search, Users, Loader2, MoreHorizontal, Trash2, Share2, MapPin
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 const API = 'http://localhost:5000';
 
+const formatMessage = (msg, myId) => {
+  const senderId = String(msg.sender?._id || msg.sender);
+  const isMe = senderId === String(myId);
+  return {
+    _id: msg._id,
+    sender: isMe ? 'me' : 'them',
+    senderName: msg.sender?.displayName || msg.sender?.username,
+    senderAvatar: msg.sender?.avatar,
+    senderId,
+    text: msg.text,
+    image: msg.image,
+    messageType: msg.messageType || (msg.sharedPost ? 'post' : msg.image ? 'image' : 'text'),
+    sharedPost: msg.sharedPost || null,
+    readBy: (msg.readBy || []).map((u) => (typeof u === 'object' ? u._id : u)),
+    createdAt: msg.createdAt,
+  };
+};
+
+const PostShareCard = ({ post, isMe, onOpen }) => {
+  if (!post) return null;
+  const thumb = post.images?.[0];
+  const author = post.createdBy?.displayName || post.createdBy?.username || '';
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(post._id)}
+      className={`mt-1 w-full text-left rounded-xl overflow-hidden border transition-opacity hover:opacity-90 ${
+        isMe ? 'border-white/30 bg-white/10' : 'border-gray-200 bg-gray-50'
+      }`}
+    >
+      {thumb && <img src={thumb} alt="" className="w-full h-28 object-cover" />}
+      <div className="p-2.5">
+        <p className={`text-[12px] font-black line-clamp-2 ${isMe ? 'text-white' : 'text-gray-900'}`}>
+          {post.title || 'Bài viết'}
+        </p>
+        {post.location && (
+          <p className={`text-[10px] font-medium mt-0.5 flex items-center gap-1 ${isMe ? 'text-white/80' : 'text-gray-500'}`}>
+            <MapPin size={10} /> {post.location}
+          </p>
+        )}
+        {author && (
+          <p className={`text-[10px] mt-1 ${isMe ? 'text-white/70' : 'text-gray-400'}`}>bởi {author}</p>
+        )}
+      </div>
+    </button>
+  );
+};
+
 export default function GlobalChatNotification() {
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    setIsUserChatOpen(false);
+    setIsNotificationOpen(false);
+  }, [location.pathname]);
+
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const currentConversationIdRef = useRef(null);
 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -36,6 +92,12 @@ export default function GlobalChatNotification() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isChatOptionsOpen, setIsChatOptionsOpen] = useState(false);
   const [typingInfo, setTypingInfo] = useState(null);
+  const [sharePostModal, setSharePostModal] = useState(null);
+  const [shareSearchQuery, setShareSearchQuery] = useState('');
+  const [isSharingPost, setIsSharingPost] = useState(false);
+  const [pendingSharePost, setPendingSharePost] = useState(null);
+  const [shareComment, setShareComment] = useState('');
+  const [isSharingProfile, setIsSharingProfile] = useState(false);
 
   const getToken = () => localStorage.getItem('token');
   const getMyId = () => localStorage.getItem('userId');
@@ -116,21 +178,10 @@ export default function GlobalChatNotification() {
         });
         if (msgRes.ok) {
           const messages = await msgRes.json();
-          const formattedMessages = messages.map((msg) => {
-            const senderId = String(msg.sender?._id || msg.sender);
-            const isMe = senderId === String(myId);
-            return {
-              sender: isMe ? 'me' : 'them',
-              senderName: msg.sender?.username,
-              senderAvatar: msg.sender?.avatar,
-              senderId,
-              text: msg.text,
-              image: msg.image,
-              readBy: msg.readBy?.map((u) => u._id || u),
-              createdAt: msg.createdAt,
-            };
-          });
-          setUserMessages((prev) => ({ ...prev, [convId]: formattedMessages }));
+          setUserMessages((prev) => ({
+            ...prev,
+            [convId]: messages.map((msg) => formatMessage(msg, myId)),
+          }));
           markAsSeen(convId);
         }
       } catch (_) {
@@ -174,21 +225,10 @@ export default function GlobalChatNotification() {
 
         if (msgRes.ok) {
           const messages = await msgRes.json();
-          const formattedMessages = messages.map((msg) => {
-            const senderId = String(msg.sender?._id || msg.sender);
-            const isMe = senderId === String(myId);
-            return {
-              sender: isMe ? 'me' : 'them',
-              senderName: msg.sender?.username,
-              senderAvatar: msg.sender?.avatar,
-              senderId,
-              text: msg.text,
-              image: msg.image,
-              readBy: msg.readBy?.map((u) => u._id || u),
-              createdAt: msg.createdAt,
-            };
-          });
-          setUserMessages((prev) => ({ ...prev, [convId]: formattedMessages }));
+          setUserMessages((prev) => ({
+            ...prev,
+            [convId]: messages.map((msg) => formatMessage(msg, myId)),
+          }));
           markAsSeen(convId);
         }
       } catch (_) {
@@ -198,6 +238,116 @@ export default function GlobalChatNotification() {
     },
     [markAsSeen]
   );
+
+  const sendPostToConversation = useCallback(
+    async (post, convId, receiverId) => {
+      const token = getToken();
+      const myId = getMyId();
+      if (!token || !post?._id || !convId) return false;
+
+      const res = await fetch(`${API}/api/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: convId,
+          receiverId: receiverId ? String(receiverId) : undefined,
+          postId: String(post._id),
+          text: 'Đã chia sẻ một bài viết',
+        }),
+      });
+
+      if (!res.ok) return false;
+
+      const saved = await res.json();
+      const msgObj = formatMessage(saved, myId);
+      setUserMessages((prev) => {
+        const existing = prev[convId] || [];
+        if (msgObj._id && existing.some((m) => m._id && String(m._id) === String(msgObj._id))) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [convId]: [...existing, msgObj],
+        };
+      });
+      fetchConversations();
+      return true;
+    },
+    [fetchConversations]
+  );
+
+  const sendPostToFriend = useCallback(
+    async (post, friend) => {
+      const token = getToken();
+      if (!token || !post?._id || !friend?._id) return;
+
+      setIsSharingPost(true);
+      try {
+        const convRes = await fetch(`${API}/api/messages/conversation`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ targetUserId: String(friend._id) }),
+        });
+        if (!convRes.ok) return;
+
+        const conversation = await convRes.json();
+        const ok = await sendPostToConversation(post, conversation._id, friend._id);
+        if (!ok) return;
+
+        setSharePostModal(null);
+        setShareSearchQuery('');
+        setIsUserChatOpen(true);
+        setIsNotificationOpen(false);
+        setSelectedGroup(null);
+        setSelectedChatUser(friend);
+        setChatView('conversation');
+        setCurrentConversationId(conversation._id);
+        currentConversationIdRef.current = conversation._id;
+        socketRef.current?.emit('join_room', conversation._id);
+      } finally {
+        setIsSharingPost(false);
+      }
+    },
+    [sendPostToConversation]
+  );
+
+  const handleShareToProfile = async () => {
+    if (!sharePostModal?.post?._id) return;
+    const token = getToken();
+    if (!token) return;
+
+    setIsSharingProfile(true);
+    try {
+      const res = await fetch(`${API}/api/posts/${sharePostModal.post._id}/share-profile`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ description: shareComment || 'Đã chia sẻ một bài viết' }),
+      });
+
+      if (res.ok) {
+        setSharePostModal(null);
+        setShareComment('');
+        window.dispatchEvent(new CustomEvent('postSharedSuccess'));
+        alert('Đã chia sẻ bài viết lên trang cá nhân thành công!');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Không thể chia sẻ bài viết');
+      }
+    } catch (_) {
+      alert('Lỗi kết nối khi chia sẻ bài viết');
+    } finally {
+      setIsSharingProfile(false);
+    }
+  };
 
   const openConversationWithUser = useCallback(
     async (targetUser) => {
@@ -218,7 +368,10 @@ export default function GlobalChatNotification() {
       const res = await fetch(`${API}/api/users/${userId}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) return res.json();
+      if (res.ok) {
+        const data = await res.json();
+        return data.user || data;
+      }
     } catch (_) {}
     return { _id: userId, username: 'Người dùng' };
   }, []);
@@ -331,28 +484,29 @@ export default function GlobalChatNotification() {
       });
 
       if (res.ok) {
-        socketRef.current?.emit('send_message', {
-          conversationId: convId,
-          text,
-          image: imageUrl,
-          senderId: myId,
-          senderName: localStorage.getItem('username'),
-          senderAvatar: localStorage.getItem('avatar'),
+        const saved = await res.json().catch(() => null);
+        const msgObj = saved?._id
+          ? formatMessage(saved, myId)
+          : {
+              sender: 'me',
+              text,
+              image: imageUrl,
+              messageType: imageUrl ? 'image' : 'text',
+              senderName: localStorage.getItem('username'),
+              senderAvatar: localStorage.getItem('avatar'),
+              readBy: [myId],
+              createdAt: new Date().toISOString(),
+            };
+        setUserMessages((prev) => {
+          const existing = prev[convId] || [];
+          if (msgObj._id && existing.some((m) => m._id && String(m._id) === String(msgObj._id))) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [convId]: [...existing, msgObj],
+          };
         });
-
-        const msgObj = {
-          sender: 'me',
-          text,
-          image: imageUrl,
-          senderName: localStorage.getItem('username'),
-          senderAvatar: localStorage.getItem('avatar'),
-          readBy: [myId],
-          createdAt: new Date().toISOString(),
-        };
-        setUserMessages((prev) => ({
-          ...prev,
-          [convId]: [...(prev[convId] || []), msgObj],
-        }));
         fetchConversations();
       }
     } catch (_) {
@@ -385,7 +539,7 @@ export default function GlobalChatNotification() {
     socketRef.current.emit('typing', {
       conversationId: currentConversationId,
       userId: getMyId(),
-      username: localStorage.getItem('username'),
+      username: localStorage.getItem('displayName') || localStorage.getItem('username'),
     });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
@@ -396,44 +550,62 @@ export default function GlobalChatNotification() {
     }, 1500);
   };
 
-  useEffect(() => {
+  const initSocket = useCallback(() => {
     const myId = getMyId();
-    if (!myId) return;
+    if (!myId) return null;
+    if (socketRef.current) {
+      if (socketRef.current.userId === myId && socketRef.current.connected) {
+        return socketRef.current;
+      }
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
 
     const socket = io(API, { transports: ['websocket', 'polling'], withCredentials: true });
+    socket.userId = myId;
     socketRef.current = socket;
     socket.emit('user_online', myId);
 
     socket.on('receive_message', (data) => {
-      const { conversationId, text, image, readBy, sender, createdAt } = data;
       const currentUserId = getMyId();
-      const isMine = String(sender._id || sender) === String(currentUserId);
+      const convId = String(data.conversationId);
+      const msgObj = formatMessage(
+        {
+          _id: data._id,
+          sender: data.sender,
+          text: data.text,
+          image: data.image,
+          messageType: data.messageType,
+          sharedPost: data.sharedPost,
+          readBy: data.readBy,
+          createdAt: data.createdAt,
+        },
+        currentUserId
+      );
 
-      const msgObj = {
-        sender: isMine ? 'me' : 'them',
-        text,
-        image,
-        readBy: readBy || [],
-        senderName: sender.username,
-        senderAvatar: sender.avatar,
-        senderId: sender._id || sender,
-        createdAt,
-      };
+      if (String(data.sender?._id || data.sender) !== String(currentUserId)) {
+        setTypingInfo(null);
+      }
 
       setUserMessages((prev) => {
-        const existing = prev[conversationId] || [];
+        const existing = prev[convId] || [];
+        if (data._id && existing.some((m) => m._id && String(m._id) === String(data._id))) {
+          return prev;
+        }
         const isDuplicate = existing.some(
           (m) =>
-            m.text === text &&
-            m.sender === (isMine ? 'me' : 'them') &&
-            Math.abs(new Date(m.createdAt || Date.now()) - new Date(createdAt)) < 2000
+            !m._id &&
+            m.text === msgObj.text &&
+            m.sender === msgObj.sender &&
+            m.messageType === msgObj.messageType &&
+            Math.abs(new Date(m.createdAt || Date.now()) - new Date(msgObj.createdAt)) < 2000
         );
         if (isDuplicate) return prev;
-        return { ...prev, [conversationId]: [...existing, msgObj] };
+        return { ...prev, [convId]: [...existing, msgObj] };
       });
 
       setCurrentConversationId((openId) => {
-        if (openId === conversationId) markAsSeen(conversationId);
+        if (openId === convId) markAsSeen(convId);
         return openId;
       });
       fetchConversations();
@@ -453,28 +625,63 @@ export default function GlobalChatNotification() {
       });
     });
 
-    socket.on('user_typing', ({ username }) => setTypingInfo({ username }));
-    socket.on('user_stop_typing', () => setTypingInfo(null));
+    socket.on('user_typing', ({ conversationId, userId, username }) => {
+      if (String(userId) === String(getMyId())) return;
+      if (String(conversationId) !== String(currentConversationIdRef.current)) return;
+      setTypingInfo({ username: username || 'Người dùng' });
+    });
+
+    socket.on('user_stop_typing', ({ conversationId, userId }) => {
+      if (String(userId) === String(getMyId())) return;
+      if (String(conversationId) !== String(currentConversationIdRef.current)) return;
+      setTypingInfo(null);
+    });
 
     socket.on(`notification_${myId}`, (newNotif) => {
       setNotifications((prev) => [newNotif, ...prev]);
     });
 
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
+    return socket;
   }, [fetchConversations, markAsSeen]);
 
   useEffect(() => {
+    const socket = initSocket();
+    return () => {
+      if (socket) {
+        socket.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [initSocket, isUserChatOpen]);
+
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+    setTypingInfo(null);
     if (currentConversationId) {
-      socketRef.current?.emit('join_room', currentConversationId);
+      const socket = initSocket();
+      socket?.emit('join_room', currentConversationId);
     }
-  }, [currentConversationId]);
+  }, [currentConversationId, initSocket]);
+
+  useEffect(() => {
+    if (!pendingSharePost || !currentConversationId || !selectedChatUser) return;
+    let cancelled = false;
+    (async () => {
+      const ok = await sendPostToConversation(
+        pendingSharePost,
+        currentConversationId,
+        selectedChatUser._id
+      );
+      if (!cancelled && ok) setPendingSharePost(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingSharePost, currentConversationId, selectedChatUser, sendPostToConversation]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [userMessages, chatView, isUserChatOpen]);
+  }, [userMessages, chatView, isUserChatOpen, typingInfo]);
 
   useEffect(() => {
     if (getMyId()) {
@@ -487,9 +694,11 @@ export default function GlobalChatNotification() {
   useEffect(() => {
     const handleOpenChat = async (e) => {
       const targetUserId = e.detail?.targetUserId || e.detail?.userId;
+      const post = e.detail?.post;
       if (targetUserId) {
         setIsUserChatOpen(true);
         setIsNotificationOpen(false);
+        if (post) setPendingSharePost(post);
         const user = await fetchUserById(targetUserId);
         if (user) await openConversationWithUser(user);
         return;
@@ -516,11 +725,21 @@ export default function GlobalChatNotification() {
       setIsUserChatOpen(false);
     };
 
+    const handleSharePost = (e) => {
+      const post = e.detail?.post;
+      if (!post?._id) return;
+      setSharePostModal({ post });
+      setShareSearchQuery('');
+      setIsNotificationOpen(false);
+    };
+
     window.addEventListener('openChat', handleOpenChat);
     window.addEventListener('openNotifications', handleOpenNotifications);
+    window.addEventListener('sharePost', handleSharePost);
     return () => {
       window.removeEventListener('openChat', handleOpenChat);
       window.removeEventListener('openNotifications', handleOpenNotifications);
+      window.removeEventListener('sharePost', handleSharePost);
     };
   }, [fetchNotifications, openConversationWithUser, fetchUserById, fetchConversations, fetchFriends]);
 
@@ -813,8 +1032,9 @@ export default function GlobalChatNotification() {
                 ) : (
                   currentChatMessages.map((msg, idx) => {
                     const isMe = msg.sender === 'me';
+                    const isPost = msg.messageType === 'post' && msg.sharedPost;
                     return (
-                      <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg._id || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`max-w-[75%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap break-words ${
                             isMe
@@ -830,7 +1050,20 @@ export default function GlobalChatNotification() {
                               onClick={() => window.open(msg.image, '_blank')}
                             />
                           )}
-                          {msg.text}
+                          {isPost ? (
+                            <>
+                              {msg.text && msg.text !== 'Đã chia sẻ một bài viết' && (
+                                <p className="mb-1">{msg.text}</p>
+                              )}
+                              <PostShareCard
+                                post={msg.sharedPost}
+                                isMe={isMe}
+                                onOpen={(postId) => navigate('/post-detail', { state: { postId } })}
+                              />
+                            </>
+                          ) : (
+                            msg.text
+                          )}
                         </div>
                       </div>
                     );
@@ -841,7 +1074,7 @@ export default function GlobalChatNotification() {
 
               {typingInfo && (
                 <p className="text-[11px] text-gray-400 px-3 pb-1 animate-pulse">
-                  ✏️ {typingInfo.username} đang gõ...
+                  {typingInfo.username} đang nhập...
                 </p>
               )}
 
@@ -890,6 +1123,109 @@ export default function GlobalChatNotification() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {sharePostModal?.post && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
+          <div
+            className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${
+              isDarkMode ? 'bg-[#1e293b] border border-gray-700' : 'bg-white border border-gray-100'
+            }`}
+          >
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+              <h3 className={`font-black text-[15px] ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Chia sẻ bài viết
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSharePostModal(null)}
+                className={isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-700'}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <PostShareCard
+                post={sharePostModal.post}
+                isMe={false}
+                onOpen={() => navigate('/post-detail', { state: { postId: sharePostModal.post._id } })}
+              />
+              <textarea
+                value={shareComment}
+                onChange={(e) => setShareComment(e.target.value)}
+                placeholder="Viết suy nghĩ của bạn về bài viết này..."
+                className={`w-full mt-3 rounded-xl p-2.5 text-[13px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all ${
+                  isDarkMode ? 'bg-gray-800 text-white' : 'bg-[#f4f4f5] text-gray-900'
+                }`}
+                rows="2"
+              />
+              <button
+                type="button"
+                disabled={isSharingProfile}
+                onClick={handleShareToProfile}
+                className="w-full mt-3 flex items-center justify-center gap-2 bg-[#f44336] text-white text-[13px] font-bold py-2.5 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {isSharingProfile ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <Share2 size={16} /> Chia sẻ lên trang cá nhân
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="p-4">
+              <p className={`text-[12px] font-bold mb-3 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Hoặc gửi qua tin nhắn cho bạn bè:</p>
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input
+                  value={shareSearchQuery}
+                  onChange={(e) => setShareSearchQuery(e.target.value)}
+                  placeholder="Tìm bạn bè..."
+                  className={`w-full rounded-xl py-2 pl-9 pr-3 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 ${
+                    isDarkMode ? 'bg-gray-800 text-white' : 'bg-[#f4f4f5] text-gray-900'
+                  }`}
+                />
+              </div>
+
+              <div className="max-h-[240px] overflow-y-auto space-y-1">
+                {friends
+                  .filter((f) => {
+                    const name = (f.displayName || f.username || '').toLowerCase();
+                    return name.includes(shareSearchQuery.toLowerCase());
+                  })
+                  .map((friend) => (
+                    <button
+                      key={friend._id}
+                      type="button"
+                      disabled={isSharingPost}
+                      onClick={() => sendPostToFriend(sharePostModal.post, friend)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                      } disabled:opacity-50`}
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+                        {friend.avatar ? (
+                          <img src={friend.avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={16} className="text-gray-400" />
+                        )}
+                      </div>
+                      <span className={`text-[13px] font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {friend.displayName || friend.username}
+                      </span>
+                      <Share2 size={14} className="ml-auto text-[#f44336] shrink-0" />
+                    </button>
+                  ))}
+                {friends.length === 0 && (
+                  <p className="text-center text-[12px] text-gray-400 py-4">Bạn chưa có bạn bè để chia sẻ.</p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </>

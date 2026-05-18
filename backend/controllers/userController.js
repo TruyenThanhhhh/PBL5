@@ -732,27 +732,54 @@ exports.getFollowers = async (req, res) => {
 // 👤 GET USER PROFILE
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select("-password")
-      .populate("followers", "username avatar")
-      .populate("following", "username avatar")
-      .populate("friends", "username avatar");
+    const myId = req.user.id;
+    const targetId = req.params.id;
+
+    const [user, me] = await Promise.all([
+      User.findById(targetId)
+        .select("-password")
+        .populate("followers", "username avatar")
+        .populate("following", "username avatar")
+        .populate("friends", "username avatar"),
+      User.findById(myId).select("friendRequests friends")
+    ]);
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     const posts = await Post.find({
-      createdBy: req.params.id,
+      createdBy: targetId,
       $or: [
         { publishedToProfile: true },
         { community: null },
         { community: { $exists: false } },
       ],
     })
+      .populate({
+        path: "sharedPost",
+        populate: { path: "createdBy", select: "username displayName avatar role" }
+      })
       .sort({ createdAt: -1 })
       .limit(20);
 
     const profile = user.toObject();
     profile.role = normalizeRole(user.role);
+
+    // Calculate friendStatus
+    let friendStatus = "none";
+    if (me) {
+      const isFriend = (me.friends || []).some(id => String(id) === String(targetId));
+      const hasSentRequest = (user.friendRequests || []).some(id => String(id) === String(myId));
+      const hasReceivedRequest = (me.friendRequests || []).some(id => String(id) === String(targetId));
+
+      if (isFriend) {
+        friendStatus = "friends";
+      } else if (hasSentRequest) {
+        friendStatus = "pending";
+      } else if (hasReceivedRequest) {
+        friendStatus = "received";
+      }
+    }
+    profile.friendStatus = friendStatus;
 
     res.json({ user: profile, posts });
   } catch (error) {

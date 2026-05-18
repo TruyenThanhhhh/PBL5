@@ -61,6 +61,7 @@ export default function Community() {
   const t = copy[language] || copy.vi;
 
   const [joined, setJoined] = useState([]);
+  const [allCommunities, setAllCommunities] = useState([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -95,15 +96,52 @@ export default function Community() {
     }
   }, [t.loadError]);
 
+  const fetchAll = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/communities`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllCommunities(Array.isArray(data) ? data : []);
+      }
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     fetchMine();
-  }, [fetchMine]);
+    fetchAll();
+  }, [fetchMine, fetchAll]);
+
+  const handleJoin = async (communityId) => {
+    if (!token()) return navigate('/login');
+    try {
+      const res = await fetch(`${API}/communities/${communityId}/join`, {
+        method: 'POST',
+        headers: { ...authHeader() },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(data.message || 'Đã gửi yêu cầu tham gia');
+        fetchMine();
+        fetchAll();
+      } else {
+        showToast(data.message || 'Lỗi tham gia cộng đồng');
+      }
+    } catch (_) {
+      showToast('Lỗi kết nối khi tham gia cộng đồng');
+    }
+  };
 
   const filteredJoined = useMemo(() => {
     const k = q.trim().toLowerCase();
     if (!k) return joined;
     return joined.filter((c) => String(c.name || '').toLowerCase().includes(k));
   }, [joined, q]);
+
+  const filteredAll = useMemo(() => {
+    const k = q.trim().toLowerCase();
+    if (!k) return [];
+    return allCommunities.filter((c) => String(c.name || '').toLowerCase().includes(k));
+  }, [allCommunities, q]);
 
   const handleCreateCommunity = async (e) => {
     e.preventDefault();
@@ -122,6 +160,7 @@ export default function Community() {
       setNewName('');
       setNewDesc('');
       await fetchMine();
+      await fetchAll();
       if (data.community?._id) navigate(`/community/${data.community._id}`);
       else showToast(language === 'vi' ? 'Đã tạo cộng đồng' : 'Community created');
     } catch (err) {
@@ -212,34 +251,107 @@ export default function Community() {
               <div className="flex justify-center py-16 text-gray-400">
                 <Loader2 className="animate-spin" size={28} />
               </div>
-            ) : filteredJoined.length === 0 ? (
-              <p className="text-[13px] text-gray-500 font-medium text-center py-8">{t.emptyJoined}</p>
+            ) : q.trim() === '' ? (
+              filteredJoined.length === 0 ? (
+                <p className="text-[13px] text-gray-500 font-medium text-center py-8">{t.emptyJoined}</p>
+              ) : (
+                <ul className="flex flex-col gap-3 list-none p-0 m-0">
+                  {filteredJoined.map((c) => (
+                    <li key={c._id}>
+                      <Link
+                        to={`/community/${c._id}`}
+                        className="flex items-center justify-between gap-3 px-4 py-4 rounded-xl bg-white border border-gray-100 shadow-sm hover:border-[#f44336]/30 hover:shadow transition-all"
+                      >
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-[14px] text-gray-900 truncate">{c.name}</span>
+                            {c.myRole === 'owner' && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                <Crown size={11} /> {t.ownerBadge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                            {(c.memberCount ?? 0)} {t.members} · {(c.postCount ?? 0)} {t.posts}
+                          </p>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-400 flex-shrink-0" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )
             ) : (
-              <ul className="flex flex-col gap-3 list-none p-0 m-0">
-                {filteredJoined.map((c) => (
-                  <li key={c._id}>
-                    <Link
-                      to={`/community/${c._id}`}
-                      className="flex items-center justify-between gap-3 px-4 py-4 rounded-xl bg-white border border-gray-100 shadow-sm hover:border-[#f44336]/30 hover:shadow transition-all"
-                    >
-                      <div className="min-w-0 text-left">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-[14px] text-gray-900 truncate">{c.name}</span>
-                          {c.myRole === 'owner' && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                              <Crown size={11} /> {t.ownerBadge}
+              filteredAll.length === 0 ? (
+                <p className="text-[13px] text-gray-500 font-medium text-center py-8">
+                  {language === 'vi' ? 'Không tìm thấy cộng đồng nào phù hợp.' : 'No matching communities found.'}
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3 list-none p-0 m-0">
+                  {filteredAll.map((c) => {
+                    const myId = localStorage.getItem('userId');
+                    const isOwner = String(c.createdBy?._id || c.createdBy) === myId;
+                    const isMember = isOwner || (c.members || []).some(m => String(m._id || m) === myId);
+                    const isPending = (c.pendingMembers || []).some(m => String(m._id || m) === myId);
+
+                    return (
+                      <li key={c._id}>
+                        <div
+                          className="flex items-center justify-between gap-3 px-4 py-4 rounded-xl bg-white border border-gray-100 shadow-sm hover:border-[#f44336]/30 hover:shadow transition-all"
+                        >
+                          <div className="min-w-0 text-left">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isMember ? (
+                                <Link to={`/community/${c._id}`} className="font-bold text-[14px] text-gray-900 hover:text-[#f44336] hover:underline truncate">
+                                  {c.name}
+                                </Link>
+                              ) : (
+                                <span className="font-bold text-[14px] text-gray-900 truncate">{c.name}</span>
+                              )}
+                              {isOwner && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                  <Crown size={11} /> {t.ownerBadge}
+                                </span>
+                              )}
+                              {isMember && !isOwner && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-800">
+                                  {language === 'vi' ? 'Đã tham gia' : 'Joined'}
+                                </span>
+                              )}
+                              {isPending && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                  {language === 'vi' ? 'Đang chờ duyệt' : 'Pending'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                              {(c.memberCount ?? 0)} {t.members} · {(c.postCount ?? 0)} {t.posts}
+                            </p>
+                          </div>
+                          
+                          {isMember ? (
+                            <Link to={`/community/${c._id}`}>
+                              <ChevronRight size={18} className="text-gray-400 hover:text-[#f44336] transition-colors" />
+                            </Link>
+                          ) : isPending ? (
+                            <span className="text-[12px] font-bold text-gray-400">
+                              {language === 'vi' ? 'Chờ duyệt' : 'Pending'}
                             </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleJoin(c._id)}
+                              className="px-4 py-1.5 rounded-lg bg-[#f44336] text-white text-[12px] font-bold hover:bg-[#e53935] transition-all"
+                            >
+                              {language === 'vi' ? 'Tham gia' : 'Join'}
+                            </button>
                           )}
                         </div>
-                        <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
-                          {(c.memberCount ?? 0)} {t.members} · {(c.postCount ?? 0)} {t.posts}
-                        </p>
-                      </div>
-                      <ChevronRight size={18} className="text-gray-400 flex-shrink-0" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
             )}
           </>
         )}

@@ -1,6 +1,7 @@
 const Post = require("../models/Post");
 const Community = require("../models/Community");
 const { cloudinary } = require("../config/cloudinary");
+const fs = require("fs");
 
 const normalizeRole = (role) => {
   if (typeof role !== "string") return "user";
@@ -73,6 +74,91 @@ exports.createPost = async (req, res) => {
   }
 };
 
+const analyzeImageWithGroq = async (filePath) => {
+  try {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      console.log("⚠️ AI_DEBUG: Thiếu biến GROQ_API_KEY trong file .env");
+      return null;
+    }
+
+    console.log("🚀 AI_DEBUG: Bắt đầu gửi ảnh sang Groq Vision AI (meta-llama/llama-4-scout-17b-16e-instruct)...");
+    
+    const imageBuffer = fs.readFileSync(filePath);
+    const base64Image = imageBuffer.toString('base64');
+    let mimeType = "image/jpeg";
+    if (filePath.endsWith('.png')) mimeType = "image/png";
+    if (filePath.endsWith('.webp')) mimeType = "image/webp";
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { 
+                type: "text", 
+                text: "Bạn là một AI phân loại hình ảnh. Hãy phân loại bức ảnh này vào CHÍNH XÁC MỘT TRONG CÁC TỪ KHÓA SAU: 'Ẩm thực', 'Biển đảo', 'Núi rừng', 'Văn hóa / Kiến trúc', 'Thành phố', 'Thú cưng', 'Góc làm việc', 'Đời thường'. Trả về duy nhất 1 từ khóa đó, không giải thích thêm." 
+              },
+              { 
+                type: "image_url", 
+                image_url: { url: `data:${mimeType};base64,${base64Image}` } 
+              }
+            ]
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 20
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`❌ AI_DEBUG: Lỗi gọi API Groq (Status: ${response.status}):`, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    let category = data.choices[0]?.message?.content?.trim();
+    console.log("🧠 AI_DEBUG: Groq Vision phân loại bức ảnh là:", category);
+
+    const validCategories = ["Ẩm thực", "Biển đảo", "Núi rừng", "Văn hóa / Kiến trúc", "Thành phố", "Thú cưng", "Góc làm việc", "Đời thường"];
+    
+    for (const validCat of validCategories) {
+      if (category.toLowerCase().includes(validCat.toLowerCase())) {
+        console.log(`🏷️ AI_DEBUG: AI đã chốt thẻ [${validCat}] từ hình ảnh.`);
+        return validCat;
+      }
+    }
+
+    console.log("⚠️ AI_DEBUG: AI trả lời từ khóa không nằm trong danh sách.");
+    return null; 
+  } catch (error) {
+    console.log("❌ Lỗi AI Groq Vision (Exception):", error.message);
+    return null; 
+  }
+};
+
+const autoCategorizeFromText = (text) => {
+  if (!text || text.trim() === "") return null;
+  const lowerText = text.toLowerCase();
+
+  if (lowerText.match(/ăn|uống|ngon|nhà hàng|quán|cafe|cà phê|trà sữa|món|bánh|phở|bún|cơm/)) return "Ẩm thực";
+  if (lowerText.match(/biển|đảo|cát|sóng|hải sản|bơi|tắm|vịnh|san hô/)) return "Biển đảo";
+  if (lowerText.match(/núi|rừng|đèo|suối|thác|cây|cắm trại|trekking|đỉnh/)) return "Núi rừng";
+  if (lowerText.match(/chùa|đền|di tích|lịch sử|bảo tàng|cổ|kiến trúc|nhà thờ/)) return "Văn hóa / Kiến trúc";
+  if (lowerText.match(/thành phố|đường phố|cầu|xe cộ|tòa nhà|check-in|sôi động/)) return "Thành phố";
+  if (lowerText.match(/chó|mèo|thú cưng|pet/)) return "Thú cưng";
+
+  return null; 
+};
+
 exports.createPostWithMedia = async (req, res) => {
   try {
     const { title, description, location, category, price, lat, lng, postType, communityId, publishedToProfile } =
@@ -98,11 +184,31 @@ exports.createPostWithMedia = async (req, res) => {
     const finalDescription =
       typeof description === "string" && description.trim() !== "" ? description : "\u200B";
 
+    let finalCategory = category || "General";
+    
+    if (finalCategory === "General" || finalCategory === "Chung") {
+      let imageAiCategory = null;
+      if (Array.isArray(req.files) && req.files.length > 0) {
+        const firstImagePath = req.files[0].path;
+        imageAiCategory = await analyzeImageWithGroq(firstImagePath);
+      }
+      
+      if (imageAiCategory) {
+        finalCategory = imageAiCategory;
+      } else {
+        const textCat = autoCategorizeFromText(finalDescription);
+        if (textCat) {
+          finalCategory = textCat;
+          console.log(`🏷️ AI_DEBUG: AI ảnh lỗi, chuyển sang gán thẻ theo chữ: [${finalCategory}]`);
+        }
+      }
+    }
+
     const newPost = new Post({
       title: title || "Cập nhật mới",
       description: finalDescription,
       location: location || "Chưa rõ vị trí",
-      category: category || "General",
+      category: finalCategory,
       price: normalizedPrice,
       images: uploadedUrls,
       lat: parsedLat,
@@ -163,6 +269,10 @@ exports.getPosts = async (req, res) => {
       // ✅ ĐÃ SỬA: Trả thêm role để Frontend biết ai là Admin, ai là User
       .populate("createdBy", "username displayName email avatar role")
       .populate("community", "name")
+      .populate({
+        path: "sharedPost",
+        populate: { path: "createdBy", select: "username displayName avatar role" }
+      })
       .sort({ createdAt: -1 });
 
     const normalizedPosts = posts.map((post) => {
@@ -262,6 +372,54 @@ exports.publishPostToProfile = async (req, res) => {
   }
 };
 
+exports.sharePostToProfile = async (req, res) => {
+  try {
+    const originalPostId = req.params.id;
+    const myId = req.user.id;
+
+    const originalPost = await Post.findById(originalPostId);
+    if (!originalPost) {
+      return res.status(404).json({ message: "Không tìm thấy bài viết gốc" });
+    }
+
+    const sharedPost = new Post({
+      title: originalPost.title || "Bài viết chia sẻ",
+      description: req.body.description || "Đã chia sẻ một bài viết",
+      location: originalPost.location || "Chưa rõ vị trí",
+      category: originalPost.category || "General",
+      price: originalPost.price,
+      images: originalPost.images || [],
+      lat: originalPost.lat,
+      lng: originalPost.lng,
+      postType: "regular",
+      createdBy: myId,
+      publishedToProfile: true,
+      sharedPost: originalPost._id,
+    });
+
+    await sharedPost.save();
+
+    try {
+      const { createAndEmitNotification } = require("./notificationController");
+      if (String(originalPost.createdBy) !== String(myId)) {
+        await createAndEmitNotification(req.io, req.connectedUsers, {
+          recipient: originalPost.createdBy,
+          sender: myId,
+          type: "share",
+          post: sharedPost._id,
+          content: "đã chia sẻ bài viết của bạn.",
+        });
+      }
+    } catch (notifErr) {
+      console.error("Notification error:", notifErr.message);
+    }
+
+    res.status(201).json({ message: "Chia sẻ bài viết lên trang cá nhân thành công", post: sharedPost });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.toggleVisibility = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -290,6 +448,10 @@ exports.getTrendingPosts = async (req, res) => {
 
     const posts = await Post.find(filter)
       .populate("createdBy", "username displayName email avatar role")
+      .populate({
+        path: "sharedPost",
+        populate: { path: "createdBy", select: "username displayName avatar role" }
+      })
       .lean();
 
     const scored = posts.map((p) => ({

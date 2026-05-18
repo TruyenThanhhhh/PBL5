@@ -81,6 +81,8 @@ router.patch(
   postController.publishPostToProfile
 );
 
+router.post("/:id/share-profile", protect, postController.sharePostToProfile);
+
 // ❤️ Like — phải đăng nhập (viewer cũng like được)
 router.put("/like/:id", protect, postController.likePost);
 
