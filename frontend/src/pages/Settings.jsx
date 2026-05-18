@@ -3,7 +3,7 @@ import { useNavigate, BrowserRouter, useInRouterContext } from 'react-router-dom
 import { 
   User, Shield, Lock, Palette, LogOut, Languages,
   Camera, CheckCircle, AlertCircle, Loader2, Check,
-  Eye, EyeOff, Monitor, Moon, Sun, MessageSquare
+  Eye, EyeOff, Monitor, Moon, Sun, MessageSquare, Bell
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import AccountMenu from '../components/AccountMenu';
@@ -16,11 +16,16 @@ const copy = {
     navCommunity: 'Cộng đồng',
     title: 'Cài đặt',
     subtitle: 'Quản lý tài khoản và trải nghiệm của bạn',
+    
+    // Sidebar Menu
     profile: 'Hồ sơ',
     account: 'Bảo mật',
     privacy: 'Quyền riêng tư',
     appearance: 'Giao diện',
     language: 'Ngôn ngữ',
+    logout: 'Đăng xuất',
+    manage: 'Quản lý',
+
     profileTitle: 'Hồ sơ cá nhân',
     profileSubtitle: 'Cập nhật thông tin hiển thị công khai của bạn.',
     coverAlt: 'Ảnh bìa',
@@ -31,7 +36,7 @@ const copy = {
     bioPlaceholder: 'Viết vài dòng giới thiệu về bạn',
     save: 'Lưu thay đổi',
     saving: 'Đang lưu...',
-    loginRequired: 'Vui lòng đăng nhập để cập nhật hồ sơ.',
+    loginRequired: 'Vui lòng đăng nhập để thao tác.',
     loadError: 'Không thể tải thông tin.',
     saveError: 'Đã có lỗi xảy ra. Vui lòng thử lại.',
     saveSuccess: 'Cập nhật thành công.',
@@ -65,10 +70,10 @@ const copy = {
     showActivityDesc: 'Người khác sẽ thấy khi bạn đang online.',
     
     // Appearance
-    appTitle: 'Giao diện',
-    appSubtitle: 'Tùy chỉnh màu sắc hiển thị của ứng dụng.',
-    themeLight: 'Chế độ Sáng',
-    themeDark: 'Chế độ Tối',
+    appTitle: 'Giao diện hiển thị',
+    appSubtitle: 'Tùy chỉnh màu sắc hiển thị của toàn bộ ứng dụng.',
+    themeLight: 'Giao diện Sáng',
+    themeDark: 'Giao diện Tối',
     themeSystem: 'Hệ thống'
   },
   en: {
@@ -77,11 +82,16 @@ const copy = {
     navCommunity: 'Community',
     title: 'Settings',
     subtitle: 'Manage your account and experience',
+    
+    // Sidebar Menu
     profile: 'Profile',
     account: 'Security',
     privacy: 'Privacy',
     appearance: 'Appearance',
     language: 'Language',
+    logout: 'Log out',
+    manage: 'Management',
+
     profileTitle: 'Profile',
     profileSubtitle: 'Update your public identity and profile details.',
     coverAlt: 'Cover image',
@@ -92,8 +102,8 @@ const copy = {
     bioPlaceholder: 'Write a few lines about yourself',
     save: 'Save changes',
     saving: 'Saving...',
-    loginRequired: 'Please sign in to update your profile.',
-    loadError: 'Unable to load profile.',
+    loginRequired: 'Please sign in to proceed.',
+    loadError: 'Unable to load information.',
     saveError: 'An error occurred. Please try again.',
     saveSuccess: 'Updated successfully.',
     languageTitle: 'Display language',
@@ -126,11 +136,11 @@ const copy = {
     showActivityDesc: 'Others will see when you are online.',
 
     // Appearance
-    appTitle: 'Appearance',
-    appSubtitle: 'Customize the app color theme.',
+    appTitle: 'Appearance Theme',
+    appSubtitle: 'Customize the app color theme globally.',
     themeLight: 'Light Theme',
     themeDark: 'Dark Theme',
-    themeSystem: 'System'
+    themeSystem: 'System Default'
   },
 };
 
@@ -189,7 +199,43 @@ function SettingsContent() {
     [t]
   );
 
-  // --- TẢI DỮ LIỆU BAN ĐẦU ---
+  // --- QUY TRÌNH ÁP DỤNG THEME LÊN THẺ HTML ĐỂ KÍCH HOẠT TAILWIND ---
+  const applyThemeToDOM = (selectedTheme) => {
+    const root = document.documentElement; // Thẻ <html>
+    
+    // Gỡ tất cả các class giao diện cũ
+    root.classList.remove('dark', 'light');
+
+    if (selectedTheme === 'dark') {
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else if (selectedTheme === 'light') {
+      root.classList.add('light');
+      root.style.colorScheme = 'light';
+    } else {
+      // Hệ thống
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (systemPrefersDark) {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
+      }
+    }
+  };
+
+  // Lắng nghe thay đổi giao diện từ máy tính nếu chọn chế độ System
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => applyThemeToDOM('system');
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
+
+  // --- TẢI DỮ LIỆU BAN ĐẦU TỪ DATABASE VÀ LOCALSTORAGE ---
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -202,7 +248,7 @@ function SettingsContent() {
           return;
         }
 
-        // 1. Tải Profile và Cấu hình Privacy từ Database
+        // Tải Profile và Cấu hình Privacy từ Database
         const res = await fetch(`http://localhost:5000/api/users/${userId}/profile`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -226,7 +272,6 @@ function SettingsContent() {
           setAvatarPreview(getImageUrl(user.avatar) || '');
           setCoverPreview(getImageUrl(user.cover) || '');
 
-          // Đồng bộ hóa trạng thái Privacy thật từ Database
           setPrivacySettings({
             isPrivate: user.isPrivate || false,
             messagePermission: user.messagePermission || 'everyone',
@@ -234,10 +279,10 @@ function SettingsContent() {
           });
         }
 
-        // 2. Tải Appearance từ LocalStorage
+        // Tải Appearance Theme từ LocalStorage và áp dụng ngay
         const savedTheme = localStorage.getItem('app-theme') || 'light';
         setTheme(savedTheme);
-        applyThemeClass(savedTheme);
+        applyThemeToDOM(savedTheme);
 
       } catch (error) {
         setAuthError(t.loadError);
@@ -327,7 +372,7 @@ function SettingsContent() {
     }
   };
 
-  // --- SUBMIT: PASSWORD (ĐỔI MẬT KHẨU THẬT & UPDATE DATABASE) ---
+  // --- SUBMIT: PASSWORD ---
   const handleSavePassword = async () => {
     setAccountMessage({ type: '', text: '' });
     
@@ -350,7 +395,7 @@ function SettingsContent() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          oldPassword: passwords.current, // Key khớp chuẩn xác 100% với xử lý Backend của bạn
+          oldPassword: passwords.current, // GỬI ĐÚNG TRƯỜNG "oldPassword" CHO BACKEND
           newPassword: passwords.new
         })
       });
@@ -370,7 +415,7 @@ function SettingsContent() {
     }
   };
 
-  // --- SUBMIT: PRIVACY (CẬP NHẬT QUYỀN RIÊNG TƯ VÀO DATABASE) ---
+  // --- SUBMIT: PRIVACY ---
   const handleSavePrivacy = async () => {
     setIsSavingPrivacy(true);
     setPrivacyMessage({ type: '', text: '' });
@@ -383,7 +428,7 @@ function SettingsContent() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(privacySettings) // Lưu trực tiếp cấu hình thật vào DB
+        body: JSON.stringify(privacySettings) 
       });
 
       const data = await res.json().catch(() => ({}));
@@ -400,34 +445,19 @@ function SettingsContent() {
     }
   };
 
-  // --- RENDER & THIẾT LẬP THEME GIAO DIỆN ---
-  const applyThemeClass = (selectedTheme) => {
-    if (selectedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (selectedTheme === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
-      // Hệ thống
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (systemPrefersDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-  };
-
+  // --- THAY ĐỔI THEME ---
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
     localStorage.setItem('app-theme', newTheme);
-    applyThemeClass(newTheme);
+    applyThemeToDOM(newTheme);
+    window.dispatchEvent(new CustomEvent('themeChange', { detail: { theme: newTheme } }));
   };
 
   // --- RENDER HELPERS ---
   const renderMessage = (msgObj) => {
     if (!msgObj.text) return null;
     return (
-      <div className={`mb-6 px-4 py-3 rounded-xl flex items-center gap-3 text-[13px] font-bold animate-in fade-in ${msgObj.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+      <div className={`mb-6 px-4 py-3 rounded-xl flex items-center gap-3 text-[13px] font-bold animate-in fade-in ${msgObj.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800'}`}>
         {msgObj.type === 'success' ? <CheckCircle size={18}/> : <AlertCircle size={18}/>}
         {msgObj.text}
       </div>
@@ -435,14 +465,14 @@ function SettingsContent() {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center"><Loader2 className="animate-spin text-[#f44336]" size={32}/></div>;
+    return <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex items-center justify-center"><Loader2 className="animate-spin text-[#f44336]" size={32}/></div>;
   }
 
   if (authError) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex flex-col items-center justify-center">
         <AlertCircle size={48} className="text-red-500 mb-4" />
-        <p className="text-gray-800 font-bold text-lg mb-6">{authError}</p>
+        <p className="text-gray-800 dark:text-white font-bold text-lg mb-6">{authError}</p>
         <button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white font-bold rounded-full hover:bg-red-600 shadow-md transition-colors">
           {t.navDashboard}
         </button>
@@ -453,10 +483,10 @@ function SettingsContent() {
   const userAvatar = avatarPreview || profileData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80';
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-900 font-sans text-gray-900 dark:text-white pb-12 transition-colors duration-200">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] font-sans text-gray-900 dark:text-gray-100 pb-12 transition-colors duration-300">
       
       {/* HEADER ĐỒNG BỘ VỚI PROFILE VÀ DASHBOARD */}
-      <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 h-[72px] shadow-sm">
+      <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 h-[72px] shadow-sm transition-colors">
         <div className="w-1/4 flex items-center gap-3">
           <button onClick={() => navigate('/dashboard')} className="text-[#f44336] font-extrabold text-xl tracking-tight hidden sm:block">The Wanderer</button>
         </div>
@@ -477,10 +507,10 @@ function SettingsContent() {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="max-w-[1360px] mx-auto px-6 2xl:px-8 pt-6 flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
+      <main className="max-w-[1360px] mx-auto px-6 2xl:px-8 pt-10 flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
         
         {/* LEFT SIDEBAR */}
-        <aside className="w-full md:w-[220px] flex-shrink-0 md:sticky md:top-[96px]">
+        <aside className="w-full md:w-[240px] flex-shrink-0 md:sticky md:top-[96px]">
           <div className="mb-6">
             <h1 className="text-2xl font-black text-gray-900 dark:text-white">{t.title}</h1>
             <p className="text-[12px] font-medium text-gray-500 dark:text-slate-400">{t.subtitle}</p>
@@ -505,8 +535,9 @@ function SettingsContent() {
           </nav>
 
           <div className="border-t border-gray-200 dark:border-slate-800 pt-6">
+            {/* Fix lỗi mất chữ Logout: Đảm bảo có fallback 'Đăng xuất' nếu biến t.logout gặp sự cố */}
             <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 text-[13px] font-bold text-[#f44336] hover:bg-red-50 dark:hover:bg-red-950/20 w-full rounded-lg transition-colors">
-              <LogOut size={18} strokeWidth={2.5} /> {t.logout}
+              <LogOut size={18} strokeWidth={2.5} /> {t.logout || 'Đăng xuất'}
             </button>
           </div>
         </aside>
@@ -523,7 +554,7 @@ function SettingsContent() {
                   <p className="text-[13px] text-gray-500 dark:text-slate-400 font-medium">{t.profileSubtitle}</p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6">
+                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 transition-colors duration-300">
                   <div className="relative mb-16 rounded-xl">
                     <label className="block w-full h-40 bg-gray-200 dark:bg-slate-700 relative overflow-hidden rounded-2xl group cursor-pointer border border-gray-100 dark:border-slate-800">
                       <img
@@ -605,7 +636,7 @@ function SettingsContent() {
                   <p className="text-[13px] text-gray-500 dark:text-slate-400 font-medium">{t.accSubtitle}</p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4">
+                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 transition-colors duration-300">
                   <div className="space-y-5 mb-6">
                     <div>
                       <label className="block text-[11px] font-black text-gray-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">{t.currPass}</label>
@@ -667,7 +698,7 @@ function SettingsContent() {
                   <p className="text-[13px] text-gray-500 dark:text-slate-400 font-medium">{t.privSubtitle}</p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 space-y-8">
+                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 space-y-8 transition-colors duration-300">
                   {/* Private Account Toggle */}
                   <div className="flex items-center justify-between">
                     <div>
@@ -746,14 +777,14 @@ function SettingsContent() {
                   <p className="text-[13px] text-gray-500 dark:text-slate-400 font-medium">{t.appSubtitle}</p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4">
+                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 transition-colors duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     
                     <button 
                       onClick={() => handleThemeChange('light')}
-                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'light' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-600'}`}
+                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'light' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-500'}`}
                     >
-                      <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950/40 text-orange-500 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-500 flex items-center justify-center">
                         <Sun size={24} strokeWidth={2.5}/>
                       </div>
                       <span className={`text-[13px] font-bold ${theme === 'light' ? 'text-[#f44336]' : 'text-gray-600 dark:text-slate-300'}`}>{t.themeLight}</span>
@@ -761,7 +792,7 @@ function SettingsContent() {
 
                     <button 
                       onClick={() => handleThemeChange('dark')}
-                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-600'}`}
+                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'dark' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-500'}`}
                     >
                       <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-200 flex items-center justify-center">
                         <Moon size={24} strokeWidth={2.5}/>
@@ -771,7 +802,7 @@ function SettingsContent() {
 
                     <button 
                       onClick={() => handleThemeChange('system')}
-                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'system' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-600'}`}
+                      className={`flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${theme === 'system' ? 'border-[#f44336] bg-red-50/50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-500'}`}
                     >
                       <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-500 flex items-center justify-center">
                         <Monitor size={24} strokeWidth={2.5}/>
@@ -794,7 +825,7 @@ function SettingsContent() {
                   <p className="text-[13px] text-gray-500 dark:text-slate-400 font-medium">{t.languageSubtitle}</p>
                 </div>
 
-                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 space-y-3">
+                <div className="bg-white dark:bg-[#1A2338] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 md:w-3/4 space-y-3 transition-colors duration-300">
                   {[
                     { value: 'vi', label: t.vietnamese },
                     { value: 'en', label: t.english },
@@ -802,7 +833,7 @@ function SettingsContent() {
                     <label
                       key={option.value}
                       className={`flex items-center justify-between rounded-2xl border-2 px-5 py-4 cursor-pointer transition-all ${
-                        language === option.value ? 'border-[#f44336] bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-600'
+                        language === option.value ? 'border-[#f44336] bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-slate-700 hover:border-gray-200 dark:hover:border-slate-600'
                       }`}
                     >
                       <span className={`text-[14px] font-bold ${language === option.value ? 'text-[#f44336]' : 'text-gray-700 dark:text-slate-300'}`}>{option.label}</span>

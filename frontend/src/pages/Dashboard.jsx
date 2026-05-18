@@ -7,20 +7,12 @@ import {
   ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell,
   UserCircle, Home, TrendingUp, LogOut, Shield
 } from 'lucide-react';
-
 import NotificationBell from '../components/NotificationBell';
 import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const getImageUrl = (url) => {
-  if (!url) return null;
-  if (url.startsWith('http') || url.startsWith('data:')) return url;
-  return `http://localhost:5000/${url.replace(/\\/g, '/')}`;
-};
-
 const getAvatarUrl = (url, name) => {
-  const finalUrl = getImageUrl(url);
-  return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
 const SavePostButton = ({ postId, initialIsSaved, onToggleSave }) => {
@@ -50,7 +42,7 @@ const SavePostButton = ({ postId, initialIsSaved, onToggleSave }) => {
   };
 
   return (
-    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}>
+    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900'}`}>
       <Bookmark size={20} strokeWidth={isSaved ? 3 : 2.5} fill={isSaved ? '#f44336' : 'none'} />
     </button>
   );
@@ -162,7 +154,7 @@ const copy = {
     phoCo: 'Hoi An Old Town',
     savedPhoCo: 'Added Hoi An Old Town to suggestions',
     chatTrip: 'Suggest Da Nang 2-day 1-night itinerary',
-    chatFood: 'What are good food options in Hue?',
+    chatFood: 'What are good food options in Theme?',
     chatCheckin: 'Beautiful check-in spots in Hoi An at night',
     noComment: 'No comments yet. Be the first!',
     loadingMap: 'Loading map...',
@@ -409,6 +401,44 @@ function DashboardContent() {
   const messagesEndRef = useRef(null);
   const friendDropdownRef = useRef(null);
   const userChatModalRef = useRef(null);
+
+  // --- QUY TRÌNH ÁP DỤNG THEME TOÀN CỤC ---
+  const applyThemeToDOM = (selectedTheme) => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'light');
+
+    if (selectedTheme === 'dark') {
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else if (selectedTheme === 'light') {
+      root.classList.add('light');
+      root.style.colorScheme = 'light';
+    } else {
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (systemPrefersDark) {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
+      }
+    }
+  };
+
+  // Lắng nghe sự kiện chuyển Sáng/Tối phát ra từ trang Settings
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('app-theme') || 'light';
+    applyThemeToDOM(savedTheme);
+
+    const handleThemeChange = (e) => {
+      if (e.detail && e.detail.theme) {
+        applyThemeToDOM(e.detail.theme);
+      }
+    };
+
+    window.addEventListener('themeChange', handleThemeChange);
+    return () => window.removeEventListener('themeChange', handleThemeChange);
+  }, []);
 
   // ==========================================
   // XỬ LÝ CHỐNG ĐÈ CHÉO COMPONENT
@@ -1252,36 +1282,36 @@ function DashboardContent() {
 
   /* Render View Dashboard... */
   return (
-    <div className="min-h-screen bg-[#f8f9fa] font-sans relative">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 pb-12 transition-colors duration-300 relative">
       {notification.text && (
-        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
+        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
           {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
           <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
-          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900"><X size={18} /></button>
+          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-white"><X size={18} /></button>
         </div>
       )}
 
       {deleteConfirm.open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6" onClick={cancelDelete}>
-          <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-gray-200" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-extrabold text-gray-900 mb-2">Xác nhận xóa bình luận</h3>
-            <p className="text-sm text-gray-700 mb-5">Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.</p>
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-2xl border border-gray-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Xác nhận xóa bình luận</h3>
+            <p className="text-sm text-gray-700 dark:text-slate-300 mb-5">Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.</p>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={cancelDelete} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Hủy</button>
+              <button type="button" onClick={cancelDelete} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700">Hủy</button>
               <button type="button" onClick={confirmDeleteComment} className="px-4 py-2 rounded-lg bg-[#f44336] text-white hover:bg-[#e22d41]">Xóa</button>
             </div>
           </div>
         </div>
       )}
 
-      <header className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-6 sticky top-0 z-50 shadow-sm">
+      <header className="h-[72px] bg-white dark:bg-[#131B2E] border-b border-gray-100 dark:border-slate-800 flex items-center justify-between px-6 sticky top-0 z-50 shadow-sm transition-colors duration-300">
         <div className="w-1/4">
-          <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight">The Wanderer</Link>
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 font-extrabold text-xl tracking-tight">The Wanderer</Link>
         </div>
-        <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
-          <Link to="/dashboard" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.home}</Link>
-          <Link to="/explore" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.explore}</Link>
-          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
+        <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500 dark:text-slate-400">
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/explore" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.explore}</Link>
+          <Link to="/community" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
           <NotificationBell />
@@ -1298,7 +1328,7 @@ function DashboardContent() {
                  setIsUserChatOpen(false);
               }
             }} 
-            className={`transition-colors relative chat-trigger-btn ${isUserChatOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`transition-colors relative chat-trigger-btn ${isUserChatOpen ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}
           >
             <MessageSquare size={22} strokeWidth={2} />
           </button>
@@ -1316,7 +1346,7 @@ function DashboardContent() {
                    setIsFriendDropdownOpen(false);
                 }
               }} 
-              className={`transition-colors relative global-toggle-btn ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`transition-colors relative global-toggle-btn ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}
             >
               <Users size={22} strokeWidth={2} />
               {receivedRequests.length > 0 ? (
@@ -1325,16 +1355,16 @@ function DashboardContent() {
             </button>
             
             {isFriendDropdownOpen && (
-              <div className="absolute right-0 top-12 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[130] animate-in slide-in-from-top-2 fade-in" onClick={e => e.stopPropagation()}>
-                <div className="p-3 border-b border-gray-100 bg-white">
+              <div className="absolute right-0 top-12 w-[340px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl rounded-2xl overflow-hidden z-[130] animate-in slide-in-from-top-2 fade-in" onClick={e => e.stopPropagation()}>
+                <div className="p-3 border-b border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800">
                   <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" />
                     <input 
                       type="text"
                       placeholder="Tìm kiếm bạn bè..."
                       value={friendSearchQuery}
                       onChange={(e) => setFriendSearchQuery(e.target.value)}
-                      className="w-full bg-[#f4f4f5] rounded-full py-2 pl-9 pr-4 text-[13px] outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                      className="w-full bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-full py-2 pl-9 pr-4 text-[13px] outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700"
                     />
                   </div>
                 </div>
@@ -1342,29 +1372,29 @@ function DashboardContent() {
                 <div className="max-h-[350px] overflow-y-auto pb-4">
                   {friendSearchQuery.trim() !== '' ? (
                     <div className="px-2 pt-2">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Kết quả tìm kiếm</p>
+                      <p className="text-[11px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest px-2 mb-2">Kết quả tìm kiếm</p>
                       {searchResults.length === 0 ? (
-                        <p className="text-[13px] text-center text-gray-500 py-4">Không tìm thấy người dùng nào.</p>
+                        <p className="text-[13px] text-center text-gray-500 dark:text-slate-400 py-4">Không tìm thấy người dùng nào.</p>
                       ) : (
                         searchResults.map(user => {
                           const strUserId = String(user._id);
                           return (
-                            <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
-                              <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
+                            <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                              <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
                                 {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 truncate cursor-pointer hover:underline">{user.username}</p>
+                                <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 dark:text-white truncate cursor-pointer hover:underline">{user.username}</p>
                               </div>
                               <div className="shrink-0 flex items-center">
                                 {friends.includes(strUserId) ? (
-                                  <button onClick={() => { setIsFriendDropdownOpen(false); setIsUserChatOpen(true); setSelectedChatUser(user); setChatView('conversation'); }} className="text-[11px] font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">Nhắn tin</button>
+                                  <button onClick={() => { setIsFriendDropdownOpen(false); setIsUserChatOpen(true); setSelectedChatUser(user); setChatView('conversation'); }} className="text-[11px] font-bold text-gray-500 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 px-3 py-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600">Nhắn tin</button>
                                 ) : sentRequests.includes(strUserId) ? (
-                                  <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                  <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200 dark:hover:bg-slate-600"><Clock size={12}/> Hoàn tác</button>
                                 ) : receivedRequests.includes(strUserId) ? (
                                   <button onClick={() => handleAcceptFriend(user._id)} className="text-[11px] font-bold text-white bg-[#f44336] px-3 py-1.5 rounded-full hover:bg-[#e22d41]">Chấp nhận</button>
                                 ) : (
-                                  <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors">
+                                  <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900">
                                     <UserPlus size={16} />
                                   </button>
                                 )}
@@ -1377,21 +1407,21 @@ function DashboardContent() {
                   ) : (
                     <>
                       {receivedRequests.length > 0 ? (
-                        <div className="px-2 pt-3 pb-2 border-b border-gray-100">
+                        <div className="px-2 pt-3 pb-2 border-b border-gray-100 dark:border-slate-700">
                           <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest px-2 mb-2">Lời mời kết bạn mới</p>
                           {receivedRequests.map(reqId => {
                             const user = getUserById(reqId);
                             return (
-                              <div key={reqId} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
-                                <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
+                              <div key={reqId} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
                                   {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 truncate cursor-pointer hover:underline">{user.username}</p>
+                                  <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 dark:text-white truncate cursor-pointer hover:underline">{user.username}</p>
                                 </div>
                                 <div className="flex gap-1 shrink-0">
                                   <button onClick={() => handleAcceptFriend(reqId)} className="w-8 h-8 rounded-full bg-[#f44336] text-white flex items-center justify-center hover:bg-[#e22d41] transition-colors"><Check size={16}/></button>
-                                  <button onClick={() => handleDeclineFriend(reqId)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-colors"><X size={16}/></button>
+                                  <button onClick={() => handleDeclineFriend(reqId)} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"><X size={16}/></button>
                                 </div>
                               </div>
                             )
@@ -1400,28 +1430,28 @@ function DashboardContent() {
                       ) : null}
 
                       <div className="px-2 pt-3">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Gợi ý kết nối</p>
+                        <p className="text-[11px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest px-2 mb-2">Gợi ý kết nối</p>
                         {recommendedUsers.length === 0 ? (
-                          <p className="text-[12px] text-gray-400 text-center py-4">Bạn đã kết nối với tất cả mọi người!</p>
+                          <p className="text-[12px] text-gray-400 dark:text-slate-400 text-center py-4">Bạn đã kết nối với tất cả mọi người!</p>
                         ) : (
                           recommendedUsers.map(user => {
                             const strUserId = String(user._id);
                             return (
-                              <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
-                                <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
+                              <div key={user._id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                <div onClick={() => handleNavigateProfile(user._id)} className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 cursor-pointer overflow-hidden">
                                   {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : <User size={20} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 truncate cursor-pointer hover:underline">{user.username}</p>
-                                  <p className="text-[11px] text-gray-400 truncate">Có thể bạn quen</p>
+                                  <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 dark:text-white truncate cursor-pointer hover:underline">{user.username}</p>
+                                  <p className="text-[11px] text-gray-400 dark:text-slate-500 truncate">Có thể bạn quen</p>
                                 </div>
                                 <div className="shrink-0 flex items-center">
                                   {sentRequests.includes(strUserId) ? (
-                                    <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                    <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200 dark:hover:bg-slate-600"><Clock size={12}/> Hoàn tác</button>
                                   ) : (
                                     <button 
                                       onClick={() => handleAddFriend(user._id)}
-                                      className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors shrink-0"
+                                      className="w-8 h-8 flex items-center justify-center bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900 transition-colors shrink-0"
                                       title="Kết bạn"
                                     >
                                       <UserPlus size={16} />
@@ -1446,7 +1476,7 @@ function DashboardContent() {
 
       {/* Giao diện Modal Chat... */}
       {isUserChatOpen && (
-        <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
+        <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2">
               {chatView === 'conversation' ? (
@@ -1470,16 +1500,16 @@ function DashboardContent() {
             <button onClick={() => setIsUserChatOpen(false)} className="hover:bg-red-600 p-1 rounded-full transition-colors"><X size={18} /></button>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-white flex flex-col">
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-800 flex flex-col">
             {chatView === 'list' ? (
-              <div className="p-2 pb-4 flex flex-col h-full">
-                <button onClick={() => setIsCreateGroupOpen(true)} className="mb-2 bg-red-50 text-[#f44336] text-[13px] font-bold py-2 rounded-xl hover:bg-red-100 transition-colors">
+              <div className="p-2 pb-4 flex flex-col h-full bg-white dark:bg-slate-800">
+                <button onClick={() => setIsCreateGroupOpen(true)} className="mb-2 bg-red-50 dark:bg-red-950/30 text-[#f44336] dark:text-red-400 text-[13px] font-bold py-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900 transition-colors">
                   + Tạo nhóm chat
                 </button>
                 <div className="flex-1 overflow-y-auto">
                   {conversationsList.length === 0 ? (
-                    <div className="p-6 text-center text-[12px] text-gray-500">
-                      <Users size={32} className="mx-auto text-gray-300 mb-3" />
+                    <div className="p-6 text-center text-[12px] text-gray-500 dark:text-slate-400">
+                      <Users size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
                       Chưa có cuộc trò chuyện nào.<br/>Tạo nhóm hoặc chọn bạn bè để chat!
                     </div>
                   ) : (
@@ -1500,13 +1530,13 @@ function DashboardContent() {
                                 setSelectedChatUser(otherUser);
                             }
                             setChatView('conversation'); 
-                          }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 relative overflow-hidden hover:opacity-80">
+                          }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-colors">
+                          <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 relative overflow-hidden hover:opacity-80">
                             {isGroup ? <Users size={20} /> : (displayAvatar ? <img src={displayAvatar} className="w-full h-full object-cover"/> : <User size={20} />)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[13px] text-gray-900 truncate">{displayName}</p>
-                            <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                            <p className="font-bold text-[13px] text-gray-900 dark:text-white truncate">{displayName}</p>
+                            <p className="text-[12px] text-gray-500 dark:text-slate-400 truncate">{lastMessage}</p>
                           </div>
                         </div>
                       )
@@ -1515,35 +1545,35 @@ function DashboardContent() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col h-full bg-white relative">
-                <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+              <div className="flex flex-col h-full bg-white dark:bg-slate-800 relative">
+                <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white dark:bg-[#131B2E]">
                   {isChatLoading ? (
                     <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
                   ) : (
                     <>
-                      <div className="text-center text-[11px] text-gray-400 mb-4">
+                      <div className="text-center text-[11px] text-gray-400 dark:text-slate-500 mb-4">
                         {selectedGroup ? `Bắt đầu trò chuyện trong ${selectedGroup.groupName}` : `Bắt đầu trò chuyện với ${selectedChatUser?.username}`}
                       </div>
                       
                       {currentChatMessages.map((msg, i) => (
                         <div key={i} className={`flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}`}>
                           {msg.sender === 'them' && selectedGroup && (
-                            <span className="text-[10px] text-gray-400 ml-10 mb-0.5">{msg.senderName}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-slate-400 ml-10 mb-0.5">{msg.senderName}</span>
                           )}
                           <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} w-full`}>
                             {msg.sender === 'them' && (
-                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
+                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
                                 {msg.senderAvatar ? <img src={msg.senderAvatar} className="w-full h-full object-cover"/> : (selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />)}
                               </div>
                             )}
-                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] text-gray-900 rounded-bl-sm border border-gray-100'}`}>
+                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-bl-sm border border-gray-100 dark:border-slate-700'}`}>
                               {msg.text}
                             </div>
                           </div>
                         </div>
                       ))}
                       {currentChatMessages.length === 0 && (
-                         <div className="flex justify-center text-[12px] text-gray-400 mt-4">
+                         <div className="flex justify-center text-[12px] text-gray-400 dark:text-slate-500 mt-4">
                            Hãy nói lời chào 👋
                          </div>
                       )}
@@ -1551,21 +1581,21 @@ function DashboardContent() {
                     </>
                   )}
                 </div>
-                <div className="p-3 border-t border-gray-100 bg-white shrink-0">
+                <div className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
                   <div className="relative">
                     <input
                       type="text"
                       value={userMessageInput}
                       onChange={(e) => setUserMessageInput(e.target.value)}
                       placeholder="Aa"
-                      className="w-full bg-[#f4f4f5] rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                      className="w-full bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && userMessageInput.trim()) handleSendUserMessage();
                       }}
                     />
                     <button
                       onClick={handleSendUserMessage}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 rounded-full transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-full transition-colors"
                     >
                       <Send size={16} />
                     </button>
@@ -1583,23 +1613,23 @@ function DashboardContent() {
         <div className="flex-1 min-w-0 flex justify-center">
           <div className="w-full max-w-[680px] flex flex-col gap-14 pb-12">
             {/* Form tạo bài viết */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+            <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-slate-800 transition-colors duration-300">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-slate-700">
                 <div>
-                  <p className="text-[13px] font-black text-gray-900">Tạo bài viết mới</p>
-                  <p className="text-[11px] font-semibold text-gray-500">Chia sẻ ảnh, ghim bản đồ, kể lại trải nghiệm của bạn.</p>
+                  <p className="text-[13px] font-black text-gray-900 dark:text-white">Tạo bài viết mới</p>
+                  <p className="text-[11px] font-semibold text-gray-500 dark:text-slate-400">Chia sẻ ảnh, ghim bản đồ, kể lại trải nghiệm của bạn.</p>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-50 text-[#f44336]">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400">
                   BẢNG TIN DU LỊCH
                 </span>
               </div>
               <div className="flex gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-slate-700 flex-shrink-0">
                   <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
                 <textarea 
                   placeholder={currentUser.role === 'admin' ? "Phát thông báo hệ thống..." : "Chia sẻ địa điểm bạn vừa khám phá..."}
-                  className="w-full bg-[#f4f4f5] rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                  className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
                   rows="3"
                   value={newPost.description}
                   onChange={e => setNewPost({...newPost, description: e.target.value})}
@@ -1609,7 +1639,7 @@ function DashboardContent() {
               {previewUrls.length > 0 ? (
                 <div className="flex flex-wrap gap-3 mb-3 pl-12">
                   {previewUrls.map((url, index) => (
-                    <div key={index} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
+                    <div key={index} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 group animate-in zoom-in-90">
                       <img src={url} alt="preview" className="w-full h-full object-cover" />
                       <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-gray-900/60 hover:bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={14} /></button>
                     </div>
@@ -1618,24 +1648,24 @@ function DashboardContent() {
               ) : null}
               
               {showMapPicker ? (
-                <div className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in duration-300 ml-12">
+                <div className="mb-4 bg-gray-50 dark:bg-slate-900 p-4 rounded-xl border border-gray-100 dark:border-slate-800 animate-in fade-in duration-300 ml-12">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-[12px] font-bold text-gray-500">📍 Nhấn vào bản đồ để lấy tọa độ chính xác</p>
-                    {pickedCoords ? <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span> : null}
+                    <p className="text-[12px] font-bold text-gray-500 dark:text-slate-400">📍 Nhấn vào bản đồ để lấy tọa độ chính xác</p>
+                    {pickedCoords ? <span className="text-[11px] font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-2 py-1 rounded border border-green-200 dark:border-green-900">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span> : null}
                   </div>
-                  <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0 shadow-inner">
+                  <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 dark:border-slate-700 relative z-0 shadow-inner">
                     <RealMapPicker setPickedCoords={setPickedCoords} />
                   </div>
                 </div>
               ) : null}
 
-              <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-2">
+              <div className="flex items-center justify-between border-t border-gray-50 dark:border-slate-700 pt-4 mt-2">
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors select-none ${pickedCoords || showMapPicker ? 'bg-red-50 text-[#f44336]' : 'text-gray-600 hover:bg-gray-100'}`}>
+                  <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors select-none ${pickedCoords || showMapPicker ? 'bg-red-50 dark:bg-red-950/30 text-[#f44336] dark:text-red-400' : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                     <MapPin size={16} strokeWidth={2.5} /> {pickedCoords ? 'Đã ghim vị trí' : 'Ghim vị trí'}
                   </button>
                   <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
-                  <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-gray-600 hover:bg-gray-100 transition-colors select-none cursor-pointer">
+                  <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors select-none cursor-pointer">
                     <ImageIcon size={16} strokeWidth={2.5} /> Tải ảnh lên
                   </button>
                 </div>
@@ -1645,7 +1675,7 @@ function DashboardContent() {
               </div>
             </div>
 
-            {/* List Bài Viết (ĐÃ BỌC Sự kiện Click Chuyển Trang) */}
+            {/* List Bài Viết */}
             <div className="space-y-6 pb-12">
               {Array.isArray(posts) ? posts.map((post) => {
                 const isAdmin = post.createdBy?.role === 'admin';
@@ -1655,17 +1685,17 @@ function DashboardContent() {
                   <div 
                     key={post._id || Math.random().toString()} 
                     onClick={() => navigate(`/post-detail?postId=${post._id}`)}
-                    className={`bg-white rounded-2xl overflow-hidden shadow-sm border cursor-pointer hover:shadow-md transition-shadow ${isAdmin ? 'border-red-200' : 'border-gray-100'}`}
+                    className={`bg-white dark:bg-[#1A2338] rounded-2xl overflow-hidden shadow-sm border cursor-pointer hover:shadow-md transition-shadow ${isAdmin ? 'border-red-200 dark:border-red-950' : 'border-gray-100 dark:border-slate-800'}`}
                   >
                     {isAdmin ? (
-                      <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
-                        <ShieldAlert size={16} className="text-[#f44336]" />
-                        <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
+                      <div className="bg-red-50 dark:bg-red-950/50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100 dark:border-red-900">
+                        <ShieldAlert size={16} className="text-[#f44336] dark:text-red-400" />
+                        <span className="text-[11px] font-black text-[#f44336] dark:text-red-400 uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
                       </div>
                     ) : null}
 
                     <div className="p-6">
-                      {/* HEADER Bài viết - Bọc bằng div stopPropagation để tránh nhảy trang khi thao tác */}
+                      {/* HEADER Bài viết */}
                       <div className="flex justify-between items-center mb-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-3">
                           <div 
@@ -1676,18 +1706,18 @@ function DashboardContent() {
                           </div>
                           <div>
                             <h3 
-                              className="text-[14px] font-bold text-gray-900 flex items-center gap-1.5 cursor-pointer hover:underline"
+                              className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-1.5 cursor-pointer hover:underline"
                               onClick={() => handleNavigateProfile(post.createdBy?._id)}
                             >
                               {post.createdBy?.username} 
-                              {isAdmin ? <CheckCircle size={14} className="text-[#f44336]" /> : null}
+                              {isAdmin ? <CheckCircle size={14} className="text-[#f44336] dark:text-red-400" /> : null}
                             </h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-[11px] font-medium text-gray-400">
+                              <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
                                 {post.createdAt ? new Date(post.createdAt).toLocaleDateString('vi-VN') : ''}
                               </p>
                               {post.category ? (
-                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-[#f44336] border border-red-100">
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border border-red-100 dark:border-red-900/50">
                                   {post.category}
                                 </span>
                               ) : null}
@@ -1698,16 +1728,16 @@ function DashboardContent() {
                           <button
                             type="button"
                             onClick={() => setOpenPostMenuId((prev) => (prev === post._id ? null : post._id))}
-                            className="text-gray-400 hover:text-gray-600"
+                            className="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white"
                           >
                             <MoreHorizontal size={20} />
                           </button>
                           {openPostMenuId === post._id ? (
-                            <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
+                            <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1">
                               <button
                                 type="button"
                                 onClick={(e) => handleCopyPostLink(post._id, e)}
-                                className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
+                                className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg"
                               >
                                 Copy link bài viết
                               </button>
@@ -1715,7 +1745,7 @@ function DashboardContent() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleDeletePost(post._id, e)}
-                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg"
+                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg"
                                 >
                                   Xóa bài viết
                                 </button>
@@ -1724,7 +1754,7 @@ function DashboardContent() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleToggleVisibility(post._id, e)}
-                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
+                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg"
                                 >
                                   {post.isHidden ? "Hiện bài viết" : "Ẩn bài viết"}
                                 </button>
@@ -1739,7 +1769,7 @@ function DashboardContent() {
                         const desc = post.description;
                         if (desc && String(desc).trim() !== "0" && String(desc).trim() !== "" && String(desc) !== "\u200B") {
                           return (
-                            <p className="text-[14px] text-gray-800 font-medium leading-relaxed mb-4 whitespace-pre-wrap">
+                            <p className="text-[14px] text-gray-800 dark:text-slate-200 font-medium leading-relaxed mb-4 whitespace-pre-wrap">
                               {String(desc)}
                             </p>
                           );
@@ -1749,15 +1779,15 @@ function DashboardContent() {
 
                       {post.lat && post.lng ? (
                         <div className="mb-4" onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
+                          <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
                             <MapPin size={16} /> 
                             {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : "Vị trí được ghim"}
-                            <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white text-[#f44336] shadow-sm'}`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white dark:bg-slate-800 text-[#f44336] dark:text-red-400 shadow-sm'}`}>
                               {expandedMap[post._id] ? "Đóng Bản đồ" : "📍 Xem Map"}
                             </span>
                           </button>
                           {expandedMap[post._id] ? (
-                            <div className="mt-3 h-[250px] w-full border border-gray-200 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                            <div className="mt-3 h-[250px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
                               <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
                             </div>
                           ) : null}
@@ -1772,7 +1802,7 @@ function DashboardContent() {
                             <img
                               src={normalizedImages[0]}
                               alt="media-main"
-                              className="w-full rounded-2xl object-cover border border-gray-100 max-h-[420px]"
+                              className="w-full rounded-2xl object-cover border border-gray-100 dark:border-slate-750 max-h-[420px]"
                             />
                             {normalizedImages.length > 1 ? (
                               <div className="grid grid-cols-2 gap-2">
@@ -1781,7 +1811,7 @@ function DashboardContent() {
                                     key={idx}
                                     src={img}
                                     alt={`media-${idx + 1}`}
-                                    className="w-full h-[150px] rounded-xl object-cover border border-gray-100"
+                                    className="w-full h-[150px] rounded-xl object-cover border border-gray-100 dark:border-slate-750"
                                   />
                                 ))}
                               </div>
@@ -1790,8 +1820,8 @@ function DashboardContent() {
                         );
                       })() : null}
 
-                      {/* ACTIONS Bài viết - Ngăn văng trang */}
-                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50" onClick={e => e.stopPropagation()}>
+                      {/* ACTIONS Bài viết */}
+                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50 dark:border-slate-700" onClick={e => e.stopPropagation()}>
                         {(() => {
                           const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
                           return (
@@ -1799,38 +1829,38 @@ function DashboardContent() {
                               type="button"
                               onClick={(e) => handleLikePost(post._id, e)}
                               disabled={likingPosts[post._id]}
-                              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 hover:text-[#f44336]'} transition-colors text-[13px] font-bold disabled:opacity-50`}
+                              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336]'} transition-colors text-[13px] font-bold disabled:opacity-50`}
                             >
                               <Heart size={20} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> {Array.isArray(post.likes) ? post.likes.length : 0}
                             </button>
                           );
                         })()}
-                        <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
+                        <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[13px] font-bold">
                           <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || "Bình luận"}
                         </button>
                         <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
-                        <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
+                        <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-[13px] font-bold ml-auto">
                           <Share2 size={20} strokeWidth={2.5} />
                         </button>
                       </div>
 
-                      {/* BÌNH LUẬN - Ngăn văng trang */}
+                      {/* BÌNH LUẬN */}
                       {expandedComments[post._id] ? (
-                        <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 animate-in fade-in duration-300" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-3 mb-6">
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(currentUser.userId)}>
+                            <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-700 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(currentUser.userId)}>
                               <img src={getAvatarUrl(currentUser.avatar, currentUser.username)} alt="Avatar" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex-1 relative">
                               <input 
                                 type="text" 
                                 placeholder="Viết bình luận..."
-                                className="w-full bg-[#f4f4f5] rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                                className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 dark:focus:ring-red-500/20 transition-all border border-transparent dark:border-slate-700"
                                 value={commentInputs[post._id] || ''}
                                 onChange={(e) => setCommentInputs(prev => ({...prev, [post._id]: e.target.value}))}
                                 onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id)}
                               />
-                              <button onClick={() => handlePostComment(post._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50">
+                              <button onClick={() => handlePostComment(post._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
                                 <Send size={16} />
                               </button>
                             </div>
@@ -1845,35 +1875,35 @@ function DashboardContent() {
                                 return (
                                   <div key={comment._id || Math.random().toString()} className="text-[13px]">
                                     <div className="flex gap-3 group">
-                                      <img src={getAvatarUrl(comment.author?.avatar, comment.author?.username)} alt="avt" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(comment.author?._id)} />
+                                      <img src={getAvatarUrl(comment.author?.avatar, comment.author?.username)} alt="avt" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100 dark:border-slate-700 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(comment.author?._id)} />
                                       <div className="flex-1">
                                         {editingCommentId === comment._id ? (
-                                          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+                                          <div className="bg-white dark:bg-slate-850 border border-gray-200 dark:border-slate-700 rounded-xl shadow-sm p-3">
                                             <textarea
                                               value={editingCommentContent}
                                               onChange={(e) => setEditingCommentContent(e.target.value)}
-                                              className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
+                                              className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
                                               rows={3}
                                             />
                                             <div className="mt-2 flex justify-between items-center">
-                                              <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                              <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
                                               <button onClick={(e) => saveEditComment(post._id, comment._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
                                             </div>
                                           </div>
                                         ) : (
-                                          <div className="bg-[#f4f4f5] px-4 py-2.5 rounded-2xl rounded-tl-none inline-block">
-                                            <p onClick={() => handleNavigateProfile(comment.author?._id)} className="font-bold text-gray-900 mb-0.5 text-[12px] cursor-pointer hover:underline">{comment.author?.username}</p>
-                                            <p className="text-gray-800 whitespace-pre-wrap">{comment.content}</p>
+                                          <div className="bg-[#f4f4f5] dark:bg-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-none inline-block">
+                                            <p onClick={() => handleNavigateProfile(comment.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{comment.author?.username}</p>
+                                            <p className="text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{comment.content}</p>
                                           </div>
                                         )}
 
                                         <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                           <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                          <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
+                                          <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
                                           {isCommentAuthor ? (
                                             <>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(comment._id, comment.content, e)}>Sửa</button>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, comment._id, e)}>Xóa</button>
+                                              <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={(e) => startEditComment(comment._id, comment.content, e)}>Sửa</button>
+                                              <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={(e) => showDeleteConfirm(post._id, comment._id, e)}>Xóa</button>
                                             </>
                                           ) : null}
                                         </div>
@@ -1881,42 +1911,42 @@ function DashboardContent() {
                                     </div>
 
                                     {(Array.isArray(comment.replies) && comment.replies.length > 0) ? (
-                                      <div className="mt-3 ml-[44px] space-y-4 border-l-2 border-gray-100 pl-4 relative">
+                                      <div className="mt-3 ml-[44px] space-y-4 border-l-2 border-gray-100 dark:border-slate-700 pl-4 relative">
                                         {comment.replies.map((reply) => (
                                           <div key={reply._id || Math.random().toString()} className="flex gap-2">
                                             <img src={getAvatarUrl(reply.author?.avatar, reply.author?.username)} alt="avt" className="w-6 h-6 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(reply.author?._id)} />
                                             <div className="flex-1">
-                                              <div className="bg-white border border-gray-100 shadow-sm px-3 py-2 rounded-2xl rounded-tl-none inline-block">
-                                                <p onClick={() => handleNavigateProfile(reply.author?._id)} className="font-bold text-gray-900 mb-0.5 text-[12px] cursor-pointer hover:underline">{reply.author?.username}</p>
+                                              <div className="bg-white dark:bg-slate-850 border border-gray-100 dark:border-slate-700 shadow-sm px-3 py-2 rounded-2xl rounded-tl-none inline-block">
+                                                <p onClick={() => handleNavigateProfile(reply.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{reply.author?.username}</p>
                                                 {editingCommentId === reply._id ? (
                                                   <div>
                                                     <textarea
                                                       value={editingCommentContent}
                                                       onChange={(e) => setEditingCommentContent(e.target.value)}
-                                                      className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
+                                                      className="w-full min-h-[70px] resize-none p-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#f44336]/40 outline-none text-[13px]"
                                                       rows={3}
                                                     />
                                                     <div className="mt-2 flex justify-between items-center">
-                                                      <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                                      <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
                                                       <button onClick={(e) => saveEditComment(post._id, reply._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
                                                     </div>
                                                   </div>
                                                 ) : typeof reply.content === 'string' && reply.content.startsWith('@') ? (
-                                                  <p className="text-gray-800 whitespace-pre-wrap">
+                                                  <p className="text-gray-800 dark:text-slate-200 whitespace-pre-wrap">
                                                     <span className="text-[#00897b] font-bold mr-1">{reply.content.split(' ')[0]}</span>
                                                     <span>{reply.content.substring(reply.content.indexOf(' ') + 1)}</span>
                                                   </p>
                                                 ) : (
-                                                  <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
+                                                  <p className="text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{reply.content}</p>
                                                 )}
                                               </div>
                                               <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                                 <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                                <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hồi</button>
+                                                <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hồi</button>
                                                 {reply.author?._id?.toString() === currentUser.userId ? (
                                                   <>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(reply._id, reply.content, e)}>Sửa</button>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, reply._id, e)}>Xóa</button>
+                                                    <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={(e) => startEditComment(reply._id, reply.content, e)}>Sửa</button>
+                                                    <button type="button" className="hover:text-[#f44336] dark:hover:text-red-400 transition-colors" onClick={(e) => showDeleteConfirm(post._id, reply._id, e)}>Xóa</button>
                                                   </>
                                                 ) : null}
                                               </div>
@@ -1928,16 +1958,16 @@ function DashboardContent() {
 
                                     {replyingTo.parentId === comment._id ? (
                                       <div className="mt-3 ml-[44px] flex gap-2 animate-in slide-in-from-top-1 fade-in">
-                                        <CornerDownRight size={16} className="text-gray-300 mt-2 flex-shrink-0" />
+                                        <CornerDownRight size={16} className="text-gray-300 dark:text-slate-500 mt-2 flex-shrink-0" />
                                         <div className="flex-1 relative">
                                           <input 
                                             type="text" autoFocus placeholder={replyingTo.childUsername ? `Đang phản hồi @${replyingTo.childUsername}...` : `Phản hồi ${comment.author?.username}...`}
-                                            className="w-full bg-white border border-[#f44336]/30 shadow-sm rounded-full py-2 pl-4 pr-10 text-[12px] font-medium focus:outline-none focus:border-[#f44336] transition-all"
+                                            className="w-full bg-white dark:bg-slate-800 border border-[#f44336]/30 dark:border-slate-700 shadow-sm rounded-full py-2 pl-4 pr-10 text-[12px] font-medium focus:outline-none focus:border-[#f44336] transition-all"
                                             value={replyInputs[comment._id] || ''}
                                             onChange={(e) => setReplyInputs(prev => ({...prev, [comment._id]: e.target.value}))}
                                             onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id, comment._id)}
                                           />
-                                          <button type="button" onClick={() => handlePostComment(post._id, comment._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50">
+                                          <button type="button" onClick={() => handlePostComment(post._id, comment._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
                                             <Send size={14} />
                                           </button>
                                         </div>
@@ -1964,16 +1994,16 @@ function DashboardContent() {
 
         {/* Vùng Cột phải (Gợi ý và Trending)... */}
         <aside className="w-[340px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa điểm đang hot</h3>
+          <div className="bg-white dark:bg-[#1A2338] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 transition-colors duration-300">
+            <h3 className="text-[12px] font-black text-gray-900 dark:text-white uppercase tracking-widest mb-4">📍 Địa điểm đang hot</h3>
             <div className="space-y-4">
               <div>
                 <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">Biển</p>
-                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
+                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Văn hóa</p>
-                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
+                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
               </div>
               {trendingPosts.map((trendingPost) => (
                 <div key={trendingPost._id}>
@@ -1984,26 +2014,26 @@ function DashboardContent() {
                     onClick={() => {
                       navigate(`/post-detail?postId=${trendingPost._id}`);
                     }} 
-                    className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline"
+                    className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight cursor-pointer hover:underline"
                   >
                     {trendingPost.title || trendingPost.location || "Chưa xác định"}
                   </p>
-                  <p className="text-[11px] font-medium text-gray-500 mt-1 flex items-center gap-1.5">
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
                     <Heart size={12} className="text-[#f44336]" fill="#f44336" /> {trendingPost.likeCount || 0} lượt thích
                   </p>
                 </div>
               ))}
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ Gợi ý nhanh</h3>
+          <div className="bg-white dark:bg-[#1A2338] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 transition-colors duration-300">
+            <h3 className="text-[12px] font-black text-gray-900 dark:text-white uppercase tracking-widest mb-4">✨ Gợi ý nhanh</h3>
             <div className="space-y-2">
               <button type="button" onClick={(e) => { 
                 e.stopPropagation();
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
                 setAiChatInput("Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm"); 
-              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 rounded-lg px-3 py-2">
                 Lịch trình Đà Nẵng 2N1Đ
               </button>
               <button type="button" onClick={(e) => { 
@@ -2011,7 +2041,7 @@ function DashboardContent() {
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
                 setAiChatInput("Gợi ý món ăn ngon ở Huế"); 
-              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 rounded-lg px-3 py-2">
                 Ăn gì ở Huế?
               </button>
               <button type="button" onClick={(e) => { 
@@ -2019,7 +2049,7 @@ function DashboardContent() {
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
                 setAiChatInput("Điểm check-in đẹp ở Hội An buổi tối"); 
-              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 rounded-lg px-3 py-2">
                 Check-in Hội An buổi tối
               </button>
             </div>
@@ -2052,32 +2082,32 @@ function DashboardContent() {
 
       {/* Giao diện Modal AI Tư vấn (Groq)... */}
       {isAiChatOpen ? (
-        <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[13px] font-black text-gray-900">AI tư vấn địa điểm</h3>
-            <button type="button" onClick={() => setIsAiChatOpen(false)} className="text-gray-400 hover:text-gray-700">
+        <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 duration-200">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between bg-white dark:bg-slate-850">
+            <h3 className="text-[13px] font-black text-gray-900 dark:text-white">AI tư vấn địa điểm</h3>
+            <button type="button" onClick={() => setIsAiChatOpen(false)} className="text-gray-400 dark:text-slate-400 hover:text-gray-700">
               <X size={16} />
             </button>
           </div>
-          <div className="h-[320px] overflow-y-auto px-3 py-3 space-y-3 bg-[#fafafa]">
+          <div className="h-[320px] overflow-y-auto px-3 py-3 space-y-3 bg-[#fafafa] dark:bg-slate-900">
             {aiChatMessages.map((msg, index) => (
-              <div key={index} className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'ml-auto bg-[#f44336] text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'}`}>
+              <div key={index} className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'ml-auto bg-[#f44336] text-white rounded-br-md' : 'bg-white dark:bg-slate-850 text-gray-800 dark:text-slate-200 border border-gray-100 dark:border-slate-700 rounded-bl-md'}`}>
                 {msg.content}
               </div>
             ))}
             {isAiChatLoading ? (
-              <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
+              <div className="bg-white dark:bg-slate-850 text-gray-500 border border-gray-100 dark:border-slate-700 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block animate-pulse">
                 Đang tư vấn...
               </div>
             ) : null}
           </div>
-          <div className="p-3 border-t border-gray-100 flex gap-2">
+          <div className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex gap-2">
             <input
               value={aiChatInput}
               onChange={(e) => setAiChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendAiChat()}
               placeholder="Ví dụ: Gợi ý lịch trình Đà Lạt 2 ngày"
-              className="flex-1 bg-[#f4f4f5] rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
+              className="flex-1 bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-750"
             />
             <button
               type="button"

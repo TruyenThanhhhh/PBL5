@@ -167,6 +167,44 @@ function ExploreContent() {
   const [flyToLocation, setFlyToLocation] = useState(null); // Lưu tọa độ để map bay tới
   const [notification, setNotification] = useState({ type: '', text: '' }); // Quản lý Toast thông báo
 
+  // --- QUY TRÌNH ÁP DỤNG THEME TOÀN CỤC ---
+  const applyThemeToDOM = (selectedTheme) => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'light');
+
+    if (selectedTheme === 'dark') {
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else if (selectedTheme === 'light') {
+      root.classList.add('light');
+      root.style.colorScheme = 'light';
+    } else {
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (systemPrefersDark) {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
+      }
+    }
+  };
+
+  // Lắng nghe sự kiện chuyển Sáng/Tối phát ra từ trang Settings
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('app-theme') || 'light';
+    applyThemeToDOM(savedTheme);
+
+    const handleThemeChange = (e) => {
+      if (e.detail && e.detail.theme) {
+        applyThemeToDOM(e.detail.theme);
+      }
+    };
+
+    window.addEventListener('themeChange', handleThemeChange);
+    return () => window.removeEventListener('themeChange', handleThemeChange);
+  }, []);
+
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -232,45 +270,45 @@ function ExploreContent() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-white overflow-hidden relative">
+    <div className="h-screen w-full flex flex-col bg-white dark:bg-[#0c1322] overflow-hidden relative transition-colors duration-300">
       
       {/* KHU VỰC THÔNG BÁO (TOAST) */}
       {notification.text && (
-        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white border-[#f44336] text-gray-800' : 'bg-white border-green-500 text-gray-800'}`}>
+        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
           {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
           <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
-          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900"><X size={18} /></button>
+          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><X size={18} /></button>
         </div>
       )}
 
       {/* HEADER */}
-      <header className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-6 z-10 shadow-sm flex-shrink-0 relative">
+      <header className="h-[72px] bg-white dark:bg-[#131B2E] border-b border-gray-100 dark:border-slate-800 flex items-center justify-between px-6 z-10 shadow-sm flex-shrink-0 relative transition-colors duration-300">
         <div className="w-1/4 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <ArrowLeft size={20} className="text-gray-600 dark:text-slate-400" />
           </button>
-          <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight hidden sm:block">The Wanderer</Link>
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 font-extrabold text-xl tracking-tight hidden sm:block">The Wanderer</Link>
         </div>
         
-        <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500">
-          <Link to="/dashboard" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.home}</Link>
-          <Link to="/explore" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.explore}</Link>
-          <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
+        <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500 dark:text-slate-400">
+          <Link to="/dashboard" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/explore" className="text-[#f44336] dark:text-red-500 border-b-[3px] border-[#f44336] dark:border-red-500 h-[72px] flex items-center transition-colors">{t.explore}</Link>
+          <Link to="/community" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
 
         <div className="w-1/4 flex items-center justify-end gap-5">
           <div className="relative w-full max-w-[200px] hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" size={16} />
             <input 
               type="text" 
               placeholder={t.search} 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyPress} // Bắt sự kiện phím Enter
-              className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] border-transparent rounded-full text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
+              onKeyDown={handleSearchKeyPress} 
+              className="w-full pl-9 pr-3 py-2 bg-[#f4f4f5] dark:bg-slate-800 dark:text-white border border-transparent dark:border-slate-700 rounded-full text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all placeholder-gray-400 dark:placeholder-slate-500"
             />
           </div>
-          <button className="text-gray-500 hover:text-gray-900" onClick={() => navigate('/dashboard')}>
+          <button className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors" onClick={() => navigate('/dashboard')}>
             <Bell size={22} strokeWidth={2} />
           </button>
           <AccountMenu />
@@ -278,9 +316,9 @@ function ExploreContent() {
       </header>
 
       {/* BẢN ĐỒ FULL MÀN HÌNH */}
-      <div className="flex-1 relative z-0 bg-[#e5e3df]">
+      <div className="flex-1 relative z-0 bg-[#e5e3df] dark:bg-slate-900 transition-colors duration-300">
         {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-[#0c1322]/50 backdrop-blur-sm z-50">
             <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
           </div>
         ) : (

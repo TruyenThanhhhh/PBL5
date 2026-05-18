@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Search, Home, Compass, Bookmark, MapPin, Star,
-  MessageSquare, ArrowUp, ArrowDown, Loader2, User, Send, Heart, Share2
+  MessageSquare, ArrowUp, ArrowDown, Loader2, User, Send, Heart, Share2, Bell
 } from 'lucide-react';
-
 import AccountMenu from '../components/AccountMenu';
 import NotificationBell from '../components/NotificationBell';
 
@@ -47,7 +46,7 @@ const SavePostButton = ({ postId, initialIsSaved }) => {
   };
 
   return (
-    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}>
+    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
       <Bookmark size={20} strokeWidth={isSaved ? 3 : 2.5} fill={isSaved ? '#f44336' : 'none'} />
     </button>
   );
@@ -119,7 +118,7 @@ function RealMapViewer({ lat, lng, location }) {
     <div className="w-full h-full relative">
       <div ref={mapRef} className="w-full h-full z-0" />
       {!isMapReady && (
-        <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center text-[12px] font-bold text-gray-500">
+        <div className="absolute inset-0 bg-gray-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[12px] font-bold text-gray-500 dark:text-slate-400">
           Đang tải bản đồ...
         </div>
       )}
@@ -148,6 +147,43 @@ export default function PostDetail() {
     avatar: localStorage.getItem('avatar'),
     username: localStorage.getItem('displayName') || localStorage.getItem('username')
   };
+
+  // --- QUY TRÌNH ÁP DỤNG THEME TOÀN CỤC ---
+  const applyThemeToDOM = (selectedTheme) => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'light');
+
+    if (selectedTheme === 'dark') {
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else if (selectedTheme === 'light') {
+      root.classList.add('light');
+      root.style.colorScheme = 'light';
+    } else {
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (systemPrefersDark) {
+        root.classList.add('dark');
+        root.style.colorScheme = 'dark';
+      } else {
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
+      }
+    }
+  };
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('app-theme') || 'light';
+    applyThemeToDOM(savedTheme);
+
+    const handleThemeChange = (e) => {
+      if (e.detail && e.detail.theme) {
+        applyThemeToDOM(e.detail.theme);
+      }
+    };
+
+    window.addEventListener('themeChange', handleThemeChange);
+    return () => window.removeEventListener('themeChange', handleThemeChange);
+  }, []);
 
   useEffect(() => {
     if (!postId) {
@@ -283,7 +319,7 @@ export default function PostDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcfcfc]">
+      <div className="min-h-screen flex items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300">
         <Loader2 className="animate-spin text-[#f44336]" size={40} />
       </div>
     );
@@ -291,8 +327,8 @@ export default function PostDetail() {
 
   if (error || !post) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfcfc]">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">{error || 'Không thể tải bài viết.'}</h2>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{error || 'Không thể tải bài viết.'}</h2>
         <button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white rounded-full font-bold shadow-md hover:bg-red-600 transition-colors">Về trang chủ</button>
       </div>
     );
@@ -305,33 +341,33 @@ export default function PostDetail() {
   const likedByCurrentUser = Array.isArray(post.likes) && post.likes.includes(currentUser.userId);
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900 pb-16">
+    <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#0c1322] font-sans text-gray-900 dark:text-gray-100 pb-16 transition-colors duration-300">
       {/* NAVBAR */}
-      <header className="flex items-center justify-between py-3 px-6 bg-white sticky top-0 z-50 border-b border-gray-100">
+      <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-8 w-1/4">
-          <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight">
+          <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight hidden sm:block">
             The Wanderer
           </Link>
         </div>
 
         <div className="flex-1 max-w-2xl relative hidden md:block">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400" size={18} />
           <input 
             type="text" 
             placeholder="Tìm kiếm..." 
-            className="w-full pl-11 pr-4 py-2.5 bg-[#f4f4f5] border-transparent rounded-full text-[13px] focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 font-medium placeholder-gray-400 transition-all"
+            className="w-full pl-11 pr-4 py-2.5 bg-[#f4f4f5] dark:bg-slate-800 dark:text-white border border-transparent dark:border-slate-700 rounded-full text-[13px] focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 font-medium placeholder-gray-400 dark:placeholder-slate-500 transition-all"
           />
         </div>
 
         <div className="flex items-center justify-end gap-6 w-1/4">
-          <nav className="hidden lg:flex items-center gap-6 text-[13px] font-bold text-gray-500">
-            <Link to="/explore" className="text-[#f44336] border-b-2 border-[#f44336] pb-1">Khám phá</Link>
-            <Link to="/community" className="hover:text-gray-900 transition-colors">Cộng đồng</Link>
+          <nav className="hidden lg:flex items-center gap-6 text-[13px] font-bold text-gray-500 dark:text-slate-400">
+            <Link to="/explore" className="hover:text-gray-900 dark:hover:text-white transition-colors">Khám phá</Link>
+            <Link to="/community" className="hover:text-gray-900 dark:hover:text-white transition-colors">Cộng đồng</Link>
           </nav>
           
           <div className="flex items-center gap-4">
             <NotificationBell />
-            <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 hover:text-gray-900 transition-colors">
+            <button onClick={() => window.dispatchEvent(new CustomEvent('openChat'))} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">
               <MessageSquare size={20} />
             </button>
             <AccountMenu avatar={currentUser.avatar} username={currentUser.username} />
@@ -342,22 +378,22 @@ export default function PostDetail() {
       {/* MAIN LAYOUT */}
       <main className="max-w-[1500px] mx-auto px-6 2xl:px-8 py-6 flex gap-8">
         
-        {/* LEFT SIDEBAR - ĐÃ ĐƯỢC LÀM SẠCH GỌN GÀNG THEO YÊU CẦU */}
+        {/* LEFT SIDEBAR */}
         <aside className="w-[220px] hidden md:block flex-shrink-0">
           <div className="mb-8">
-            <h2 className="text-xl font-black text-gray-900 mb-1">Khám phá</h2>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Tâm điểm hành trình</p>
+            <h2 className="text-xl font-black text-gray-900 dark:text-white mb-1">Khám phá</h2>
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Tâm điểm hành trình</p>
           </div>
 
-          <nav className="space-y-1 text-[13px] font-bold text-gray-500">
-            <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors">
+          <nav className="space-y-1 text-[13px] font-bold text-gray-500 dark:text-slate-400">
+            <Link to="/dashboard" className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white rounded-xl transition-colors">
               <Home size={18} strokeWidth={2.5} /> Trang chủ
             </Link>
-            <Link to="/explore" className="flex items-center gap-3 px-4 py-3 bg-red-50 text-[#f44336] rounded-xl mb-2 transition-colors">
+            <Link to="/explore" className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-[#f44336] dark:text-red-400 rounded-xl mb-2 transition-colors">
               <Compass size={18} strokeWidth={2.5} /> Khám phá
             </Link>
-            <div className="pt-6 mt-6 border-t border-gray-100">
-              <button className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 hover:text-gray-900 rounded-xl transition-colors w-full text-left">
+            <div className="pt-6 mt-6 border-t border-gray-100 dark:border-slate-800">
+              <button className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white rounded-xl transition-colors w-full text-left">
                 <Bookmark size={18} strokeWidth={2.5} /> Bài viết đã lưu
               </button>
             </div>
@@ -369,41 +405,41 @@ export default function PostDetail() {
           
           {/* Tags */}
           <div className="flex items-center gap-3 mb-4">
-            <span className="bg-[#b2ebf2] text-[#00838f] text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full">
+            <span className="bg-[#b2ebf2] dark:bg-cyan-900/40 text-[#00838f] dark:text-cyan-400 text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-cyan-100 dark:border-cyan-800/50">
               {post.category || 'CHUNG'}
             </span>
           </div>
 
           {/* Title & Actions */}
-          <h1 className="text-3xl md:text-4xl font-black text-gray-900 leading-[1.2] tracking-tight mb-4 whitespace-pre-wrap">
+          <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white leading-[1.2] tracking-tight mb-4 whitespace-pre-wrap">
             {post.title || `Trải nghiệm của ${authorName}`}
           </h1>
 
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4 text-[13px] font-bold text-gray-600">
-              <div className="flex items-center gap-1.5 text-gray-800">
+            <div className="flex items-center gap-4 text-[13px] font-bold text-gray-600 dark:text-slate-400">
+              <div className="flex items-center gap-1.5 text-gray-800 dark:text-slate-300">
                 <MapPin size={16} className="text-[#f44336]" /> {post.location && post.location !== "Chưa xác định" ? post.location : "Vị trí bí mật"}
               </div>
-              <span className="text-gray-300">/</span>
+              <span className="text-gray-300 dark:text-slate-600">/</span>
               <div 
-                className="flex items-center gap-2 cursor-pointer hover:text-gray-900 transition-colors"
+                className="flex items-center gap-2 cursor-pointer hover:text-gray-900 dark:hover:text-white transition-colors"
                 onClick={() => navigate('/profile', { state: { targetUserId: post.createdBy?._id } })}
               >
-                <img src={authorAvatar} className="w-6 h-6 rounded-full object-cover" alt="Author" />
+                <img src={authorAvatar} className="w-6 h-6 rounded-full object-cover border border-gray-200 dark:border-slate-700" alt="Author" />
                 {authorName}
               </div>
-              <span className="text-gray-300">/</span>
-              <span className="text-gray-400 font-medium">{new Date(post.createdAt).toLocaleDateString('vi-VN')}</span>
+              <span className="text-gray-300 dark:text-slate-600">/</span>
+              <span className="text-gray-400 dark:text-slate-500 font-medium">{new Date(post.createdAt).toLocaleDateString('vi-VN')}</span>
             </div>
           </div>
 
           {/* Featured Image */}
           {mainImage && (
-            <div className="w-full h-[400px] md:h-[500px] rounded-3xl overflow-hidden mb-8 shadow-sm border border-gray-100 bg-gray-100">
+            <div className="w-full h-[400px] md:h-[500px] rounded-3xl overflow-hidden mb-8 shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
               <img 
                 src={mainImage} 
                 alt="Post Main" 
-                className="w-full h-full object-contain bg-black/5"
+                className="w-full h-full object-contain bg-black/5 dark:bg-black/40"
               />
             </div>
           )}
@@ -412,7 +448,7 @@ export default function PostDetail() {
           {postImages.length > 1 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
               {postImages.slice(1, 5).map((img, idx) => (
-                <div key={idx} className="h-32 rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-100">
+                <div key={idx} className="h-32 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
                    <img src={img} className="w-full h-full object-cover" alt={`Sub img ${idx}`} />
                 </div>
               ))}
@@ -420,45 +456,45 @@ export default function PostDetail() {
           )}
 
           {/* Article Content */}
-          <div className="text-[15px] text-gray-800 leading-relaxed font-medium space-y-6 mb-8 whitespace-pre-wrap">
+          <div className="text-[15px] text-gray-800 dark:text-slate-300 leading-relaxed font-medium space-y-6 mb-8 whitespace-pre-wrap">
             {post.description}
           </div>
 
           {/* ACTION BARS (LIKE, COMMENT, SHARE, SAVE) */}
-          <div className="flex items-center gap-6 py-4 border-t border-b border-gray-100 mb-10">
+          <div className="flex items-center gap-6 py-4 border-t border-b border-gray-100 dark:border-slate-800 mb-10">
             <button
               type="button"
               onClick={handleLikePost}
               disabled={isLiking}
-              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 hover:text-[#f44336]'} transition-colors text-[14px] font-bold disabled:opacity-50`}
+              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336]'} transition-colors text-[14px] font-bold disabled:opacity-50`}
             >
               <Heart size={22} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> 
-              {Array.isArray(post.likes) ? post.likes.length : 0}
+              {Array.isArray(post.likes) ? post.likes.length : 0} Lượt thích
             </button>
             
-            <div className="flex items-center gap-1.5 text-gray-500 text-[14px] font-bold">
-              <MessageSquare size={22} strokeWidth={2.5} /> {comments.length}
+            <div className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 text-[14px] font-bold">
+              <MessageSquare size={22} strokeWidth={2.5} /> {comments.length} Bình luận
             </div>
 
             <SavePostButton postId={post._id} initialIsSaved={isSaved} />
             
-            <button type="button" onClick={handleCopyPostLink} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[14px] font-bold ml-auto">
+            <button type="button" onClick={handleCopyPostLink} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-[14px] font-bold ml-auto">
               <Share2 size={22} strokeWidth={2.5} /> Chia sẻ
             </button>
           </div>
 
           {/* Discussion Section */}
           <div className="mb-6 flex items-center justify-between">
-            <h3 className="text-xl font-black text-gray-900">Bình luận ({comments.length})</h3>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white">Bình luận ({comments.length})</h3>
           </div>
 
           {/* Comment Input */}
           <div className="mb-10">
             <div className="flex gap-4">
-              <img src={getAvatarUrl(currentUser.avatar, currentUser.username)} className="w-10 h-10 rounded-full object-cover" alt="User" />
+              <img src={getAvatarUrl(currentUser.avatar, currentUser.username)} className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-slate-700" alt="User" />
               <div className="flex-1">
                 <textarea 
-                  className="w-full bg-[#f4f4f5] border-transparent rounded-xl p-4 text-[13px] font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 resize-none h-[100px]"
+                  className="w-full bg-[#f4f4f5] dark:bg-slate-800 border border-transparent dark:border-slate-700 rounded-xl p-4 text-[13px] font-medium text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 resize-none h-[100px] transition-colors"
                   placeholder="Chia sẻ cảm nghĩ của bạn về bài viết này..."
                   value={commentInput}
                   onChange={(e) => setCommentInput(e.target.value)}
@@ -475,30 +511,30 @@ export default function PostDetail() {
           {/* Comments List */}
           <div className="space-y-8">
             {comments.length === 0 ? (
-               <div className="text-center text-gray-400 text-[13px] font-bold py-10 bg-gray-50 rounded-2xl">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
+               <div className="text-center text-gray-400 dark:text-slate-500 text-[13px] font-bold py-10 bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-100 dark:border-slate-800">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
             ) : (
                comments.map(comment => (
                  <div key={comment._id} className="flex gap-4">
-                  <div className="flex flex-col items-center text-gray-400 w-8">
+                  <div className="flex flex-col items-center text-gray-400 dark:text-slate-500 w-8">
                     <button className="hover:text-[#f44336]"><ArrowUp size={20} /></button>
-                    <span className="text-[12px] font-bold text-gray-700 my-1">0</span>
+                    <span className="text-[12px] font-bold text-gray-700 dark:text-slate-300 my-1">0</span>
                     <button className="hover:text-[#f44336]"><ArrowDown size={20} /></button>
                   </div>
 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 
-                        className="text-[13px] font-extrabold text-gray-900 cursor-pointer hover:underline"
+                        className="text-[13px] font-extrabold text-gray-900 dark:text-white cursor-pointer hover:underline"
                         onClick={() => navigate('/profile', { state: { targetUserId: comment.author?._id } })}
                       >
                         {comment.author?.displayName || comment.author?.username}
                       </h4>
                       {comment.author?._id === post.createdBy?._id && (
-                        <span className="bg-red-100 text-[#f44336] text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">Tác giả</span>
+                        <span className="bg-red-100 dark:bg-red-900/30 text-[#f44336] dark:text-red-400 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">Tác giả</span>
                       )}
-                      <span className="text-[11px] font-medium text-gray-400">{new Date(comment.createdAt).toLocaleDateString('vi-VN')}</span>
+                      <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500">{new Date(comment.createdAt).toLocaleDateString('vi-VN')}</span>
                     </div>
-                    <p className="text-[13px] text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-wrap bg-[#f4f4f5] px-4 py-3 rounded-2xl rounded-tl-none inline-block">
+                    <p className="text-[13px] text-gray-700 dark:text-slate-300 font-medium leading-relaxed mb-3 whitespace-pre-wrap bg-[#f4f4f5] dark:bg-slate-800 px-4 py-3 rounded-2xl rounded-tl-none inline-block border border-transparent dark:border-slate-700">
                       {comment.content}
                     </p>
                   </div>
@@ -511,31 +547,31 @@ export default function PostDetail() {
         {/* RIGHT SIDEBAR - BẢN ĐỒ CHI TIẾT */}
         <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
           {post.lat && post.lng ? (
-            <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 sticky top-[100px]">
-              <h4 className="text-[14px] font-extrabold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-white dark:bg-[#1A2338] p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 sticky top-[100px] transition-colors">
+              <h4 className="text-[14px] font-extrabold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <MapPin size={18} className="text-[#f44336]" /> Vị trí trên bản đồ
               </h4>
-              <div className="h-[250px] w-full rounded-2xl overflow-hidden relative z-0 border border-gray-200">
+              <div className="h-[250px] w-full rounded-2xl overflow-hidden relative z-0 border border-gray-200 dark:border-slate-700 shadow-inner">
                 <RealMapViewer lat={post.lat} lng={post.lng} location={post.location} />
               </div>
-              <div className="mt-4 flex flex-col gap-1 text-[13px] font-medium text-gray-600 mb-4 px-1">
+              <div className="mt-4 flex flex-col gap-1 text-[13px] font-medium text-gray-600 dark:text-slate-400 mb-4 px-1">
                 <p>📍 {post.location || 'Chưa xác định'}</p>
-                <p className="text-[11px] text-gray-400 font-mono">Tọa độ: {Number(post.lat).toFixed(4)}, {Number(post.lng).toFixed(4)}</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 font-mono">Tọa độ: {Number(post.lat).toFixed(4)}, {Number(post.lng).toFixed(4)}</p>
               </div>
               <button 
                 onClick={() => window.open(`https://www.google.com/maps?q=${post.lat},${post.lng}`, '_blank')}
-                className="w-full bg-red-50 text-[#f44336] text-[13px] font-bold py-2.5 rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-red-50 dark:bg-red-900/20 text-[#f44336] text-[13px] font-bold py-2.5 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center gap-2"
               >
                 Mở Google Maps
               </button>
             </div>
           ) : (
-            <div className="bg-[#fdf4e6] h-[220px] rounded-3xl flex flex-col items-center justify-center relative overflow-hidden shadow-sm border border-orange-100 p-6 text-center">
-              <div className="w-16 h-16 bg-white rounded-full shadow-md flex items-center justify-center mb-3">
+            <div className="bg-[#fdf4e6] dark:bg-orange-950/20 h-[220px] rounded-3xl flex flex-col items-center justify-center relative overflow-hidden shadow-sm border border-orange-100 dark:border-orange-900/30 p-6 text-center transition-colors">
+              <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-md flex items-center justify-center mb-3 border border-gray-100 dark:border-slate-700">
                 <Compass className="w-8 h-8 text-orange-400" />
               </div>
-              <h4 className="text-[13px] font-extrabold text-gray-800">Chưa có vị trí</h4>
-              <p className="text-[11px] font-medium text-gray-500 mt-1">Bài viết này không được ghim trên bản đồ.</p>
+              <h4 className="text-[13px] font-extrabold text-gray-800 dark:text-slate-200">Chưa có vị trí</h4>
+              <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mt-1">Bài viết này không được ghim trên bản đồ.</p>
             </div>
           )}
         </aside>
