@@ -6,11 +6,10 @@ import {
   ArrowDown, Share2, FolderHeart, Trash2, Loader2, MapPin, Edit3, X, Camera,
   ShieldAlert, Image as ImageIcon, Check, Heart, Send, Maximize2, UserPlus, UserMinus, Clock
 } from 'lucide-react';
-
-// === CÁC IMPORT THẬT CỦA HỆ THỐNG ===
 import { useLanguage } from '../contexts/LanguageContext';
 import AccountMenu from '../components/AccountMenu';
 import NotificationBell from '../components/NotificationBell';
+
 
 const copy = {
   vi: {
@@ -363,15 +362,21 @@ function ProfileContent() {
     }
   };
 
+  // ĐÃ SỬA: Thay thế API tĩnh lấy bài viết đã lưu thay vì endpoint cũ
   const fetchCollections = async () => {
     setIsLoadingCollections(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('http://localhost:5000/api/collections', {
+      const res = await fetch('http://localhost:5000/api/users/saved-posts', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setCollections(await res.json());
-    } catch (err) {}
+      if (res.ok) {
+         const data = await res.json();
+         setCollections(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
     setIsLoadingCollections(false);
   };
 
@@ -635,9 +640,14 @@ function ProfileContent() {
           <div className="bg-white dark:bg-[#1A2338] rounded-xl p-2 flex text-center text-[13px] font-bold text-gray-500 dark:text-slate-400 mb-6 shadow-sm border border-gray-100 dark:border-slate-800 transition-colors">
             <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.posts}</button>
             <button onClick={() => setActiveTab('media')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.media}</button>
-            <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
-              🗂️ {t.saved}
-            </button>
+            
+            {/* ĐÃ SỬA: Tab Đã Lưu chỉ hiển thị nếu đây là trang cá nhân của bạn, và đã gắn action fetch list bài viết */}
+            {isMyProfile && (
+              <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                🗂️ {t.saved}
+              </button>
+            )}
+
             <button onClick={() => setActiveTab('about')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'about' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.about}</button>
             <button onClick={() => setActiveTab('map')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'map' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.map}</button>
           </div>
@@ -683,15 +693,60 @@ function ProfileContent() {
               </div>
             )}
 
+            {/* ĐÃ SỬA: Hiển thị các bài viết đã lưu thay vì "Tính năng đang phát triển" */}
             {activeTab === 'collections' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-16 shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
-                    <Bookmark size={32} className="text-[#f44336] dark:text-red-400" />
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {isLoadingCollections ? (
+                  <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
+                ) : collections.length === 0 ? (
+                  <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-16 shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                      <Bookmark size={32} className="text-[#f44336] dark:text-red-400" />
+                    </div>
+                    <h3 className="text-[18px] font-black text-gray-900 dark:text-white mb-2">Chưa có bài viết nào được lưu</h3>
+                    <p className="text-[14px] font-medium text-gray-500 dark:text-slate-400 max-w-[320px]">Hãy khám phá và lưu lại những bài viết bạn yêu thích nhé.</p>
                   </div>
-                  <h3 className="text-[18px] font-black text-gray-900 dark:text-white mb-2">Tính năng đang phát triển</h3>
-                  <p className="text-[14px] font-medium text-gray-500 dark:text-slate-400 max-w-[320px]">Bộ sưu tập các bài đăng và địa điểm yêu thích sẽ sớm ra mắt trong các bản cập nhật tới. Hãy đón chờ nhé!</p>
-                </div>
+                ) : (
+                  collections.map(post => (
+                    <div 
+                      key={post._id}
+                      onClick={() => handlePostClick(post._id)}
+                      className="bg-white dark:bg-[#1A2338] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-3">
+                          <img 
+                             src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.displayName || post.createdBy?.username)} 
+                             alt="Avatar" 
+                             className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700" 
+                          />
+                          <div>
+                            <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">{post.createdBy?.displayName || post.createdBy?.username}</h3>
+                            <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
+                              {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
+                              {new Date(post.createdAt).toLocaleDateString('vi-VN')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {post.title && post.title !== `Trải nghiệm của ${post.createdBy?.username}` && (
+                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2 leading-tight group-hover:text-[#f44336] dark:group-hover:text-red-400 transition-colors">{post.title}</h2>
+                      )}
+                      
+                      <div className="text-[14px] text-gray-700 dark:text-slate-300 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
+
+                      {Array.isArray(post.images) && post.images.length > 0 && (
+                        <img 
+                          src={getImageUrl(post.images[0])} 
+                          alt="Post Media" 
+                          onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
+                          className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100 dark:border-slate-700" 
+                        />
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             )}
 

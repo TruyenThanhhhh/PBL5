@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, BrowserRouter, useInRouterContext, Link } from 'react-router-dom';
 import { Bookmark, Home, Compass, TrendingUp, Settings, MapPin, Loader2, BookmarkMinus } from 'lucide-react';
 
+/* ===========================================================================
+   ⚠️ MOCK COMPONENTS CHO MÔI TRƯỜNG GIẢ LẬP CANVAS ⚠️
+   KHI PASTE VÀO VS CODE CỦA BẠN, BẠN CÓ THỂ XÓA TOÀN BỘ KHỐI NÀY
+   (Vì trong code của bạn không import component ngoài nên block này trống, 
+   chỉ đặt ở đây theo yêu cầu đánh dấu của bạn)
+   =========================================================================== */
+// End of Mock Components block
+
 function SavedContent() {
   const navigate = useNavigate();
   const [savedPosts, setSavedPosts] = useState([]);
@@ -23,7 +31,7 @@ function SavedContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        // data.savedPosts is an array of posts
+        // data là một mảng các post (đã được populate)
         setSavedPosts(Array.isArray(data) ? data : []);
       }
     } catch (error) {
@@ -34,20 +42,21 @@ function SavedContent() {
   };
 
   const handleUnsave = async (e, postId) => {
-    e.stopPropagation(); // Prevent triggering card click
+    e.stopPropagation(); // Ngăn văng vào trang chi tiết
     const token = localStorage.getItem('token');
     if (!token) return;
+    
+    // Xóa ngay trên giao diện cho mượt
+    setSavedPosts(prev => prev.filter(p => p._id !== postId));
+
     try {
-      const res = await fetch(`http://localhost:5000/api/users/save-post/${postId}`, {
+      await fetch(`http://localhost:5000/api/users/save-post/${postId}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        // Remove from list
-        setSavedPosts(prev => prev.filter(p => p._id !== postId));
-      }
+      // Vì đã xóa ở giao diện nên không cần check kết quả trừ khi muốn xử lý lỗi
     } catch (error) {
-      console.error(error);
+      console.error("Lỗi bỏ lưu:", error);
     }
   };
 
@@ -130,7 +139,7 @@ function SavedContent() {
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                   
-                  {/* Unsave Button */}
+                  {/* Nút bỏ lưu độc lập cho trang Saved */}
                   <button 
                     onClick={(e) => handleUnsave(e, post._id)}
                     className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-900 shadow-lg hover:bg-red-50 hover:text-[#f44336] transition-colors"
@@ -183,7 +192,7 @@ function SavedContent() {
 }
 
 export default function Saved() {
-  const hasRouter = useInRouterContext();
+  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
   if (!hasRouter) {
     return (
       <BrowserRouter>

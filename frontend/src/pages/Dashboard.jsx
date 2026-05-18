@@ -7,48 +7,14 @@ import {
   ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell,
   UserCircle, Home, TrendingUp, LogOut, Shield
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import NotificationBell from '../components/NotificationBell';
 import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
-
-// IMPORT SOCKET.IO CLIENT CHO REALTIME CHAT
-import { io } from 'socket.io-client';
+import SavePostButton from '../components/SavePostButton';
 
 const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
-};
-
-const SavePostButton = ({ postId, initialIsSaved, onToggleSave }) => {
-  const [isSaved, setIsSaved] = useState(initialIsSaved);
-  
-  useEffect(() => {
-    setIsSaved(initialIsSaved);
-  }, [initialIsSaved]);
-
-  const handleSave = async (e) => {
-    e.stopPropagation();
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/users/save-post/${postId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsSaved(data.isSaved);
-        if(onToggleSave) onToggleSave(postId, data.isSaved);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900'}`}>
-      <Bookmark size={20} strokeWidth={isSaved ? 3 : 2.5} fill={isSaved ? '#f44336' : 'none'} />
-    </button>
-  );
 };
 
 /* Language Dictionary... */
@@ -1555,7 +1521,7 @@ function DashboardContent() {
 
       {/* Giao diện Modal Chat... */}
       {isUserChatOpen && (
-        <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
+        <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col h-[520px] animate-in slide-in-from-top-4 fade-in rounded-2xl">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2">
               {chatView === 'conversation' ? (
@@ -1914,10 +1880,14 @@ function DashboardContent() {
                             </button>
                           );
                         })()}
+                        
                         <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[13px] font-bold">
                           <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || "Bình luận"}
                         </button>
+                        
+                        {/* NÚT LƯU ĐÃ ĐƯỢC THAY BẰNG COMPONENT ĐỘC LẬP TỪ IMPORT */}
                         <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
+                        
                         <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-[13px] font-bold ml-auto">
                           <Share2 size={20} strokeWidth={2.5} />
                         </button>

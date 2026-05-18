@@ -112,13 +112,14 @@ export default function AccountMenu({ avatar, username, onSavedClick, onTrending
     navigate(path);
   };
 
+  // ĐÃ SỬA: Điều hướng đúng về trang /saved
   const handleSaved = () => {
     setIsOpen(false);
     if (onSavedClick) {
       onSavedClick();
       return;
     }
-    navigate('/profile');
+    navigate('/saved');
   };
 
   const handleTrending = () => {

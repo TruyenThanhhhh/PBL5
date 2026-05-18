@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import AccountMenu from '../components/AccountMenu';
 import NotificationBell from '../components/NotificationBell';
+import SavePostButton from '../components/SavePostButton';
 
 // --- TIỆN ÍCH XỬ LÝ ẢNH ---
 const getImageUrl = (url) => {
@@ -17,39 +18,6 @@ const getImageUrl = (url) => {
 const getAvatarUrl = (url, name) => {
   const finalUrl = getImageUrl(url);
   return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
-};
-
-// --- COMPONENT NÚT LƯU BÀI VIẾT ---
-const SavePostButton = ({ postId, initialIsSaved }) => {
-  const [isSaved, setIsSaved] = useState(initialIsSaved);
-  
-  useEffect(() => {
-    setIsSaved(initialIsSaved);
-  }, [initialIsSaved]);
-
-  const handleSave = async (e) => {
-    e.stopPropagation();
-    const token = localStorage.getItem('token');
-    if (!token) return alert('Vui lòng đăng nhập để lưu bài viết.');
-    try {
-      const res = await fetch(`http://localhost:5000/api/users/save-post/${postId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsSaved(data.isSaved);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <button type="button" onClick={handleSave} className={`flex items-center gap-1.5 transition-colors text-[13px] font-bold ${isSaved ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-      <Bookmark size={20} strokeWidth={isSaved ? 3 : 2.5} fill={isSaved ? '#f44336' : 'none'} />
-    </button>
-  );
 };
 
 // --- LOGIC BẢN ĐỒ LEAFLET ---

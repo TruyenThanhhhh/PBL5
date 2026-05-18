@@ -469,15 +469,14 @@ exports.getPendingRequests = async (req, res) => {
   }
 };
 
-// ĐÃ SỬA: Populate friends để lấy danh sách bạn bè, hiển thị trong GlobalChat
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
         .select("-password")
         .populate("friendRequests", "username displayName avatar")
-        .populate("friends", "username displayName avatar"); // <-- ĐÂY LÀ DÒNG QUAN TRỌNG ĐÃ ĐƯỢC THÊM
+        .populate("friends", "username displayName avatar");
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
-    res.json(user); // Trả về object user trực tiếp
+    res.json(user); 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -501,6 +500,9 @@ exports.changePassword = async (req, res) => {
   }
 };
 
+// ==========================================
+// ĐÃ SỬA LỖI: Dùng .some() thay vì .includes() để đảm bảo so sánh chuỗi
+// ==========================================
 exports.toggleSavePost = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -508,9 +510,12 @@ exports.toggleSavePost = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    const isSaved = user.savedPosts.includes(postId);
+    // FIX LỖI OBJECT_ID vs STRING:
+    const isSaved = user.savedPosts.some(id => id.toString() === postId);
+    
     if (isSaved) {
-      user.savedPosts.pull(postId);
+      // Dùng filter để bỏ lưu
+      user.savedPosts = user.savedPosts.filter(id => id.toString() !== postId);
       await user.save();
       return res.json({ message: "Đã bỏ lưu bài viết", isSaved: false });
     } else {
