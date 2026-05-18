@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const postSchema = new mongoose.Schema(
   {
     title:         { type: String, required: true },
-    description:   { type: String }, // Đã xóa required: true
+    description:   { type: String }, 
     location:      { type: String, required: true },
     category:      { type: String, required: true },
     price:         { type: Number, default: null, min: 0 },
@@ -25,8 +25,14 @@ const postSchema = new mongoose.Schema(
       ref: "Community",
       default: null,
     },
-    /** Khi bài thuộc community: chỉ hiện trên bảng tin chính / hồ sơ nếu true */
     publishedToProfile: { type: Boolean, default: true },
+    
+    // THÊM MỚI: Trường lưu trữ ID của bài viết gốc nếu đây là một bài Share
+    sharedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Post",
+      default: null,
+    }
   },
   { timestamps: true }
 );

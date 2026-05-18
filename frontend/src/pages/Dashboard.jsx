@@ -5,7 +5,7 @@ import {
   MapPin, Image as ImageIcon, Send, ShieldAlert,
   Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot,
   ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell,
-  UserCircle, Home, TrendingUp, LogOut, Shield
+  UserCircle, Home, TrendingUp, LogOut, Shield, Copy
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import NotificationBell from '../components/NotificationBell';
@@ -13,8 +13,21 @@ import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
 import SavePostButton from '../components/SavePostButton';
 
+const getImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  return `http://localhost:5000/${url.replace(/\\/g, '/')}`;
+};
+
+const getPostImageUrl = (img) => {
+  if (typeof img === 'string') return img;
+  if (img && typeof img === 'object') return img.url || img.path || '';
+  return '';
+};
+
 const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  const finalUrl = getImageUrl(url);
+  return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
 /* Language Dictionary... */
@@ -249,7 +262,7 @@ function RealMapPicker({ setPickedCoords }) {
     <div className="w-full h-full relative">
       <div ref={mapRef} className="w-full h-full z-0 rounded-lg cursor-crosshair" />
       {!isMapReady && (
-        <div className="absolute inset-0 bg-gray-100 animate-pulse rounded-lg flex items-center justify-center text-[12px] font-bold text-gray-500">
+        <div className="absolute inset-0 bg-gray-100 dark:bg-slate-800 animate-pulse rounded-lg flex items-center justify-center text-[12px] font-bold text-gray-500 dark:text-slate-400">
           Đang tải bản đồ...
         </div>
       )}
@@ -281,7 +294,7 @@ function RealMapViewer({ lat, lng, role, location }) {
           iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
         });
         const icon = role === 'admin' ? adminIcon : defaultIcon;
-        const popupText = typeof location === 'string' ? location : 'Vị trí được ghim';
+        const popupText = typeof location === 'string' && location !== 'Chưa xác định' ? location : 'Vị trí được ghim';
         L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<b>${popupText}</b>`);
         mapInstance.current = map;
         setIsMapReady(true);
@@ -295,7 +308,7 @@ function RealMapViewer({ lat, lng, role, location }) {
     <div className="w-full h-full relative">
       <div ref={mapRef} className="w-full h-full z-0" />
       {!isMapReady && (
-        <div className="absolute inset-0 bg-gray-100 animate-pulse rounded-lg flex items-center justify-center text-[12px] font-bold text-gray-500">
+        <div className="absolute inset-0 bg-gray-100 dark:bg-slate-800 animate-pulse rounded-lg flex items-center justify-center text-[12px] font-bold text-gray-500 dark:text-slate-400">
           Đang tải bản đồ...
         </div>
       )}
@@ -337,6 +350,9 @@ function DashboardContent() {
   const [likingPosts, setLikingPosts] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, postId: null, commentId: null });
   const [openPostMenuId, setOpenPostMenuId] = useState(null);
+
+  const [shareModal, setShareModal] = useState({ open: false, postData: null, description: '' });
+  const [isSharing, setIsSharing] = useState(false);
 
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [aiChatInput, setAiChatInput] = useState('');
@@ -397,7 +413,6 @@ function DashboardContent() {
     }
   };
 
-  // Lắng nghe sự kiện chuyển Sáng/Tối phát ra từ trang Settings
   useEffect(() => {
     const savedTheme = localStorage.getItem('app-theme') || 'light';
     applyThemeToDOM(savedTheme);
@@ -412,14 +427,13 @@ function DashboardContent() {
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
 
-  // ==========================================
   // XỬ LÝ CHỐNG ĐÈ CHÉO COMPONENT
-  // ==========================================
   useEffect(() => {
     const handleCloseAll = () => {
       setIsFriendDropdownOpen(false);
       setIsUserChatOpen(false);
       setIsAiChatOpen(false);
+      setOpenPostMenuId(null);
     };
 
     const handleClickOutside = (e) => {
@@ -430,6 +444,11 @@ function DashboardContent() {
       }
       if (userChatModalRef.current && !userChatModalRef.current.contains(e.target)) {
         setIsUserChatOpen(false);
+      }
+      
+      // Đóng menu bài viết khi click ra ngoài
+      if (!e.target.closest('.post-menu-container')) {
+        setOpenPostMenuId(null);
       }
     };
 
@@ -442,11 +461,7 @@ function DashboardContent() {
     };
   }, []);
 
-  // ==========================================
   // LOGIC SOCKET.IO CHO REALTIME CHAT
-  // ==========================================
-  
-  // 1. Kết nối Socket khi load trang (nếu đã đăng nhập)
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     if (!userId) return;
@@ -455,21 +470,17 @@ function DashboardContent() {
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
-      // Báo cho backend biết user này đang online và join vào phòng cá nhân
       newSocket.emit("join", userId); 
     });
 
     return () => newSocket.close();
   }, []);
 
-  // 2. Lắng nghe tin nhắn mới tới
   useEffect(() => {
     if (!socket) return;
 
     const handleReceiveMessage = (incomingMsg) => {
       const currentUserId = localStorage.getItem('userId');
-      
-      // Bỏ qua nếu chính mình là người gửi (để không bị lặp tin nhắn do Optimistic Update)
       if (String(incomingMsg.sender._id) === currentUserId) return;
 
       const isGroupMsg = !!incomingMsg.groupId;
@@ -482,13 +493,11 @@ function DashboardContent() {
         text: incomingMsg.text
       };
 
-      // Đẩy tin nhắn mới vào state
       setUserMessages(prev => ({
         ...prev,
         [key]: [...(prev[key] || []), formattedMsg]
       }));
 
-      // Gọi lại danh sách hội thoại để update tin nhắn mới nhất ngoài Sidebar
       fetchConversations();
     };
 
@@ -497,9 +506,8 @@ function DashboardContent() {
     return () => {
       socket.off("receive_message", handleReceiveMessage);
     };
-  }, [socket]);
+  }, [socket, conversationsList]); // Đã thêm conversationsList vào dependency
 
-  // 3. Tự động Join room cho Group Chat
   useEffect(() => {
     if (socket && conversationsList.length > 0) {
       conversationsList.forEach(conv => {
@@ -510,8 +518,6 @@ function DashboardContent() {
     }
   }, [socket, conversationsList]);
 
-  // ==========================================
-
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
 
   const handleNavigateProfile = (userId) => {
@@ -520,7 +526,7 @@ function DashboardContent() {
     }
   };
 
-  /* Các API Calls cơ bản... */
+  /* CÁC API CALLS CƠ BẢN... */
   const fetchAllUsers = async () => {
     const token = localStorage.getItem('token');
     const myId = localStorage.getItem('userId');
@@ -718,7 +724,7 @@ function DashboardContent() {
     }
   };
 
-  /* UseEffects khởi động và Realtime... */
+  /* UseEffects khởi động */
   useEffect(() => {
     const loadCurrentUser = async () => {
       const userRole = localStorage.getItem('role') || 'user';
@@ -788,12 +794,12 @@ function DashboardContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [userMessages, chatView]);
 
-  /* Xử lý Bạn bè và Bình luận... */
   const showToast = (type, text) => {
     setNotification({ type, text: String(text) });
     setTimeout(() => setNotification({ type: '', text: '' }), 5000);
   };
 
+  /* BẠN BÈ VÀ BÌNH LUẬN... */
   const handleAddFriend = async (userId) => {
     const strUserId = String(userId);
     const token = localStorage.getItem('token');
@@ -819,7 +825,7 @@ function DashboardContent() {
       showToast('error', 'Lỗi kết nối server');
     }
   };
-
+  
   const handleUndoRequest = async (userId) => {
     const strUserId = String(userId);
     const token = localStorage.getItem('token');
@@ -916,9 +922,7 @@ function DashboardContent() {
       const newComments = Array.isArray(data.comments) ? data.comments : [];
       setCommentsData(prev => ({ ...prev, [postId]: newComments }));
       setPosts(prev => prev.map((post) => post._id === postId ? { ...post, totalReviews: newComments.length } : post));
-    } catch (error) {
-      setCommentsData(prev => ({ ...prev, [postId]: [] }));
-    }
+    } catch (error) {}
   };
 
   const handlePostComment = async (postId, parentId = null, e) => {
@@ -935,29 +939,17 @@ function DashboardContent() {
     try {
       const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text, parentComment: parentId || null })
       });
-
       if (res.ok) {
-        if (parentId) {
-          setReplyInputs(prev => ({ ...prev, [parentId]: '' }));
-          setReplyingTo({ parentId: null, childUsername: null });
-        } else {
-          setCommentInputs(prev => ({ ...prev, [postId]: '' }));
-        }
+        if (parentId) { setReplyInputs(prev => ({ ...prev, [parentId]: '' })); setReplyingTo({ parentId: null, childUsername: null }); } 
+        else { setCommentInputs(prev => ({ ...prev, [postId]: '' })); }
         await refreshComments(postId);
-      } else {
-        throw new Error('Lỗi gửi bình luận');
-      }
+      } else throw new Error('Lỗi gửi bình luận');
     } catch (error) {
       showToast('error', error.message || 'Lỗi mạng!');
-    } finally {
-      setIsSubmittingComment(false);
-    }
+    } finally { setIsSubmittingComment(false); }
   };
 
   const handleDeleteComment = async (postId, commentId) => {
@@ -984,40 +976,13 @@ function DashboardContent() {
       showToast('error', error.message || 'Lỗi khi xóa bình luận');
     }
   };
-
-  const showDeleteConfirm = (postId, commentId, e) => {
-    if (e) e.stopPropagation();
-    setDeleteConfirm({ open: true, postId, commentId });
-  };
-
-  const cancelDelete = (e) => {
-    if (e) e.stopPropagation();
-    setDeleteConfirm({ open: false, postId: null, commentId: null });
-  };
-
-  const confirmDeleteComment = async (e) => {
-    if (e) e.stopPropagation();
-    const { postId, commentId } = deleteConfirm;
-    if (!postId || !commentId) {
-      cancelDelete();
-      return;
-    }
-    await handleDeleteComment(postId, commentId);
-    cancelDelete();
-  };
-
-  const startEditComment = (commentId, content, e) => {
-    if (e) e.stopPropagation();
-    setEditingCommentId(commentId);
-    setEditingCommentContent(content || '');
-  };
-
-  const cancelEditComment = (e) => {
-    if (e) e.stopPropagation();
-    setEditingCommentId(null);
-    setEditingCommentContent('');
-  };
-
+  
+  const showDeleteConfirm = (postId, commentId, e) => { if (e) e.stopPropagation(); setDeleteConfirm({ open: true, postId, commentId }); };
+  const cancelDelete = (e) => { if (e) e.stopPropagation(); setDeleteConfirm({ open: false, postId: null, commentId: null }); };
+  const confirmDeleteComment = async (e) => { if (e) e.stopPropagation(); const { postId, commentId } = deleteConfirm; if (!postId || !commentId) { cancelDelete(); return; } await handleDeleteComment(postId, commentId); cancelDelete(); };
+  const startEditComment = (commentId, content, e) => { if (e) e.stopPropagation(); setEditingCommentId(commentId); setEditingCommentContent(content || ''); };
+  const cancelEditComment = (e) => { if (e) e.stopPropagation(); setEditingCommentId(null); setEditingCommentContent(''); };
+  
   const saveEditComment = async (postId, commentId, e) => {
     if (e) e.stopPropagation();
     if (!editingCommentContent || !editingCommentContent.trim()) {
@@ -1048,7 +1013,7 @@ function DashboardContent() {
     }
   };
 
-  /* Post bài và Xử lý Ảnh... */
+  /* POST BÀI... */
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
     const validFiles = [];
@@ -1077,9 +1042,7 @@ function DashboardContent() {
     setIsPosting(true);
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập để đăng bài.');
-      }
+      if (!token) throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập để đăng bài.');
       const finalLocation = pickedCoords ? `[${pickedCoords.lat.toFixed(4)}, ${pickedCoords.lng.toFixed(4)}]` : "Chưa xác định";
       let finalDescription = newPost.description ? String(newPost.description) : "";
       
@@ -1115,39 +1078,23 @@ function DashboardContent() {
   const handleLikePost = async (postId, e) => {
     if (e) e.stopPropagation();
     const token = localStorage.getItem('token');
-    if (!token) {
-      showToast('error', 'Vui lòng đăng nhập để thả tim bài viết.');
-      return;
-    }
+    if (!token) { showToast('error', 'Vui lòng đăng nhập để thả tim bài viết.'); return; }
 
     setLikingPosts((prev) => ({ ...prev, [postId]: true }));
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/like/${postId}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không thể thả tim bài viết');
-      }
-
+      const res = await fetch(`http://localhost:5000/api/posts/like/${postId}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.message || 'Không thể thả tim bài viết'); }
       const data = await res.json();
-      setPosts((prev) =>
-        prev.map((post) => {
-          if (post._id !== postId) return post;
-          const existingLikes = Array.isArray(post.likes) ? [...post.likes] : [];
-          const userLiked = existingLikes.some((userId) => userId?.toString() === currentUser.userId);
-
-          if (data.liked) {
-            const updatedLikes = userLiked ? existingLikes : [...existingLikes, currentUser.userId];
-            return { ...post, likes: updatedLikes };
-          }
-
-          const updatedLikes = existingLikes.filter((userId) => userId?.toString() !== currentUser.userId);
-          return { ...post, likes: updatedLikes };
-        })
-      );
+      
+      setPosts((prev) => prev.map((post) => {
+        if (post._id !== postId) return post;
+        const existingLikes = Array.isArray(post.likes) ? [...post.likes] : [];
+        const userLiked = existingLikes.some((userId) => userId?.toString() === currentUser.userId);
+        if (data.liked) {
+          return { ...post, likes: userLiked ? existingLikes : [...existingLikes, currentUser.userId] };
+        }
+        return { ...post, likes: existingLikes.filter((userId) => userId?.toString() !== currentUser.userId) };
+      }));
     } catch (error) {
       showToast('error', error.message || 'Đã xảy ra lỗi khi thả tim');
     } finally {
@@ -1155,21 +1102,11 @@ function DashboardContent() {
     }
   };
 
-  const getPostImageUrl = (img) => {
-    if (typeof img === 'string') return img;
-    if (img && typeof img === 'object') return img.url || img.path || '';
-    return '';
-  };
-
   const handleCopyPostLink = async (postId, e) => {
     if(e) e.stopPropagation();
     const url = `${window.location.origin}/post-detail?postId=${postId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      showToast('success', 'Đã copy link bài viết.');
-    } catch (error) {
-      showToast('error', 'Không thể copy link.');
-    }
+    try { await navigator.clipboard.writeText(url); showToast('success', 'Đã copy link bài viết.'); } 
+    catch (error) { showToast('error', 'Không thể copy link.'); }
     setOpenPostMenuId(null);
   };
 
@@ -1178,21 +1115,12 @@ function DashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không thể xóa bài viết');
-      }
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Không thể xóa bài viết');
       setPosts((prev) => prev.filter((p) => p._id !== postId));
       showToast('success', 'Đã xóa bài viết.');
-    } catch (error) {
-      showToast('error', error.message || 'Lỗi khi xóa bài viết.');
-    } finally {
-      setOpenPostMenuId(null);
-    }
+    } catch (error) { showToast('error', error.message || 'Lỗi khi xóa bài viết.'); } 
+    finally { setOpenPostMenuId(null); }
   };
 
   const handleToggleVisibility = async (postId, e) => {
@@ -1200,22 +1128,13 @@ function DashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/toggle-visibility`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không thể thay đổi trạng thái bài viết');
-      }
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/toggle-visibility`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Không thể thay đổi trạng thái bài viết');
       const data = await res.json();
       setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, isHidden: data.isHidden } : p)));
       showToast('success', data.message || 'Đã cập nhật trạng thái bài viết.');
-    } catch (error) {
-      showToast('error', error.message || 'Lỗi hệ thống.');
-    } finally {
-      setOpenPostMenuId(null);
-    }
+    } catch (error) { showToast('error', error.message || 'Lỗi hệ thống.'); } 
+    finally { setOpenPostMenuId(null); }
   };
 
   const handleSendAiChat = async () => {
@@ -1298,11 +1217,42 @@ function DashboardContent() {
       });
       if (!res.ok) {
         console.error("Gửi tin nhắn thất bại");
-      } else {
-        // Lấy lại danh sách để chat mới nhảy lên top
-        fetchConversations();
       }
     } catch(err) {}
+  };
+
+  // ==========================================
+  // THÊM MỚI: TÍNH NĂNG SHARE BÀI VIẾT TỪ DASHBOARD
+  // ==========================================
+  const handleConfirmShare = async () => {
+    if (!shareModal.postData) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('error', 'Vui lòng đăng nhập để chia sẻ bài viết.');
+      return;
+    }
+    
+    setIsSharing(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${shareModal.postData._id}/share`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: shareModal.description })
+      });
+
+      if (res.ok) {
+        showToast('success', 'Đã chia sẻ bài viết lên trang cá nhân của bạn!');
+        setShareModal({ open: false, postData: null, description: '' });
+        fetchPosts(); // Reload lại feed để thấy bài vừa share
+      } else {
+        const errData = await res.json().catch(()=>({}));
+        throw new Error(errData.message || 'Chia sẻ thất bại');
+      }
+    } catch (error) {
+      showToast('error', error.message);
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const currentUserIdStr = String(currentUser.userId || '');
@@ -1329,7 +1279,7 @@ function DashboardContent() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-900 font-sans text-gray-900 dark:text-gray-100 pb-12 transition-colors duration-300 relative">
       {notification.text && (
-        <div className={`fixed bottom-6 right-6 z-[200] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
+        <div className={`fixed bottom-6 right-6 z-[400] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
           {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
           <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
           <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-white"><X size={18} /></button>
@@ -1337,7 +1287,7 @@ function DashboardContent() {
       )}
 
       {deleteConfirm.open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6" onClick={cancelDelete}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-sm px-4 py-6" onClick={cancelDelete}>
           <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-2xl border border-gray-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2">Xác nhận xóa bình luận</h3>
             <p className="text-sm text-gray-700 dark:text-slate-300 mb-5">Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.</p>
@@ -1349,12 +1299,54 @@ function DashboardContent() {
         </div>
       )}
 
+      {/* THÊM MỚI: Modal Xác nhận Chia sẻ Bài viết trên Dashboard */}
+      {shareModal.open && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-sm px-4 py-6 animate-in fade-in duration-200" onClick={() => setShareModal({ open: false, postData: null, description: '' })}>
+          <div className="w-full max-w-md bg-white dark:bg-[#1A2338] rounded-3xl p-6 shadow-2xl border border-transparent dark:border-slate-700" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                <Share2 size={20} className="text-[#f44336]" /> Chia sẻ bài viết
+              </h3>
+              <button onClick={() => setShareModal({ open: false, postData: null, description: '' })} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <textarea
+              value={shareModal.description}
+              onChange={(e) => setShareModal(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Hãy nói gì đó về bài viết này..."
+              className="w-full h-24 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-3 text-[14px] font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 resize-none transition-all mb-4"
+            />
+
+            <div className="bg-gray-50/50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl p-3 mb-6">
+              <p className="text-[12px] font-bold text-gray-900 dark:text-white mb-1">
+                Bài viết của: {shareModal.postData?.sharedFrom ? (shareModal.postData.sharedFrom.createdBy?.displayName || shareModal.postData.sharedFrom.createdBy?.username) : (shareModal.postData?.createdBy?.displayName || shareModal.postData?.createdBy?.username)}
+              </p>
+              <p className="text-[12px] text-gray-500 dark:text-slate-400 line-clamp-2">
+                {shareModal.postData?.sharedFrom ? (shareModal.postData.sharedFrom.description || shareModal.postData.sharedFrom.title) : (shareModal.postData?.description || shareModal.postData?.title)}
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setShareModal({ open: false, postData: null, description: '' })} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-[14px]">
+                Hủy
+              </button>
+              <button type="button" onClick={handleConfirmShare} disabled={isSharing} className="px-5 py-2.5 rounded-xl bg-[#f44336] text-white font-bold hover:bg-[#e53935] transition-colors text-[14px] flex items-center gap-2 shadow-md shadow-red-500/20 disabled:opacity-50">
+                {isSharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} 
+                Chia sẻ ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="h-[72px] bg-white dark:bg-[#131B2E] border-b border-gray-100 dark:border-slate-800 flex items-center justify-between px-6 sticky top-0 z-50 shadow-sm transition-colors duration-300">
         <div className="w-1/4">
-          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 font-extrabold text-xl tracking-tight">The Wanderer</Link>
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 font-extrabold text-xl tracking-tight hidden sm:block">The Wanderer</Link>
         </div>
         <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500 dark:text-slate-400">
-          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 border-b-[3px] border-[#f44336] dark:border-red-500 h-[72px] flex items-center">{t.home}</Link>
           <Link to="/explore" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.explore}</Link>
           <Link to="/community" className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
@@ -1607,11 +1599,11 @@ function DashboardContent() {
                           )}
                           <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} w-full`}>
                             {msg.sender === 'them' && (
-                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 mr-2 self-end mb-1 overflow-hidden cursor-pointer">
+                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 mr-2 self-end mb-1 overflow-hidden cursor-pointer hover:opacity-80">
                                 {msg.senderAvatar ? <img src={msg.senderAvatar} className="w-full h-full object-cover"/> : (selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />)}
                               </div>
                             )}
-                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm' : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-900 dark:text-slate-100 rounded-bl-sm border border-gray-100 dark:border-slate-700'}`}>
+                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm shadow-sm' : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm border border-transparent dark:border-slate-700 shadow-sm'}`}>
                               {msg.text}
                             </div>
                           </div>
@@ -1626,21 +1618,21 @@ function DashboardContent() {
                     </>
                   )}
                 </div>
-                <div className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+                <div className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 transition-colors">
                   <div className="relative">
                     <input
                       type="text"
                       value={userMessageInput}
                       onChange={(e) => setUserMessageInput(e.target.value)}
                       placeholder="Aa"
-                      className="w-full bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700"
+                      className="w-full bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700 placeholder-gray-400 dark:placeholder-slate-400"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && userMessageInput.trim()) handleSendUserMessage();
                       }}
                     />
                     <button
                       onClick={handleSendUserMessage}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-full transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
                     >
                       <Send size={16} />
                     </button>
@@ -1674,7 +1666,7 @@ function DashboardContent() {
                 </div>
                 <textarea 
                   placeholder={currentUser.role === 'admin' ? "Phát thông báo hệ thống..." : "Chia sẻ địa điểm bạn vừa khám phá..."}
-                  className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
+                  className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700 placeholder-gray-400 dark:placeholder-slate-400"
                   rows="3"
                   value={newPost.description}
                   onChange={e => setNewPost({...newPost, description: e.target.value})}
@@ -1714,18 +1706,22 @@ function DashboardContent() {
                     <ImageIcon size={16} strokeWidth={2.5} /> Tải ảnh lên
                   </button>
                 </div>
-                <button type="button" onClick={handleQuickPost} disabled={isPosting} className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[14px] font-bold text-white transition-all shadow-md ${currentUser.role === 'admin' ? 'bg-gray-900 hover:bg-black' : 'bg-[#f44336] shadow-red-500/20 hover:bg-[#e53935]'} disabled:opacity-50`}>
+                <button type="button" onClick={handleQuickPost} disabled={isPosting} className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[14px] font-bold text-white transition-all shadow-md ${currentUser.role === 'admin' ? 'bg-gray-900 hover:bg-black dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200' : 'bg-[#f44336] shadow-red-500/20 hover:bg-[#e53935]'} disabled:opacity-50`}>
                   {isPosting ? <span>Đang tải...</span> : <span className="flex items-center gap-1.5"><Send size={16} /> Đăng bài</span>}
                 </button>
               </div>
             </div>
 
-            {/* List Bài Viết */}
+            {/* List Bài Viết (ĐÃ BỌC Sự kiện Click Chuyển Trang) */}
             <div className="space-y-6 pb-12">
               {Array.isArray(posts) ? posts.map((post) => {
                 const isAdmin = post.createdBy?.role === 'admin';
                 const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
                 
+                // NHẬN DIỆN BÀI LÀ BÀI SHARE HAY BÀI THƯỜNG
+                const isShared = Boolean(post.sharedFrom && typeof post.sharedFrom === 'object');
+                const originalPost = isShared ? post.sharedFrom : null;
+
                 return (
                   <div 
                     key={post._id || Math.random().toString()} 
@@ -1740,28 +1736,28 @@ function DashboardContent() {
                     ) : null}
 
                     <div className="p-6">
-                      {/* HEADER Bài viết */}
+                      {/* HEADER Bài viết (Của người Share hoặc Người đăng gốc) */}
                       <div className="flex justify-between items-center mb-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-3">
                           <div 
                             className={`w-10 h-10 rounded-full overflow-hidden border-2 cursor-pointer hover:ring-2 hover:ring-red-200 transition-all ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}
                             onClick={() => handleNavigateProfile(post.createdBy?._id)}
                           >
-                            <img src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.username)} alt="Avatar" className="w-full h-full object-cover" />
+                            <img src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.displayName || post.createdBy?.username)} alt="Avatar" className="w-full h-full object-cover" />
                           </div>
                           <div>
                             <h3 
                               className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-1.5 cursor-pointer hover:underline"
                               onClick={() => handleNavigateProfile(post.createdBy?._id)}
                             >
-                              {post.createdBy?.username} 
+                              {post.createdBy?.displayName || post.createdBy?.username} 
                               {isAdmin ? <CheckCircle size={14} className="text-[#f44336] dark:text-red-400" /> : null}
                             </h3>
                             <div className="flex items-center gap-2 mt-0.5">
                               <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
                                 {post.createdAt ? new Date(post.createdAt).toLocaleDateString('vi-VN') : ''}
                               </p>
-                              {post.category ? (
+                              {!isShared && post.category ? (
                                 <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border border-red-100 dark:border-red-900/50">
                                   {post.category}
                                 </span>
@@ -1769,11 +1765,11 @@ function DashboardContent() {
                             </div>
                           </div>
                         </div>
-                        <div className="relative">
+                        <div className="relative post-menu-container">
                           <button
                             type="button"
-                            onClick={() => setOpenPostMenuId((prev) => (prev === post._id ? null : post._id))}
-                            className="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white"
+                            onClick={(e) => { e.stopPropagation(); setOpenPostMenuId((prev) => (prev === post._id ? null : post._id)); }}
+                            className="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white p-1"
                           >
                             <MoreHorizontal size={20} />
                           </button>
@@ -1782,17 +1778,17 @@ function DashboardContent() {
                               <button
                                 type="button"
                                 onClick={(e) => handleCopyPostLink(post._id, e)}
-                                className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg"
+                                className="w-full flex items-center gap-2 text-left px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg"
                               >
-                                Copy link bài viết
+                                <Copy size={14} /> Copy link bài viết
                               </button>
                               {(isOwner || currentUser.role === 'admin') ? (
                                 <button
                                   type="button"
                                   onClick={(e) => handleDeletePost(post._id, e)}
-                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg"
+                                  className="w-full flex items-center gap-2 text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg mt-1 border-t border-gray-50 dark:border-slate-700 pt-2"
                                 >
-                                  Xóa bài viết
+                                  <Trash2 size={14} /> Xóa bài viết
                                 </button>
                               ) : null}
                               {currentUser.role === 'admin' ? (
@@ -1809,7 +1805,11 @@ function DashboardContent() {
                         </div>
                       </div>
 
-                      {/* CONTENT Bài viết */}
+                      {post.title && post.title !== `Trải nghiệm của ${post.createdBy?.username}` && (
+                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2 leading-tight group-hover:text-[#f44336] dark:group-hover:text-red-400 transition-colors">{post.title}</h2>
+                      )}
+
+                      {/* Lời bình của người đăng (hoặc người share) */}
                       {(() => {
                         const desc = post.description;
                         if (desc && String(desc).trim() !== "0" && String(desc).trim() !== "" && String(desc) !== "\u200B") {
@@ -1822,51 +1822,117 @@ function DashboardContent() {
                         return null;
                       })()}
 
-                      {post.lat && post.lng ? (
-                        <div className="mb-4" onClick={e => e.stopPropagation()}>
-                          <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
-                            <MapPin size={16} /> 
-                            {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : "Vị trí được ghim"}
-                            <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white dark:bg-slate-800 text-[#f44336] dark:text-red-400 shadow-sm'}`}>
-                              {expandedMap[post._id] ? "Đóng Bản đồ" : "📍 Xem Map"}
-                            </span>
-                          </button>
-                          {expandedMap[post._id] ? (
-                            <div className="mt-3 h-[250px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
-                              <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
+                      {/* HIỂN THỊ BÀI LỒNG GHÉP NẾU ĐÂY LÀ BÀI SHARE */}
+                      {isShared ? (
+                        <div className="mt-3 border border-gray-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-gray-50/50 dark:bg-[#131B2E]" onClick={e => e.stopPropagation()}>
+                          
+                          {/* Header bài gốc */}
+                          <div className="p-4 pb-2 flex items-center gap-3">
+                            <div 
+                              className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-600 cursor-pointer hover:opacity-80"
+                              onClick={() => handleNavigateProfile(originalPost.createdBy?._id)}
+                            >
+                              <img src={getAvatarUrl(originalPost.createdBy?.avatar, originalPost.createdBy?.displayName || originalPost.createdBy?.username)} className="w-full h-full object-cover" />
                             </div>
-                          ) : null}
-                        </div>
-                      ) : null}
+                            <div>
+                              <h3 
+                                className="text-[13px] font-bold text-gray-900 dark:text-white cursor-pointer hover:underline"
+                                onClick={() => handleNavigateProfile(originalPost.createdBy?._id)}
+                              >
+                                {originalPost.createdBy?.displayName || originalPost.createdBy?.username}
+                              </h3>
+                              <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400">
+                                {originalPost.createdAt ? new Date(originalPost.createdAt).toLocaleDateString('vi-VN') : ''}
+                              </p>
+                            </div>
+                          </div>
 
-                      {Array.isArray(post.images) && post.images.length > 0 ? (() => {
-                        const normalizedImages = post.images.map((img) => getPostImageUrl(img)).filter(Boolean);
-                        if (normalizedImages.length === 0) return null;
-                        return (
-                          <div className="mb-4 space-y-2">
-                            <img
-                              src={normalizedImages[0]}
-                              alt="media-main"
-                              className="w-full rounded-2xl object-cover border border-gray-100 dark:border-slate-750 max-h-[420px]"
-                            />
-                            {normalizedImages.length > 1 ? (
-                              <div className="grid grid-cols-2 gap-2">
-                                {normalizedImages.slice(1).map((img, idx) => (
-                                  <img
-                                    key={idx}
-                                    src={img}
-                                    alt={`media-${idx + 1}`}
-                                    className="w-full h-[150px] rounded-xl object-cover border border-gray-100 dark:border-slate-750"
-                                  />
-                                ))}
+                          <div 
+                            className="cursor-pointer"
+                            onClick={() => navigate(`/post-detail?postId=${originalPost._id}`)}
+                          >
+                            {/* Text bài gốc */}
+                            {originalPost.description && (
+                              <div className="px-4 pb-3 text-[13px] text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-4">
+                                {originalPost.description}
+                              </div>
+                            )}
+
+                            {/* Bản đồ của bài gốc (Mượn lat/lng đã được copy ra ngoài bài share) */}
+                            {post.lat && post.lng ? (
+                              <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
+                                <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
+                                  <MapPin size={14} /> 
+                                  {typeof originalPost.location === 'string' && originalPost.location !== 'Chưa xác định' ? originalPost.location : "Vị trí được ghim"}
+                                </button>
+                                {expandedMap[post._id] ? (
+                                  <div className="mt-2 h-[200px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                                    <RealMapViewer lat={post.lat} lng={post.lng} role={originalPost.createdBy?.role} location={originalPost.location} />
+                                  </div>
+                                ) : null}
                               </div>
                             ) : null}
+
+                            {/* Hình ảnh của bài gốc */}
+                            {Array.isArray(originalPost.images) && originalPost.images.length > 0 && (
+                                <img
+                                  src={getPostImageUrl(originalPost.images[0])}
+                                  alt="media"
+                                  className="w-full object-cover border-t border-gray-100 dark:border-slate-750 max-h-[350px]"
+                                />
+                            )}
                           </div>
-                        );
-                      })() : null}
+                        </div>
+                      ) : (
+                        /* NẾU LÀ BÀI BÌNH THƯỜNG THÌ RENDER NHƯ CŨ */
+                        <>
+                          {post.lat && post.lng ? (
+                            <div className="mb-4" onClick={e => e.stopPropagation()}>
+                              <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
+                                <MapPin size={16} /> 
+                                {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : "Vị trí được ghim"}
+                                <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white dark:bg-slate-800 text-[#f44336] dark:text-red-400 shadow-sm'}`}>
+                                  {expandedMap[post._id] ? "Đóng Bản đồ" : "📍 Xem Map"}
+                                </span>
+                              </button>
+                              {expandedMap[post._id] ? (
+                                <div className="mt-3 h-[250px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                                  <RealMapViewer lat={post.lat} lng={post.lng} role={post.createdBy?.role} location={post.location} />
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {Array.isArray(post.images) && post.images.length > 0 ? (() => {
+                            const normalizedImages = post.images.map((img) => getPostImageUrl(img)).filter(Boolean);
+                            if (normalizedImages.length === 0) return null;
+                            return (
+                              <div className="mb-4 space-y-2">
+                                <img
+                                  src={normalizedImages[0]}
+                                  alt="media-main"
+                                  className="w-full rounded-2xl object-cover border border-gray-100 dark:border-slate-750 max-h-[420px]"
+                                />
+                                {normalizedImages.length > 1 ? (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {normalizedImages.slice(1).map((img, idx) => (
+                                      <img
+                                        key={idx}
+                                        src={img}
+                                        alt={`media-${idx + 1}`}
+                                        className="w-full h-[150px] rounded-xl object-cover border border-gray-100 dark:border-slate-750"
+                                      />
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })() : null}
+                        </>
+                      )}
 
                       {/* ACTIONS Bài viết */}
-                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50 dark:border-slate-700" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50 dark:border-slate-700 mt-4" onClick={e => e.stopPropagation()}>
                         {(() => {
                           const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
                           return (
@@ -1874,7 +1940,7 @@ function DashboardContent() {
                               type="button"
                               onClick={(e) => handleLikePost(post._id, e)}
                               disabled={likingPosts[post._id]}
-                              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336]'} transition-colors text-[13px] font-bold disabled:opacity-50`}
+                              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400'} transition-colors text-[13px] font-bold disabled:opacity-50`}
                             >
                               <Heart size={20} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> {Array.isArray(post.likes) ? post.likes.length : 0}
                             </button>
@@ -1885,12 +1951,18 @@ function DashboardContent() {
                           <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || "Bình luận"}
                         </button>
                         
-                        {/* NÚT LƯU ĐÃ ĐƯỢC THAY BẰNG COMPONENT ĐỘC LẬP TỪ IMPORT */}
-                        <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
-                        
-                        <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-[13px] font-bold ml-auto">
-                          <Share2 size={20} strokeWidth={2.5} />
+                        {/* NÚT MỞ MODAL CHIA SẺ VÀO ĐÂY */}
+                        <button 
+                          type="button" 
+                          onClick={(e) => { e.stopPropagation(); setShareModal({ open: true, postData: post, description: '' }); }} 
+                          className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[13px] font-bold"
+                        >
+                          <Share2 size={20} strokeWidth={2.5} /> Chia sẻ
                         </button>
+
+                        <div className="ml-auto flex items-center">
+                          <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
+                        </div>
                       </div>
 
                       {/* BÌNH LUẬN */}
@@ -1907,9 +1979,9 @@ function DashboardContent() {
                                 className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 dark:focus:ring-red-500/20 transition-all border border-transparent dark:border-slate-700"
                                 value={commentInputs[post._id] || ''}
                                 onChange={(e) => setCommentInputs(prev => ({...prev, [post._id]: e.target.value}))}
-                                onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id)}
+                                onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id, null, e)}
                               />
-                              <button onClick={() => handlePostComment(post._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
+                              <button onClick={(e) => handlePostComment(post._id, null, e)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
                                 <Send size={16} />
                               </button>
                             </div>
@@ -1940,8 +2012,8 @@ function DashboardContent() {
                                             </div>
                                           </div>
                                         ) : (
-                                          <div className="bg-[#f4f4f5] dark:bg-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-none inline-block">
-                                            <p onClick={() => handleNavigateProfile(comment.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{comment.author?.username}</p>
+                                          <div className="bg-[#f4f4f5] dark:bg-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-none inline-block border border-transparent dark:border-slate-700">
+                                            <p onClick={() => handleNavigateProfile(comment.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{comment.author?.displayName || comment.author?.username}</p>
                                             <p className="text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{comment.content}</p>
                                           </div>
                                         )}
@@ -1966,7 +2038,7 @@ function DashboardContent() {
                                             <img src={getAvatarUrl(reply.author?.avatar, reply.author?.username)} alt="avt" className="w-6 h-6 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(reply.author?._id)} />
                                             <div className="flex-1">
                                               <div className="bg-white dark:bg-slate-850 border border-gray-100 dark:border-slate-700 shadow-sm px-3 py-2 rounded-2xl rounded-tl-none inline-block">
-                                                <p onClick={() => handleNavigateProfile(reply.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{reply.author?.username}</p>
+                                                <p onClick={() => handleNavigateProfile(reply.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{reply.author?.displayName || reply.author?.username}</p>
                                                 {editingCommentId === reply._id ? (
                                                   <div>
                                                     <textarea
@@ -2014,9 +2086,9 @@ function DashboardContent() {
                                             className="w-full bg-white dark:bg-slate-800 border border-[#f44336]/30 dark:border-slate-700 shadow-sm rounded-full py-2 pl-4 pr-10 text-[12px] font-medium focus:outline-none focus:border-[#f44336] transition-all"
                                             value={replyInputs[comment._id] || ''}
                                             onChange={(e) => setReplyInputs(prev => ({...prev, [comment._id]: e.target.value}))}
-                                            onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id, comment._id)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id, comment._id, e)}
                                           />
-                                          <button type="button" onClick={() => handlePostComment(post._id, comment._id)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
+                                          <button type="button" onClick={(e) => handlePostComment(post._id, comment._id, e)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
                                             <Send size={14} />
                                           </button>
                                         </div>

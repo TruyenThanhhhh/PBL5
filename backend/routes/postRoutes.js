@@ -7,7 +7,7 @@ const { protect, optionalAuth, requirePoster, requireAdmin, requireOwnerOrAdmin 
 const Post    = require("../models/Post");
 const commentRoutes = require("./commentRoutes");
 
-// 🖼️ Upload ảnh cloudinary — trả lỗi JSON rõ ràng
+// 🖼️ Upload ảnh cloudinary
 router.post("/upload-images", protect, (req, res) => {
   upload.array("images", 5)(req, res, async (err) => {
     if (err) return res.status(400).json({ message: err.message || "Upload cloudinary thất bại" });
@@ -15,7 +15,7 @@ router.post("/upload-images", protect, (req, res) => {
   });
 });
 
-// 🧰 Fallback upload local khi Cloudinary lỗi
+// 🧰 Fallback upload local
 router.post("/upload-images-local", protect, (req, res) => {
   uploadLocal.array("images", 5)(req, res, (err) => {
     if (err) return res.status(400).json({ message: err.message || "Upload local thất bại" });
@@ -27,10 +27,10 @@ router.post("/upload-images-local", protect, (req, res) => {
   });
 });
 
-// 🗑️ Xóa ảnh — TẤT CẢ user đã đăng nhập đều được xóa ảnh của họ
+// 🗑️ Xóa ảnh
 router.delete("/image", protect, postController.deleteImage);
 
-// 📝 Tạo bài — TẤT CẢ user đã đăng nhập đều được đăng bài
+// 📝 Tạo bài 
 router.post("/", protect, postController.createPost);
 router.post("/create-with-media", protect, (req, res) => {
   uploadLocal.array("images", 5)(req, res, (err) => {
@@ -39,16 +39,19 @@ router.post("/create-with-media", protect, (req, res) => {
   });
 });
 
-// 🔥 Lấy danh sách bài viết thịnh hành (Phải đặt trước /:id để tránh bị nhầm route)
+// ♻️ THÊM MỚI: Chia sẻ bài viết (Bắt buộc đăng nhập)
+router.post("/:id/share", protect, postController.sharePost);
+
+// 🔥 Lấy danh sách bài viết thịnh hành 
 router.get("/trending", postController.getTrendingPosts);
 
-// 🗺️ API MỚI CHO EXPLORE MAP: Chỉ hiển thị bài của Bạn Bè và Bản Thân (Bắt buộc đăng nhập)
+// 🗺️ Khám phá Map
 router.get("/explore", protect, postController.getExplorePosts);
 
-// 📄 Xem bài — ai cũng xem được, nếu login thì biết user là ai
+// 📄 Xem bài
 router.get("/", optionalAuth, postController.getPosts);
 
-// ✏️ Sửa bài — chủ bài hoặc admin
+// ✏️ Sửa bài 
 router.put("/:id",
   protect,
   requireOwnerOrAdmin(async (req) => {
@@ -58,7 +61,7 @@ router.put("/:id",
   postController.updatePost
 );
 
-// 🗑️ Xóa bài — chủ bài hoặc admin
+// 🗑️ Xóa bài
 router.delete("/:id",
   protect,
   requireOwnerOrAdmin(async (req) => {
@@ -68,9 +71,10 @@ router.delete("/:id",
   postController.deletePost
 );
 
-// 👁️ ẨN/hiện bài — chỉ admin
+// 👁️ ẨN/hiện bài 
 router.patch("/:id/toggle-visibility", protect, requireAdmin, postController.toggleVisibility);
 
+// Chia sẻ bài từ nhóm lên trang cá nhân (khác với share post của người khác)
 router.patch(
   "/:id/publish-profile",
   protect,
@@ -81,8 +85,7 @@ router.patch(
   postController.publishPostToProfile
 );
 
-
-// ❤️ Like — phải đăng nhập (viewer cũng like được)
+// ❤️ Like 
 router.put("/like/:id", protect, postController.likePost);
 
 // 💬 Comments

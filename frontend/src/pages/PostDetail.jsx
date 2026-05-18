@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Search, Home, Compass, Bookmark, MapPin, Star,
-  MessageSquare, ArrowUp, ArrowDown, Loader2, User, Send, Heart, Share2, Bell
+  MessageSquare, ArrowUp, ArrowDown, Loader2, User, Send, Heart, Share2, Bell, X, CheckCircle, ShieldAlert
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import AccountMenu from '../components/AccountMenu';
 import NotificationBell from '../components/NotificationBell';
 import SavePostButton from '../components/SavePostButton';
+
 
 // --- TIỆN ÍCH XỬ LÝ ẢNH ---
 const getImageUrl = (url) => {
@@ -27,26 +29,12 @@ const loadLeafletAssets = async () => {
   if (!leafletAssetsPromise) {
     leafletAssetsPromise = new Promise((resolve, reject) => {
       if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
+        const link = document.createElement('link'); link.id = 'leaflet-css'; link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link);
       }
       if (window.L) return resolve();
-      if (document.getElementById('leaflet-js')) {
-        const waitReady = setInterval(() => {
-          if (window.L) { clearInterval(waitReady); resolve(); }
-        }, 50);
-        setTimeout(() => { clearInterval(waitReady); if (!window.L) reject(new Error('Leaflet load timeout')); }, 7000);
-        return;
+      if (!document.getElementById('leaflet-js')) {
+        const script = document.createElement('script'); script.id = 'leaflet-js'; script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.onload = resolve; script.onerror = () => reject(new Error('Không tải được Leaflet')); document.head.appendChild(script);
       }
-      const script = document.createElement('script');
-      script.id = 'leaflet-js';
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Không tải được Leaflet'));
-      document.head.appendChild(script);
     });
   }
   await leafletAssetsPromise;
@@ -109,6 +97,17 @@ export default function PostDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  // Mới: State Modal chia sẻ
+  const [shareModal, setShareModal] = useState({ open: false, description: '' });
+  const [isSharing, setIsSharing] = useState(false);
+  
+  // Custom Toast State
+  const [notification, setNotification] = useState({ type: '', text: '' });
+  const showToast = (text, type = 'success') => { 
+    setNotification({ type, text });
+    setTimeout(() => setNotification({ type: '', text: '' }), 5000);
+  };
   
   const currentUser = { 
     userId: localStorage.getItem('userId'),
@@ -121,34 +120,14 @@ export default function PostDetail() {
     const root = document.documentElement;
     root.classList.remove('dark', 'light');
 
-    if (selectedTheme === 'dark') {
-      root.classList.add('dark');
-      root.style.colorScheme = 'dark';
-    } else if (selectedTheme === 'light') {
-      root.classList.add('light');
-      root.style.colorScheme = 'light';
-    } else {
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (systemPrefersDark) {
-        root.classList.add('dark');
-        root.style.colorScheme = 'dark';
-      } else {
-        root.classList.add('light');
-        root.style.colorScheme = 'light';
-      }
-    }
+    if (selectedTheme === 'dark') { root.classList.add('dark'); root.style.colorScheme = 'dark'; } 
+    else if (selectedTheme === 'light') { root.classList.add('light'); root.style.colorScheme = 'light'; } 
+    else { const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; if (systemPrefersDark) { root.classList.add('dark'); root.style.colorScheme = 'dark'; } else { root.classList.add('light'); root.style.colorScheme = 'light'; } }
   };
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('app-theme') || 'light';
-    applyThemeToDOM(savedTheme);
-
-    const handleThemeChange = (e) => {
-      if (e.detail && e.detail.theme) {
-        applyThemeToDOM(e.detail.theme);
-      }
-    };
-
+    const savedTheme = localStorage.getItem('app-theme') || 'light'; applyThemeToDOM(savedTheme);
+    const handleThemeChange = (e) => { if (e.detail && e.detail.theme) applyThemeToDOM(e.detail.theme); };
     window.addEventListener('themeChange', handleThemeChange);
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
@@ -167,11 +146,9 @@ export default function PostDetail() {
 
         let postData = null;
 
-        // BƯỚC 1: Thử lấy dữ liệu từ API chi tiết bài viết
         const postRes = await fetch(`http://localhost:5000/api/posts/${postId}`, { headers });
         
         if (!postRes.ok) {
-          // BƯỚC 2 (FALLBACK): Nếu API chi tiết bị lỗi, tiến hành lấy từ danh sách tổng
           const allPostsRes = await fetch(`http://localhost:5000/api/posts`, { headers });
           if (!allPostsRes.ok) throw new Error('Bài viết không tồn tại hoặc đã bị xóa.');
           
@@ -188,7 +165,6 @@ export default function PostDetail() {
 
         setPost(postData);
 
-        // Kiểm tra xem bài viết đã được lưu chưa
         if (token) {
           const savedRes = await fetch('http://localhost:5000/api/users/saved-posts', { headers });
           if (savedRes.ok) {
@@ -197,7 +173,6 @@ export default function PostDetail() {
           }
         }
 
-        // BƯỚC 3: Lấy danh sách bình luận (Comment)
         const commentRes = await fetch(`http://localhost:5000/api/posts/${postId}/comments`, { headers });
         if (commentRes.ok) {
           const commentData = await commentRes.json();
@@ -213,10 +188,9 @@ export default function PostDetail() {
     fetchPostAndComments();
   }, [postId]);
 
-  // Xử lý Thả Tim (Like)
   const handleLikePost = async () => {
     const token = localStorage.getItem('token');
-    if (!token) return alert('Vui lòng đăng nhập để thả tim bài viết.');
+    if (!token) return showToast('Vui lòng đăng nhập để thả tim bài viết.', 'error');
 
     setIsLiking(true);
     try {
@@ -237,16 +211,15 @@ export default function PostDetail() {
         });
       }
     } catch (error) {
-      console.error('Lỗi khi thả tim:', error);
+      showToast('Lỗi khi thả tim', 'error');
     } finally {
       setIsLiking(false);
     }
   };
 
-  // Xử lý Gửi Bình Luận
   const handlePostComment = async () => {
     const token = localStorage.getItem('token');
-    if (!token) return alert('Vui lòng đăng nhập để bình luận.');
+    if (!token) return showToast('Vui lòng đăng nhập để bình luận.', 'error');
     if (!commentInput.trim()) return;
 
     setIsSubmitting(true);
@@ -269,7 +242,6 @@ export default function PostDetail() {
         setComments(Array.isArray(commentData.comments) ? commentData.comments : []);
       }
     } catch (error) {
-      console.error(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -279,41 +251,113 @@ export default function PostDetail() {
     const url = window.location.href;
     try {
       await navigator.clipboard.writeText(url);
-      alert('Đã copy link bài viết thành công!');
+      showToast('Đã copy link bài viết thành công!');
+    } catch (error) {}
+  };
+
+  const handleConfirmShare = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('Vui lòng đăng nhập để chia sẻ bài viết.', 'error');
+    
+    setIsSharing(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/share`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: shareModal.description })
+      });
+
+      if (res.ok) {
+        showToast('Đã chia sẻ bài viết lên trang cá nhân của bạn!');
+        setShareModal({ open: false, description: '' });
+      } else {
+        const errData = await res.json().catch(()=>({}));
+        throw new Error(errData.message || 'Chia sẻ thất bại');
+      }
     } catch (error) {
-      console.error('Lỗi copy link');
+      showToast(error.message, 'error');
+    } finally {
+      setIsSharing(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300">
-        <Loader2 className="animate-spin text-[#f44336]" size={40} />
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300"><Loader2 className="animate-spin text-[#f44336]" size={40} /></div>;
+  if (error || !post) return <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300"><h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{error || 'Không thể tải bài viết.'}</h2><button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white rounded-full font-bold shadow-md hover:bg-red-600 transition-colors">Về trang chủ</button></div>;
 
-  if (error || !post) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#fcfcfc] dark:bg-[#0c1322] transition-colors duration-300">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{error || 'Không thể tải bài viết.'}</h2>
-        <button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white rounded-full font-bold shadow-md hover:bg-red-600 transition-colors">Về trang chủ</button>
-      </div>
-    );
-  }
+  // LOGIC NHẬN DIỆN BÀI SHARE
+  const isShared = Boolean(post.sharedFrom && typeof post.sharedFrom === 'object');
+  const originalPost = isShared ? post.sharedFrom : null;
 
-  const postImages = Array.isArray(post.images) ? post.images.map(getImageUrl).filter(Boolean) : [];
+  const targetImages = isShared ? (originalPost?.images || []) : (post.images || []);
+  const postImages = Array.isArray(targetImages) ? targetImages.map(getImageUrl).filter(Boolean) : [];
   const mainImage = postImages.length > 0 ? postImages[0] : null;
+
   const authorName = post.createdBy?.displayName || post.createdBy?.username || 'Người dùng';
   const authorAvatar = getAvatarUrl(post.createdBy?.avatar, authorName);
   const likedByCurrentUser = Array.isArray(post.likes) && post.likes.includes(currentUser.userId);
 
+  const targetLat = isShared ? originalPost?.lat : post.lat;
+  const targetLng = isShared ? originalPost?.lng : post.lng;
+  const targetLocation = isShared ? originalPost?.location : post.location;
+
   return (
-    <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#0c1322] font-sans text-gray-900 dark:text-gray-100 pb-16 transition-colors duration-300">
+    <div className="min-h-screen bg-[#fcfcfc] dark:bg-[#0c1322] font-sans text-gray-900 dark:text-gray-100 pb-16 transition-colors duration-300 relative">
+      
+      {/* KHU VỰC THÔNG BÁO (TOAST) */}
+      {notification.text && (
+        <div className={`fixed bottom-6 right-6 z-[400] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
+          {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
+          <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
+          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><X size={18} /></button>
+        </div>
+      )}
+
+      {/* Modal Chia Sẻ Tối Ưu */}
+      {shareModal.open && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-sm px-4 py-6 animate-in fade-in duration-200" onClick={() => setShareModal({ open: false, description: '' })}>
+          <div className="w-full max-w-md bg-white dark:bg-[#1A2338] rounded-3xl p-6 shadow-2xl border border-transparent dark:border-slate-700" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                <Share2 size={20} className="text-[#f44336]" /> Chia sẻ bài viết
+              </h3>
+              <button onClick={() => setShareModal({ open: false, description: '' })} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <textarea
+              value={shareModal.description}
+              onChange={e => setShareModal({ ...shareModal, description: e.target.value })}
+              placeholder="Hãy nói gì đó về bài viết này..."
+              className="w-full h-24 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-3 text-[14px] font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 resize-none transition-all mb-4"
+            />
+
+            <div className="bg-gray-50/50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl p-3 mb-6">
+              <p className="text-[12px] font-bold text-gray-900 dark:text-white mb-1">
+                Bài viết của: {isShared ? (originalPost?.createdBy?.displayName || originalPost?.createdBy?.username) : authorName}
+              </p>
+              <p className="text-[12px] text-gray-500 dark:text-slate-400 line-clamp-2">
+                {isShared ? (originalPost?.description || originalPost?.title) : (post.description || post.title)}
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setShareModal({ open: false, description: '' })} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-[14px]">
+                Hủy
+              </button>
+              <button type="button" onClick={handleConfirmShare} disabled={isSharing} className="px-5 py-2.5 rounded-xl bg-[#f44336] text-white font-bold hover:bg-[#e53935] transition-colors text-[14px] flex items-center gap-2 shadow-md shadow-red-500/20 disabled:opacity-50">
+                {isSharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} 
+                Chia sẻ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NAVBAR */}
-      <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 shadow-sm">
+      <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 shadow-sm transition-colors duration-300">
         <div className="flex items-center gap-8 w-1/4">
-          <Link to="/dashboard" className="text-[#f44336] font-extrabold text-xl tracking-tight hidden sm:block">
+          <Link to="/dashboard" className="text-[#f44336] dark:text-red-500 font-extrabold text-xl tracking-tight hidden sm:block">
             The Wanderer
           </Link>
         </div>
@@ -371,14 +415,12 @@ export default function PostDetail() {
         {/* FEED CONTENT (POST DETAIL) */}
         <section className="flex-1 min-w-0 pt-2">
           
-          {/* Tags */}
           <div className="flex items-center gap-3 mb-4">
             <span className="bg-[#b2ebf2] dark:bg-cyan-900/40 text-[#00838f] dark:text-cyan-400 text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-cyan-100 dark:border-cyan-800/50">
               {post.category || 'CHUNG'}
             </span>
           </div>
 
-          {/* Title & Actions */}
           <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white leading-[1.2] tracking-tight mb-4 whitespace-pre-wrap">
             {post.title || `Trải nghiệm của ${authorName}`}
           </h1>
@@ -386,7 +428,7 @@ export default function PostDetail() {
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4 text-[13px] font-bold text-gray-600 dark:text-slate-400">
               <div className="flex items-center gap-1.5 text-gray-800 dark:text-slate-300">
-                <MapPin size={16} className="text-[#f44336]" /> {post.location && post.location !== "Chưa xác định" ? post.location : "Vị trí bí mật"}
+                <MapPin size={16} className="text-[#f44336]" /> {targetLocation && targetLocation !== "Chưa xác định" ? targetLocation : "Vị trí bí mật"}
               </div>
               <span className="text-gray-300 dark:text-slate-600">/</span>
               <div 
@@ -401,32 +443,80 @@ export default function PostDetail() {
             </div>
           </div>
 
-          {/* Featured Image */}
-          {mainImage && (
-            <div className="w-full h-[400px] md:h-[500px] rounded-3xl overflow-hidden mb-8 shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
-              <img 
-                src={mainImage} 
-                alt="Post Main" 
-                className="w-full h-full object-contain bg-black/5 dark:bg-black/40"
-              />
+          {/* Description của bài Share (nếu có) hoặc bài gốc */}
+          {post.description && (
+            <div className="text-[15px] text-gray-800 dark:text-slate-300 leading-relaxed font-medium space-y-6 mb-8 whitespace-pre-wrap">
+              {post.description}
             </div>
           )}
 
-          {/* Sub Images if any */}
-          {postImages.length > 1 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-              {postImages.slice(1, 5).map((img, idx) => (
-                <div key={idx} className="h-32 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
-                   <img src={img} className="w-full h-full object-cover" alt={`Sub img ${idx}`} />
+          {/* HIỂN THỊ BÀI LỒNG GHÉP NẾU ĐÂY LÀ BÀI SHARE */}
+          {isShared ? (
+            <div 
+              className="mb-8 border border-gray-200 dark:border-slate-700 rounded-3xl overflow-hidden bg-white dark:bg-[#131B2E] shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => navigate(`/post-detail?postId=${originalPost._id}`)}
+            >
+              <div className="p-4 flex items-center gap-3 border-b border-gray-100 dark:border-slate-800">
+                <img 
+                  src={getAvatarUrl(originalPost?.createdBy?.avatar, originalPost?.createdBy?.displayName || originalPost?.createdBy?.username)} 
+                  className="w-10 h-10 rounded-full border border-gray-200 dark:border-slate-600 object-cover" 
+                  alt="Original Author" 
+                />
+                <div>
+                  <h3 
+                    className="font-bold text-[14px] text-gray-900 dark:text-white hover:underline" 
+                    onClick={(e) => { e.stopPropagation(); navigate('/profile', { state: { targetUserId: originalPost?.createdBy?._id } })}}
+                  >
+                    {originalPost?.createdBy?.displayName || originalPost?.createdBy?.username || 'Người dùng'}
+                  </h3>
+                  <p className="text-[12px] text-gray-500 dark:text-slate-400">
+                    {originalPost?.createdAt ? new Date(originalPost.createdAt).toLocaleDateString('vi-VN') : ''}
+                  </p>
                 </div>
-              ))}
+              </div>
+              {originalPost?.description && (
+                <div className="px-5 py-4 text-[14px] text-gray-800 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  {originalPost.description}
+                </div>
+              )}
+              {mainImage && (
+                <div className="w-full h-[300px] md:h-[450px] bg-gray-100 dark:bg-slate-800 border-t border-gray-100 dark:border-slate-800">
+                  <img src={mainImage} className="w-full h-full object-contain bg-black/5 dark:bg-black/40" alt="Main" />
+                </div>
+              )}
+              {postImages.length > 1 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-gray-50 dark:bg-slate-900">
+                  {postImages.slice(1, 5).map((img, idx) => (
+                    <div key={idx} className="h-24 bg-gray-100 dark:bg-slate-800 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
+                      <img src={img} className="w-full h-full object-cover" alt={`Sub ${idx}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          ) : (
+            /* HIỂN THỊ BÌNH THƯỜNG CHO BÀI VIẾT GỐC */
+            <>
+              {mainImage && (
+                <div className="w-full h-[400px] md:h-[500px] rounded-3xl overflow-hidden mb-8 shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
+                  <img 
+                    src={mainImage} 
+                    alt="Post Main" 
+                    className="w-full h-full object-contain bg-black/5 dark:bg-black/40"
+                  />
+                </div>
+              )}
+              {postImages.length > 1 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                  {postImages.slice(1, 5).map((img, idx) => (
+                    <div key={idx} className="h-32 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-slate-800 bg-gray-100 dark:bg-slate-800">
+                       <img src={img} className="w-full h-full object-cover" alt={`Sub img ${idx}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
-
-          {/* Article Content */}
-          <div className="text-[15px] text-gray-800 dark:text-slate-300 leading-relaxed font-medium space-y-6 mb-8 whitespace-pre-wrap">
-            {post.description}
-          </div>
 
           {/* ACTION BARS (LIKE, COMMENT, SHARE, SAVE) */}
           <div className="flex items-center gap-6 py-4 border-t border-b border-gray-100 dark:border-slate-800 mb-10">
@@ -434,7 +524,7 @@ export default function PostDetail() {
               type="button"
               onClick={handleLikePost}
               disabled={isLiking}
-              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336]'} transition-colors text-[14px] font-bold disabled:opacity-50`}
+              className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400'} transition-colors text-[14px] font-bold disabled:opacity-50`}
             >
               <Heart size={22} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> 
               {Array.isArray(post.likes) ? post.likes.length : 0} Lượt thích
@@ -444,11 +534,17 @@ export default function PostDetail() {
               <MessageSquare size={22} strokeWidth={2.5} /> {comments.length} Bình luận
             </div>
 
-            <SavePostButton postId={post._id} initialIsSaved={isSaved} />
-            
-            <button type="button" onClick={handleCopyPostLink} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors text-[14px] font-bold ml-auto">
+            <button 
+              type="button" 
+              onClick={(e) => { e.stopPropagation(); setShareModal({ open: true, description: '' }); }} 
+              className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] transition-colors text-[14px] font-bold"
+            >
               <Share2 size={22} strokeWidth={2.5} /> Chia sẻ
             </button>
+
+            <div className="ml-auto">
+               <SavePostButton postId={post._id} initialIsSaved={isSaved} />
+            </div>
           </div>
 
           {/* Discussion Section */}
@@ -514,20 +610,20 @@ export default function PostDetail() {
 
         {/* RIGHT SIDEBAR - BẢN ĐỒ CHI TIẾT */}
         <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
-          {post.lat && post.lng ? (
+          {targetLat && targetLng ? (
             <div className="bg-white dark:bg-[#1A2338] p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 sticky top-[100px] transition-colors">
               <h4 className="text-[14px] font-extrabold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <MapPin size={18} className="text-[#f44336]" /> Vị trí trên bản đồ
               </h4>
               <div className="h-[250px] w-full rounded-2xl overflow-hidden relative z-0 border border-gray-200 dark:border-slate-700 shadow-inner">
-                <RealMapViewer lat={post.lat} lng={post.lng} location={post.location} />
+                <RealMapViewer lat={targetLat} lng={targetLng} location={targetLocation} />
               </div>
               <div className="mt-4 flex flex-col gap-1 text-[13px] font-medium text-gray-600 dark:text-slate-400 mb-4 px-1">
-                <p>📍 {post.location || 'Chưa xác định'}</p>
-                <p className="text-[11px] text-gray-400 dark:text-slate-500 font-mono">Tọa độ: {Number(post.lat).toFixed(4)}, {Number(post.lng).toFixed(4)}</p>
+                <p>📍 {targetLocation || 'Chưa xác định'}</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 font-mono">Tọa độ: {Number(targetLat).toFixed(4)}, {Number(targetLng).toFixed(4)}</p>
               </div>
               <button 
-                onClick={() => window.open(`https://www.google.com/maps?q=${post.lat},${post.lng}`, '_blank')}
+                onClick={() => window.open(`https://www.google.com/maps?q=${targetLat},${targetLng}`, '_blank')}
                 className="w-full bg-red-50 dark:bg-red-900/20 text-[#f44336] text-[13px] font-bold py-2.5 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center gap-2"
               >
                 Mở Google Maps

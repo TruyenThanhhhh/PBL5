@@ -359,18 +359,22 @@ exports.getFeed = async (req, res) => {
     const skip  = (page - 1) * limit;
 
     const posts = await Post.find({ createdBy: { $in: targetUsers } })
-      .populate("createdBy", "username displayName avatar")
+      .populate("createdBy", "username displayName avatar role")
+      .populate({ path: "sharedFrom", populate: { path: "createdBy", select: "username displayName avatar role" } })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
     const total = await Post.countDocuments({ createdBy: { $in: targetUsers } });
-    res.json({ posts, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    
+    // ĐÃ SỬA LỖI MÀN HÌNH TRẮNG: Lọc bỏ null
+    res.json({ posts: posts.filter(Boolean), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+// Lọc null bảo vệ an toàn
 exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
@@ -381,18 +385,19 @@ exports.getFollowers = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     res.json({
-      followers: user.followers,
-      following: user.following,
-      friends: user.friends,
-      followersCount: user.followers.length,
-      followingCount: user.following.length,
-      friendsCount: user.friends.length
+      followers: user.followers.filter(Boolean),
+      following: user.following.filter(Boolean),
+      friends: user.friends.filter(Boolean),
+      followersCount: user.followers.filter(Boolean).length,
+      followingCount: user.following.filter(Boolean).length,
+      friendsCount: user.friends.filter(Boolean).length
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+// ĐÃ SỬA LỖI TRẮNG TRANG: Lọc bỏ null và các references bị xóa
 exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
@@ -406,17 +411,28 @@ exports.getUserProfile = async (req, res) => {
     const posts = await Post.find({ 
       createdBy: req.params.id,
       $or: [{ publishedToProfile: true }, { community: null }, { community: { $exists: false } }],
-    }).sort({ createdAt: -1 }).limit(20);
+    })
+    .populate("createdBy", "username displayName avatar role")
+    .populate({ path: "sharedFrom", populate: { path: "createdBy", select: "username displayName avatar role" } })
+    .sort({ createdAt: -1 })
+    .limit(20);
+
+    // Xóa null an toàn
+    user.followers = user.followers.filter(Boolean);
+    user.following = user.following.filter(Boolean);
+    user.friends = user.friends.filter(Boolean);
 
     let friendStatus = "none";
     if (req.user) {
-        if (user.friends.some(f => f._id.toString() === req.user.id)) friendStatus = "friends";
-        else if (user.friendRequests.includes(req.user.id)) friendStatus = "pending"; 
+        if (user.friends.some(f => f && f._id && f._id.toString() === req.user.id)) friendStatus = "friends";
+        else if (user.friendRequests.some(id => String(id) === req.user.id)) friendStatus = "pending"; 
     }
 
     const userResponse = user.toObject();
     userResponse.friendStatus = friendStatus;
-    res.json({ user: userResponse, posts });
+    
+    // Gửi posts lọc null về an toàn
+    res.json({ user: userResponse, posts: posts.filter(Boolean) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -476,6 +492,10 @@ exports.getProfile = async (req, res) => {
         .populate("friendRequests", "username displayName avatar")
         .populate("friends", "username displayName avatar");
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
+
+    user.friendRequests = user.friendRequests.filter(Boolean);
+    user.friends = user.friends.filter(Boolean);
+
     res.json(user); 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -500,9 +520,6 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// ==========================================
-// ĐÃ SỬA LỖI: Dùng .some() thay vì .includes() để đảm bảo so sánh chuỗi
-// ==========================================
 exports.toggleSavePost = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -510,11 +527,9 @@ exports.toggleSavePost = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    // FIX LỖI OBJECT_ID vs STRING:
     const isSaved = user.savedPosts.some(id => id.toString() === postId);
     
     if (isSaved) {
-      // Dùng filter để bỏ lưu
       user.savedPosts = user.savedPosts.filter(id => id.toString() !== postId);
       await user.save();
       return res.json({ message: "Đã bỏ lưu bài viết", isSaved: false });
@@ -528,15 +543,24 @@ exports.toggleSavePost = async (req, res) => {
   }
 };
 
+// =========================================================================
+// ĐÃ SỬA LỖI TRẮNG TRANG TẠI MỤC LƯU: Lọc sạch null
+// =========================================================================
 exports.getSavedPosts = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate({
       path: 'savedPosts',
-      populate: { path: 'createdBy', select: 'username displayName avatar' }
+      populate: [
+        { path: 'createdBy', select: 'username displayName avatar role' },
+        { path: 'sharedFrom', populate: { path: 'createdBy', select: 'username displayName avatar role' } }
+      ]
     });
     
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
-    res.json(user.savedPosts);
+
+    // Loại bỏ bài đã xóa để React không bị chết
+    const validSavedPosts = (user.savedPosts || []).filter(Boolean);
+    res.json(validSavedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

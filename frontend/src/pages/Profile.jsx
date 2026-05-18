@@ -4,12 +4,12 @@ import {
   Bell, MessageSquare, Home, Compass, TrendingUp, 
   Bookmark, Settings, MoreHorizontal, ArrowUp, 
   ArrowDown, Share2, FolderHeart, Trash2, Loader2, MapPin, Edit3, X, Camera,
-  ShieldAlert, Image as ImageIcon, Check, Heart, Send, Maximize2, UserPlus, UserMinus, Clock
+  ShieldAlert, Image as ImageIcon, CheckCircle, Heart, Send, Maximize2, UserPlus, UserMinus, Clock, Copy
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import AccountMenu from '../components/AccountMenu';
 import NotificationBell from '../components/NotificationBell';
-
+import SavePostButton from '../components/SavePostButton';
 
 const copy = {
   vi: {
@@ -28,29 +28,9 @@ const copy = {
     following: 'Đang theo dõi',
     trendingKeywords: 'Từ khóa xu hướng',
     suggestedForYou: 'Gợi ý cho bạn',
-    mentions: 'lượt nhắc đến',
+    mentions: 'lượt thích',
     follow: 'Theo dõi',
     coverAlt: 'Ảnh bìa',
-  },
-  en: {
-    posts: 'Posts',
-    media: 'Media',
-    about: 'About',
-    map: 'Map',
-    home: 'Home',
-    explore: 'Explore',
-    trending: 'Trending',
-    saved: 'Saved',
-    settings: 'Settings',
-    editProfile: 'Edit Profile',
-    traveler: 'Traveler',
-    followers: 'Followers',
-    following: 'Following',
-    trendingKeywords: 'Trending Keywords',
-    suggestedForYou: 'Suggested For You',
-    mentions: 'mentions',
-    follow: 'Follow',
-    coverAlt: 'Cover',
   },
 };
 
@@ -59,23 +39,24 @@ const stringToColor = (str) => {
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const h = Math.abs(hash) % 360;
-  return `hsl(${h}, 75%, 50%)`;
+  return `hsl(${Math.abs(hash) % 360}, 75%, 50%)`;
 };
 
-// Hàm chuẩn hóa đường dẫn ảnh an toàn
 const getImageUrl = (url) => {
   if (!url || typeof url !== 'string') return null;
   if (url.startsWith('http') || url.startsWith('data:')) return url;
-  
-  // Xử lý loại bỏ gạch chéo kép và nối chuỗi an toàn cho upload cục bộ
   const cleanUrl = url.replace(/\\/g, '/');
   return `http://localhost:5000/${cleanUrl.startsWith('/') ? cleanUrl.slice(1) : cleanUrl}`;
 };
 
+const getPostImageUrl = (img) => {
+  if (typeof img === 'string') return img;
+  if (img && typeof img === 'object') return img.url || img.path || '';
+  return '';
+};
+
 const getAvatarUrl = (url, name) => {
-  const finalUrl = getImageUrl(url);
-  return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  return getImageUrl(url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
 let leafletAssetsPromise = null;
@@ -84,20 +65,11 @@ const loadLeafletAssets = async () => {
   if (!leafletAssetsPromise) {
     leafletAssetsPromise = new Promise((resolve, reject) => {
       if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
+        const link = document.createElement('link'); link.id = 'leaflet-css'; link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link);
       }
       if (window.L) return resolve();
       if (!document.getElementById('leaflet-js')) {
-        const script = document.createElement('script');
-        script.id = 'leaflet-js';
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Không tải được Leaflet'));
-        document.head.appendChild(script);
+        const script = document.createElement('script'); script.id = 'leaflet-js'; script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.onload = resolve; script.onerror = () => reject(new Error('Không tải được Leaflet')); document.head.appendChild(script);
       }
     });
   }
@@ -115,24 +87,19 @@ function ProfileMap({ posts, username }) {
       if (isMounted && mapRef.current && window.L && !mapInstance.current) {
         const L = window.L;
         const map = L.map(mapRef.current).setView([16.0, 108.0], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
         const userColor = stringToColor(username || 'user');
         const bounds = [];
 
-        posts.forEach(post => {
+        posts.filter(Boolean).forEach(post => {
           if (post.lat && post.lng) {
             bounds.push([post.lat, post.lng]);
             const customIcon = L.divIcon({
               className: 'custom-pin',
               html: `<div style="background-color: ${userColor}; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.4);"></div>`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 24],
-              popupAnchor: [0, -26]
+              iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -26]
             });
-            
             const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
             marker.bindPopup(`
               <div style="min-width: 180px; font-family: sans-serif;">
@@ -146,26 +113,55 @@ function ProfileMap({ posts, username }) {
           }
         });
 
-        if (bounds.length > 0) {
-          map.fitBounds(bounds, { padding: [50, 50] });
-        }
+        if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
         mapInstance.current = map;
       }
     };
     loadMap();
-
-    return () => {
-      isMounted = false;
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
+    return () => { isMounted = false; if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [posts, username]);
 
   return (
     <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700 shadow-inner relative z-0">
       <div ref={mapRef} className="w-full h-full z-0" />
+    </div>
+  );
+}
+
+function RealMapViewer({ lat, lng, location }) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadMap = async () => {
+      await loadLeafletAssets();
+      if (isMounted && mapRef.current && window.L && !mapInstance.current) {
+        const L = window.L;
+        const map = L.map(mapRef.current, { zoomControl: true, scrollWheelZoom: true }).setView([lat, lng], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const defaultIcon = L.icon({
+          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+          iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+        });
+        const popupText = typeof location === 'string' && location !== 'Chưa xác định' ? location : 'Vị trí được ghim';
+        L.marker([lat, lng], { icon: defaultIcon }).addTo(map).bindPopup(`<b>${popupText}</b>`);
+        mapInstance.current = map;
+        setIsMapReady(true);
+      }
+    };
+    loadMap().catch(() => setIsMapReady(false));
+    return () => { isMounted = false; if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
+  }, [lat, lng, location]);
+
+  return (
+    <div className="w-full h-full relative">
+      <div ref={mapRef} className="w-full h-full z-0" />
+      {!isMapReady && (
+        <div className="absolute inset-0 bg-gray-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[12px] font-bold text-gray-500 dark:text-slate-400">Đang tải bản đồ...</div>
+      )}
     </div>
   );
 }
@@ -179,15 +175,26 @@ function ProfileContent() {
   const myUserId = localStorage.getItem('userId');
   const targetUserId = location.state?.targetUserId || myUserId;
   const isMyProfile = String(targetUserId) === String(myUserId);
+  const currentUserRole = localStorage.getItem('role') || 'user';
 
   const [profile, setProfile] = useState({});
   const [userPosts, setUserPosts] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [savedPostsSet, setSavedPostsSet] = useState(new Set());
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('posts');
-  const [collections, setCollections] = useState([]);
-  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [friendStatus, setFriendStatus] = useState('none'); 
+
+  const [likingPosts, setLikingPosts] = useState({});
+  const [expandedComments, setExpandedComments] = useState({});
+  const [commentsData, setCommentsData] = useState({});
+  const [isFetchingComments, setIsFetchingComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [openPostMenuId, setOpenPostMenuId] = useState(null);
+  const [expandedMap, setExpandedMap] = useState({});
 
   const [trendingKeywords, setTrendingKeywords] = useState([]);
   const [suggestedUsers, setSuggestedUsers] = useState([]);
@@ -198,224 +205,466 @@ function ProfileContent() {
   
   const [followModal, setFollowModal] = useState({ open: false, type: '', list: [] });
   const [editBioModal, setEditBioModal] = useState({ open: false, bio: '' });
+  
+  const [shareModal, setShareModal] = useState({ open: false, postData: null, description: '' });
+  const [isSharing, setIsSharing] = useState(false);
+  
+  // Custom Toast State (Thay cho alert bị lỗi trên iFrame)
+  const [notification, setNotification] = useState({ type: '', text: '' });
+  const showToast = (text, type = 'success') => { 
+    setNotification({ type, text });
+    setTimeout(() => setNotification({ type: '', text: '' }), 5000);
+  };
 
-  // --- QUY TRÌNH ÁP DỤNG THEME TOÀN CỤC ---
+  // --- CÁC HÀM BỊ MẤT TRƯỚC ĐÓ ĐÃ ĐƯỢC KHÔI PHỤC ---
+  const handleSettingsClick = () => navigate('/settings');
+  const handlePostClick = (postId) => navigate(`/post-detail?postId=${postId}`);
+  // -------------------------------------------------
+
   const applyThemeToDOM = (selectedTheme) => {
     const root = document.documentElement;
     root.classList.remove('dark', 'light');
 
-    if (selectedTheme === 'dark') {
-      root.classList.add('dark');
-      root.style.colorScheme = 'dark';
-    } else if (selectedTheme === 'light') {
-      root.classList.add('light');
-      root.style.colorScheme = 'light';
-    } else {
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (systemPrefersDark) {
-        root.classList.add('dark');
-        root.style.colorScheme = 'dark';
-      } else {
-        root.classList.add('light');
-        root.style.colorScheme = 'light';
-      }
-    }
+    if (selectedTheme === 'dark') { root.classList.add('dark'); root.style.colorScheme = 'dark'; } 
+    else if (selectedTheme === 'light') { root.classList.add('light'); root.style.colorScheme = 'light'; } 
+    else { const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; if (systemPrefersDark) { root.classList.add('dark'); root.style.colorScheme = 'dark'; } else { root.classList.add('light'); root.style.colorScheme = 'light'; } }
   };
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('app-theme') || 'light';
-    applyThemeToDOM(savedTheme);
-
-    const handleThemeChange = (e) => {
-      if (e.detail && e.detail.theme) {
-        applyThemeToDOM(e.detail.theme);
-      }
-    };
-
+    const savedTheme = localStorage.getItem('app-theme') || 'light'; applyThemeToDOM(savedTheme);
+    const handleThemeChange = (e) => { if (e.detail && e.detail.theme) applyThemeToDOM(e.detail.theme); };
     window.addEventListener('themeChange', handleThemeChange);
     return () => window.removeEventListener('themeChange', handleThemeChange);
   }, []);
 
-  const handlePostClick = (postId) => navigate(`/post-detail?postId=${postId}`);
-  const handleSettingsClick = () => navigate('/settings');
+  useEffect(() => {
+    const handleCloseAll = () => setOpenPostMenuId(null);
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest('.post-menu-container')) handleCloseAll(); });
+    return () => document.removeEventListener('mousedown', handleCloseAll);
+  }, []);
 
-  const openImageZoom = (url, type) => {
-    setZoomedImage(url);
-    setZoomedImageType(type);
-  };
-  
-  const closeImageZoom = () => {
-    setZoomedImage(null);
-    setZoomedImageType(null);
-  };
+  const openImageZoom = (url, type) => { setZoomedImage(url); setZoomedImageType(type); };
+  const closeImageZoom = () => { setZoomedImage(null); setZoomedImageType(null); };
 
   const handleUpdateBio = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const token = localStorage.getItem('token'); if (!token) return;
     try {
       const res = await fetch(`http://localhost:5000/api/users/update-profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ bio: editBioModal.bio })
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ bio: editBioModal.bio })
       });
-      if (res.ok) {
-        setProfile(prev => ({ ...prev, bio: editBioModal.bio }));
-        setEditBioModal({ open: false, bio: '' });
+      if (res.ok) { 
+        setProfile(prev => ({ ...prev, bio: editBioModal.bio })); 
+        setEditBioModal({ open: false, bio: '' }); 
+        showToast('Cập nhật tiểu sử thành công!');
       }
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const loadProfile = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token || !myUserId) {
-        setError('Vui lòng đăng nhập để xem trang cá nhân');
-        setIsLoading(false);
-        return;
-      }
+      if (!token || !myUserId) { setError('Vui lòng đăng nhập để xem trang cá nhân'); setIsLoading(false); return; }
       
-      const res = await fetch(`http://localhost:5000/api/users/${targetUserId}/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (!res.ok) {
-        setError('Không tải được thông tin cá nhân');
-        setIsLoading(false);
-        return;
-      }
+      const res = await fetch(`http://localhost:5000/api/users/${targetUserId}/profile`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { setError('Không tải được thông tin cá nhân'); setIsLoading(false); return; }
       
       const data = await res.json();
       setProfile(data.user || {});
-      setUserPosts(Array.isArray(data.posts) ? data.posts : []);
+      setUserPosts(Array.isArray(data.posts) ? data.posts.filter(Boolean) : []);
       setFriendStatus(data.user?.friendStatus || 'none');
-    } catch (err) {
-      console.warn(err);
-      setError('Lỗi hệ thống khi load profile');
-    } finally {
-      setIsLoading(false);
-    }
+
+      const savedRes = await fetch('http://localhost:5000/api/users/saved-posts', { headers: { Authorization: `Bearer ${token}` } });
+      if (savedRes.ok) {
+        const savedData = await savedRes.json();
+        setSavedPostsSet(new Set(savedData.filter(Boolean).map(p => p._id)));
+      }
+    } catch (err) { setError('Lỗi hệ thống khi load profile'); } 
+    finally { setIsLoading(false); }
   };
 
-  useEffect(() => {
-    loadProfile();
-  }, [targetUserId]);
+  useEffect(() => { loadProfile(); }, [targetUserId]);
 
   useEffect(() => {
     const fetchTrendingAndUsers = async () => {
       setIsLoadingTrending(true);
       try {
         const token = localStorage.getItem('token');
-        
-        const trendingRes = await fetch('http://localhost:5000/api/posts/trending/keywords').catch(() => null);
+        const trendingRes = await fetch('http://localhost:5000/api/posts/trending').catch(() => null);
         if (trendingRes && trendingRes.ok) {
-          const trendingData = await trendingRes.json();
-          setTrendingKeywords(Array.isArray(trendingData) ? trendingData : []);
+          const trendingData = await trendingRes.json(); setTrendingKeywords(Array.isArray(trendingData) ? trendingData.filter(Boolean) : []);
         }
-
         if (token) {
-          const usersRes = await fetch('http://localhost:5000/api/users/search', {
-            headers: { Authorization: `Bearer ${token}` }
-          }).catch(() => null);
+          const usersRes = await fetch('http://localhost:5000/api/users/search', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
           if (usersRes && usersRes.ok) {
-            const usersData = await usersRes.json();
-            setSuggestedUsers(Array.isArray(usersData) ? usersData.slice(0, 5) : []);
+            const usersData = await usersRes.json(); setSuggestedUsers(Array.isArray(usersData) ? usersData.filter(Boolean).slice(0, 5) : []);
           }
         }
-      } catch (err) {
-        console.error('Error fetching trending data:', err);
-      } finally {
-        setIsLoadingTrending(false);
-      }
+      } catch (err) {} 
+      finally { setIsLoadingTrending(false); }
     };
     fetchTrendingAndUsers();
   }, []);
 
   const handleFriendAction = async (action) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
+    const token = localStorage.getItem('token'); if (!token) return;
     try {
-      let url = '';
-      let method = 'POST';
+      let url = ''; let method = 'POST';
+      if (action === 'request' || action === 'undo') url = `http://localhost:5000/api/users/friend-request/${targetUserId}`;
+      else if (action === 'accept') url = `http://localhost:5000/api/users/accept-friend/${targetUserId}`;
+      else if (action === 'unfriend') { url = `http://localhost:5000/api/users/unfriend/${targetUserId}`; method = 'DELETE'; }
 
-      if (action === 'request' || action === 'undo') {
-        url = `http://localhost:5000/api/users/friend-request/${targetUserId}`;
-      } else if (action === 'accept') {
-        url = `http://localhost:5000/api/users/accept-friend/${targetUserId}`;
-      } else if (action === 'unfriend') {
-        url = `http://localhost:5000/api/users/unfriend/${targetUserId}`;
-        method = 'DELETE';
-      }
-
-      const res = await fetch(url, {
-        method,
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        loadProfile(); 
-      }
-    } catch (error) {
-      console.error(error);
-    }
+      const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) loadProfile(); 
+    } catch (error) {}
   };
 
-  // ĐÃ SỬA: Thay thế API tĩnh lấy bài viết đã lưu thay vì endpoint cũ
   const fetchCollections = async () => {
-    setIsLoadingCollections(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('http://localhost:5000/api/users/saved-posts', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-         const data = await res.json();
-         setCollections(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    setIsLoadingCollections(false);
+      const res = await fetch('http://localhost:5000/api/users/saved-posts', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const data = await res.json(); setCollections(Array.isArray(data) ? data.filter(Boolean) : []); }
+    } catch (err) {}
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex items-center justify-center transition-colors duration-300">
-        <Loader2 size={32} className="animate-spin text-[#f44336]" />
-      </div>
-    );
-  }
+  // --- CÁC HÀM XỬ LÝ BÀI VIẾT (LIKE, COMMENT, SHARE, COPY) ---
+  const handleLikePost = async (targetPostId, e) => {
+    if (e) e.stopPropagation(); const token = localStorage.getItem('token');
+    if (!token) return showToast('Vui lòng đăng nhập để thả tim bài viết.', 'error');
+    setLikingPosts(prev => ({ ...prev, [targetPostId]: true }));
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/like/${targetPostId}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Không thể thả tim bài viết');
+      const data = await res.json();
+      
+      const updatePostInArray = (arr) => arr.map(post => {
+        if (!post) return null;
+        let updatedPost = { ...post };
+        if (updatedPost._id === targetPostId) {
+          const existingLikes = Array.isArray(updatedPost.likes) ? [...updatedPost.likes] : [];
+          const userLiked = existingLikes.some((userId) => userId?.toString() === myUserId);
+          updatedPost.likes = data.liked ? (userLiked ? existingLikes : [...existingLikes, myUserId]) : existingLikes.filter((userId) => userId?.toString() !== myUserId);
+        }
+        if (updatedPost.sharedFrom && typeof updatedPost.sharedFrom === 'object' && updatedPost.sharedFrom._id === targetPostId) {
+          const innerLikes = Array.isArray(updatedPost.sharedFrom.likes) ? [...updatedPost.sharedFrom.likes] : [];
+          const innerUserLiked = innerLikes.some((userId) => userId?.toString() === myUserId);
+          updatedPost.sharedFrom = {
+            ...updatedPost.sharedFrom,
+            likes: data.liked ? (innerUserLiked ? innerLikes : [...innerLikes, myUserId]) : innerLikes.filter((userId) => userId?.toString() !== myUserId)
+          };
+        }
+        return updatedPost;
+      });
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex flex-col items-center justify-center transition-colors duration-300">
-        <ShieldAlert size={48} className="text-red-500 mb-4" />
-        <p className="text-gray-800 dark:text-white font-bold text-lg mb-6">{error}</p>
-        <button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white font-bold rounded-full hover:bg-red-600 transition-colors">Về trang chủ</button>
-      </div>
-    );
-  }
+      if (activeTab === 'posts') setUserPosts(updatePostInArray(userPosts).filter(Boolean));
+      else if (activeTab === 'collections') setCollections(updatePostInArray(collections).filter(Boolean));
+    } catch (error) { showToast(error.message, 'error'); } 
+    finally { setLikingPosts(prev => ({ ...prev, [targetPostId]: false })); }
+  };
 
-  // Sử dụng helper function cho Avatar và Cover
+  const toggleComments = async (postId, e) => {
+    if (e) e.stopPropagation(); 
+    const isExpanded = expandedComments[postId]; setExpandedComments(prev => ({ ...prev, [postId]: !isExpanded }));
+    if (!isExpanded && !commentsData[postId]) {
+      setIsFetchingComments(prev => ({ ...prev, [postId]: true }));
+      try {
+        const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
+        if (res.ok) { const data = await res.json(); setCommentsData(prev => ({ ...prev, [postId]: Array.isArray(data.comments) ? data.comments : [] })); }
+      } catch (error) {} finally { setIsFetchingComments(prev => ({ ...prev, [postId]: false })); }
+    }
+  };
+
+  const handlePostComment = async (postId, e) => {
+    if (e) e.stopPropagation(); const token = localStorage.getItem('token');
+    if (!token) return showToast('Vui lòng đăng nhập để bình luận.', 'error');
+    let text = commentInputs[postId]; if (!text || !text.trim()) return;
+
+    setIsSubmittingComment(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/comments`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text }) });
+      if (res.ok) {
+        setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+        const commentRes = await fetch(`http://localhost:5000/api/posts/${postId}/comments`);
+        const commentData = await commentRes.json();
+        setCommentsData(prev => ({ ...prev, [postId]: Array.isArray(commentData.comments) ? commentData.comments : [] }));
+      }
+    } catch (error) {} finally { setIsSubmittingComment(false); }
+  };
+
+  const handleCopyPostLink = async (postId, e) => {
+    if(e) e.stopPropagation(); try { await navigator.clipboard.writeText(`${window.location.origin}/post-detail?postId=${postId}`); showToast('Đã copy link bài viết.'); } catch (error) {} setOpenPostMenuId(null);
+  };
+
+  const handleDeletePost = async (postId, e) => {
+    if(e) e.stopPropagation(); const token = localStorage.getItem('token'); if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        showToast('Đã xóa bài viết.');
+        if (activeTab === 'posts') setUserPosts(prev => prev.filter(p => p._id !== postId));
+        else if (activeTab === 'collections') setCollections(prev => prev.filter(p => p._id !== postId));
+      }
+    } catch (error) {} finally { setOpenPostMenuId(null); }
+  };
+
+  const handleConfirmShare = async () => {
+    if (!shareModal.postData) return; const token = localStorage.getItem('token');
+    if (!token) return showToast('Vui lòng đăng nhập để chia sẻ bài viết.', 'error');
+    setIsSharing(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${shareModal.postData._id}/share`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ description: shareModal.description }) });
+      if (res.ok) { showToast('Đã chia sẻ bài viết lên trang cá nhân!'); setShareModal({ open: false, postData: null, description: '' }); loadProfile(); } 
+      else throw new Error('Chia sẻ thất bại');
+    } catch (error) { showToast(error.message, 'error'); } finally { setIsSharing(false); }
+  };
+
+  if (isLoading) return <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex items-center justify-center transition-colors duration-300"><Loader2 size={32} className="animate-spin text-[#f44336]" /></div>;
+  if (error) return <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] flex flex-col items-center justify-center transition-colors duration-300"><ShieldAlert size={48} className="text-red-500 mb-4" /><p className="text-gray-800 dark:text-white font-bold text-lg mb-6">{error}</p><button onClick={() => navigate('/dashboard')} className="px-6 py-2.5 bg-[#f44336] text-white font-bold rounded-full hover:bg-red-600 transition-colors">Về trang chủ</button></div>;
+
   const displayAvatar = getAvatarUrl(profile.avatar, profile.displayName || profile.username);
   const displayCover = getImageUrl(profile.cover) || 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80';
 
   const allImages = userPosts.reduce((acc, post) => {
-    if (Array.isArray(post.images) && post.images.length > 0) {
-      post.images.forEach(img => acc.push({ url: getImageUrl(img), postId: post._id }));
-    }
+    if (post && Array.isArray(post.images) && post.images.length > 0) post.images.forEach(img => acc.push({ url: getImageUrl(img), postId: post._id }));
     return acc;
   }, []);
 
   const postsCount = userPosts.length;
-  const followersCount = profile.followers?.length || 0;
-  const followingCount = profile.following?.length || 0;
+  const followersCount = Array.isArray(profile.followers) ? profile.followers.length : 0;
+  const followingCount = Array.isArray(profile.following) ? profile.following.length : 0;
+
+  // --- RENDER BÀI VIẾT TỔNG QUÁT ---
+  const renderPost = (post) => {
+    if (!post || !post.createdBy) return null;
+    const isOwner = Boolean(myUserId) && String(post.createdBy?._id) === String(myUserId);
+    const isAdmin = currentUserRole === 'admin';
+    
+    const isShared = Boolean(post.sharedFrom && typeof post.sharedFrom === 'object' && post.sharedFrom._id);
+    const originalPost = isShared ? post.sharedFrom : null;
+
+    const targetImages = isShared ? (originalPost?.images || []) : (post.images || []);
+    const postImages = Array.isArray(targetImages) ? targetImages.map(getPostImageUrl).filter(Boolean) : [];
+    const mainImage = postImages.length > 0 ? postImages[0] : null;
+
+    const targetLat = isShared ? originalPost?.lat : post.lat;
+    const targetLng = isShared ? originalPost?.lng : post.lng;
+    const targetLocation = isShared ? originalPost?.location : post.location;
+
+    const topLikedByMe = Array.isArray(post.likes) && post.likes.some(u => String(u) === String(myUserId));
+    const originalLikedByMe = isShared && Array.isArray(originalPost?.likes) && originalPost.likes.some(u => String(u) === String(myUserId));
+
+    return (
+      <div 
+        key={post._id}
+        onClick={() => handlePostClick(post._id)}
+        className="bg-white dark:bg-[#1A2338] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer group"
+      >
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-3">
+            <img 
+               src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.displayName || post.createdBy?.username)} 
+               alt="Avatar" 
+               className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700 hover:opacity-80" 
+               onClick={(e) => { e.stopPropagation(); navigate('/profile', { state: { targetUserId: post.createdBy?._id } }); }}
+            />
+            <div>
+              <h3 
+                className="text-[14px] font-bold text-gray-900 dark:text-white hover:underline"
+                onClick={(e) => { e.stopPropagation(); navigate('/profile', { state: { targetUserId: post.createdBy?._id } }); }}
+              >
+                {post.createdBy?.displayName || post.createdBy?.username}
+              </h3>
+              <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
+                {!isShared && post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
+                {new Date(post.createdAt).toLocaleDateString('vi-VN')}
+              </p>
+            </div>
+          </div>
+          <div className="relative post-menu-container">
+            <button type="button" onClick={(e) => { e.stopPropagation(); setOpenPostMenuId((prev) => (prev === post._id ? null : post._id)); }} className="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-white p-1">
+              <MoreHorizontal size={20} />
+            </button>
+            {openPostMenuId === post._id && (
+              <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1">
+                <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="w-full flex items-center gap-2 text-left px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg">
+                  <Copy size={14} /> Copy link bài viết
+                </button>
+                {(isOwner || isAdmin) && (
+                  <button type="button" onClick={(e) => handleDeletePost(post._id, e)} className="w-full flex items-center gap-2 text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg mt-1 border-t border-gray-50 dark:border-slate-700 pt-2">
+                    <Trash2 size={14} /> Xóa bài viết
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {post.title && post.title !== `Trải nghiệm của ${post.createdBy?.username}` && (
+          <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2 leading-tight group-hover:text-[#f44336] dark:group-hover:text-red-400 transition-colors">{post.title}</h2>
+        )}
+        
+        {post.description && (
+          <div className="text-[14px] text-gray-700 dark:text-slate-300 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
+        )}
+
+        {isShared ? (
+          <div className="mt-3 border border-gray-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-gray-50/50 dark:bg-[#131B2E]" onClick={e => e.stopPropagation()}>
+            <div className="p-4 pb-2 flex items-center gap-3">
+              <div 
+                className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-600 cursor-pointer"
+                onClick={() => navigate('/profile', { state: { targetUserId: originalPost.createdBy?._id } })}
+              >
+                <img src={getAvatarUrl(originalPost?.createdBy?.avatar, originalPost?.createdBy?.displayName || originalPost?.createdBy?.username)} className="w-full h-full object-cover" />
+              </div>
+              <div>
+                <h3 
+                  className="text-[13px] font-bold text-gray-900 dark:text-white cursor-pointer hover:underline"
+                  onClick={() => navigate('/profile', { state: { targetUserId: originalPost?.createdBy?._id } })}
+                >
+                  {originalPost?.createdBy?.displayName || originalPost?.createdBy?.username || 'Người dùng'}
+                </h3>
+                <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400">
+                  {originalPost?.createdAt ? new Date(originalPost.createdAt).toLocaleDateString('vi-VN') : ''}
+                </p>
+              </div>
+            </div>
+            <div className="cursor-pointer" onClick={() => navigate(`/post-detail?postId=${originalPost._id}`)}>
+              {originalPost?.description && (
+                <div className="px-4 pb-3 text-[13px] text-gray-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-4">
+                  {originalPost.description}
+                </div>
+              )}
+              {targetLat && targetLng && (
+                <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
+                  <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
+                    <MapPin size={14} /> 
+                    {typeof targetLocation === 'string' && targetLocation !== 'Chưa xác định' ? targetLocation : "Vị trí được ghim"}
+                  </button>
+                  {expandedMap[post._id] && (
+                    <div className="mt-2 h-[200px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                      <RealMapViewer lat={targetLat} lng={targetLng} location={targetLocation} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {mainImage && (
+                  <img src={mainImage} alt="media" className="w-full object-cover border-t border-gray-100 dark:border-slate-750 max-h-[350px]" />
+              )}
+            </div>
+            <div className="px-4 py-3 flex items-center gap-6 bg-white dark:bg-[#1A2338] border-t border-gray-100 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+              <button type="button" onClick={(e) => handleLikePost(originalPost._id, e)} className={`flex items-center gap-1.5 ${originalLikedByMe ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400'} transition-colors text-[12px] font-bold`}>
+                <Heart size={16} strokeWidth={2.5} fill={originalLikedByMe ? '#f44336' : 'none'} /> 
+                {Array.isArray(originalPost?.likes) ? originalPost.likes.length : 0} Thích
+              </button>
+              <button type="button" onClick={() => navigate(`/post-detail?postId=${originalPost._id}`)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[12px] font-bold">
+                <MessageSquare size={16} strokeWidth={2.5} /> Xem bình luận
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {targetLat && targetLng && (
+              <div className="mb-4" onClick={e => e.stopPropagation()}>
+                <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 border-transparent hover:bg-red-100 dark:hover:bg-red-950/20'}`}>
+                  <MapPin size={16} /> 
+                  {typeof targetLocation === 'string' && targetLocation !== 'Chưa xác định' ? targetLocation : "Vị trí được ghim"}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white dark:bg-slate-800 text-[#f44336] dark:text-red-400 shadow-sm'}`}>
+                    {expandedMap[post._id] ? "Đóng Bản đồ" : "📍 Xem Map"}
+                  </span>
+                </button>
+                {expandedMap[post._id] && (
+                  <div className="mt-3 h-[250px] w-full border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden relative z-0 animate-in slide-in-from-top-2 duration-200">
+                    <RealMapViewer lat={targetLat} lng={targetLng} location={targetLocation} />
+                  </div>
+                )}
+              </div>
+            )}
+            {mainImage && (
+              <div className="w-full rounded-2xl overflow-hidden mb-4 border border-gray-100 dark:border-slate-700 bg-gray-100 dark:bg-slate-800">
+                <img src={mainImage} className="w-full object-cover max-h-[420px]" />
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex items-center gap-6 pt-3 border-t border-gray-50 dark:border-slate-700 mt-4" onClick={e => e.stopPropagation()}>
+          <button type="button" onClick={(e) => handleLikePost(post._id, e)} disabled={likingPosts[post._id]} className={`flex items-center gap-1.5 ${topLikedByMe ? 'text-[#f44336]' : 'text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400'} transition-colors text-[13px] font-bold disabled:opacity-50`}>
+            <Heart size={20} strokeWidth={2.5} fill={topLikedByMe ? '#f44336' : 'none'} /> 
+            {Array.isArray(post.likes) ? post.likes.length : 0}
+          </button>
+          
+          <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[13px] font-bold">
+            <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || "Bình luận"}
+          </button>
+          
+          <button type="button" onClick={(e) => { e.stopPropagation(); setShareModal({ open: true, postData: post, description: '' }); }} className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400 hover:text-[#f44336] dark:hover:text-red-400 transition-colors text-[13px] font-bold">
+            <Share2 size={20} strokeWidth={2.5} />
+          </button>
+
+          <div className="ml-auto">
+            <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
+          </div>
+        </div>
+
+        {expandedComments[post._id] && (
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 animate-in fade-in duration-300" onClick={e => e.stopPropagation()}>
+            <div className="flex gap-3 mb-6">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-700 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(myUserId)}>
+                <img src={getAvatarUrl(profile.avatar, profile.displayName || profile.username)} alt="Avatar" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 relative">
+                <input 
+                  type="text" 
+                  placeholder="Viết bình luận..."
+                  className="w-full bg-[#f4f4f5] dark:bg-slate-800 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 dark:focus:ring-red-500/20 transition-all border border-transparent dark:border-slate-700"
+                  value={commentInputs[post._id] || ''}
+                  onChange={(e) => setCommentInputs(prev => ({...prev, [post._id]: e.target.value}))}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePostComment(post._id, e)}
+                />
+                <button onClick={(e) => handlePostComment(post._id, e)} disabled={isSubmittingComment} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:bg-red-950/20 rounded-full transition-colors disabled:opacity-50">
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+            
+            {isFetchingComments[post._id] ? (
+              <div className="flex justify-center py-4"><Loader2 size={24} className="animate-spin text-[#f44336]" /></div>
+            ) : (
+              <div className="space-y-4">
+                {Array.isArray(commentsData[post._id]) && commentsData[post._id].map(comment => (
+                  <div key={comment._id} className="flex gap-3 text-[13px]">
+                    <img src={getAvatarUrl(comment.author?.avatar, comment.author?.username)} alt="avt" className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-100 dark:border-slate-700 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(comment.author?._id)} />
+                    <div className="flex-1">
+                      <div className="bg-[#f4f4f5] dark:bg-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-none inline-block border border-transparent dark:border-slate-700">
+                        <p onClick={() => handleNavigateProfile(comment.author?._id)} className="font-bold text-gray-900 dark:text-white mb-0.5 text-[12px] cursor-pointer hover:underline">{comment.author?.displayName || comment.author?.username}</p>
+                        <p className="text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{comment.content}</p>
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-500 dark:text-slate-400 mt-1 ml-2">
+                        {new Date(comment.createdAt).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0c1322] font-sans text-gray-900 dark:text-gray-100 pb-12 relative transition-colors duration-300">
       
+      {/* KHU VỰC THÔNG BÁO (TOAST) */}
+      {notification.text && (
+        <div className={`fixed bottom-6 right-6 z-[400] px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300 border-l-4 ${notification.type === 'error' ? 'bg-white dark:bg-slate-800 border-[#f44336] text-gray-800 dark:text-gray-200' : 'bg-white dark:bg-slate-800 border-green-500 text-gray-800 dark:text-gray-200'}`}>
+          {notification.type === 'error' ? <ShieldAlert size={24} className="text-[#f44336]" /> : <CheckCircle size={24} className="text-green-500" />}
+          <p className="text-[14px] font-bold max-w-[300px] leading-tight">{notification.text}</p>
+          <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><X size={18} /></button>
+        </div>
+      )}
+      
+      {/* Các Modal Khác Giữ Nguyên Giao Diện Của Dark Mode */}
       {zoomedImage && (
         <div className="fixed inset-0 z-[300] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-200">
           <div className="absolute top-6 right-6 flex gap-4">
@@ -431,7 +680,6 @@ function ProfileContent() {
               <X size={24} />
             </button>
           </div>
-          
           <div className="max-w-[90vw] max-h-[85vh] relative">
             <img 
               src={zoomedImage} 
@@ -510,6 +758,48 @@ function ProfileContent() {
         </div>
       )}
 
+      {/* Modal Chia Sẻ */}
+      {shareModal.open && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-sm px-4 py-6 animate-in fade-in duration-200" onClick={() => setShareModal({ open: false, postData: null, description: '' })}>
+          <div className="w-full max-w-md bg-white dark:bg-[#1A2338] rounded-3xl p-6 shadow-2xl border border-transparent dark:border-slate-700" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                <Share2 size={20} className="text-[#f44336]" /> Chia sẻ bài viết
+              </h3>
+              <button onClick={() => setShareModal({ open: false, postData: null, description: '' })} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full text-gray-400 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <textarea
+              value={shareModal.description}
+              onChange={e => setShareModal({ ...shareModal, description: e.target.value })}
+              placeholder="Hãy nói gì đó về bài viết này..."
+              className="w-full h-24 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-3 text-[14px] font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 resize-none transition-all mb-4"
+            />
+
+            <div className="bg-gray-50/50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-xl p-3 mb-6">
+              <p className="text-[12px] font-bold text-gray-900 dark:text-white mb-1">
+                Bài viết của: {shareModal.postData?.sharedFrom ? (shareModal.postData.sharedFrom.createdBy?.displayName || shareModal.postData.sharedFrom.createdBy?.username) : (shareModal.postData?.createdBy?.displayName || shareModal.postData?.createdBy?.username)}
+              </p>
+              <p className="text-[12px] text-gray-500 dark:text-slate-400 line-clamp-2">
+                {shareModal.postData?.sharedFrom ? (shareModal.postData.sharedFrom.description || shareModal.postData.sharedFrom.title) : (shareModal.postData?.description || shareModal.postData?.title)}
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setShareModal({ open: false, postData: null, description: '' })} className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-[14px]">
+                Hủy
+              </button>
+              <button type="button" onClick={handleConfirmShare} disabled={isSharing} className="px-5 py-2.5 rounded-xl bg-[#f44336] text-white font-bold hover:bg-[#e53935] transition-colors text-[14px] flex items-center gap-2 shadow-md shadow-red-500/20 disabled:opacity-50">
+                {isSharing ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />} 
+                Chia sẻ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER TƯƠNG ĐỒNG KHẮP APP */}
       <header className="flex items-center justify-between py-3 px-6 bg-white dark:bg-[#131B2E] sticky top-0 z-50 border-b border-gray-100 dark:border-slate-800 h-[72px] transition-colors duration-300">
         <div className="w-1/4 flex items-center gap-3">
@@ -519,7 +809,7 @@ function ProfileContent() {
         <nav className="flex-1 flex justify-center items-center gap-10 text-[15px] font-bold text-gray-500 dark:text-slate-400">
           <button onClick={() => navigate('/dashboard')} className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.home}</button>
           <button onClick={() => navigate('/explore')} className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.explore}</button>
-          <button onClick={() => navigate('/community')} className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">{t.community}</button>
+          <button onClick={() => navigate('/community')} className="hover:text-gray-900 dark:hover:text-white transition-colors h-[72px] flex items-center">Cộng đồng</button>
         </nav>
 
         <div className="w-1/4 flex items-center justify-end gap-5">
@@ -641,7 +931,6 @@ function ProfileContent() {
             <button onClick={() => setActiveTab('posts')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'posts' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.posts}</button>
             <button onClick={() => setActiveTab('media')} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'media' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>{t.media}</button>
             
-            {/* ĐÃ SỬA: Tab Đã Lưu chỉ hiển thị nếu đây là trang cá nhân của bạn, và đã gắn action fetch list bài viết */}
             {isMyProfile && (
               <button onClick={() => { setActiveTab('collections'); fetchCollections(); }} className={`flex-1 py-2 rounded-lg transition-colors ${activeTab === 'collections' ? 'text-[#f44336] dark:text-red-400 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
                 🗂️ {t.saved}
@@ -693,59 +982,16 @@ function ProfileContent() {
               </div>
             )}
 
-            {/* ĐÃ SỬA: Hiển thị các bài viết đã lưu thay vì "Tính năng đang phát triển" */}
-            {activeTab === 'collections' && (
+            {/* TAB BÀI VIẾT HOẶC ĐÃ LƯU: ĐÃ LỌC NULL AN TOÀN TRÁNH TRẮNG MÀN HÌNH */}
+            {(activeTab === 'posts' || activeTab === 'collections') && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {isLoadingCollections ? (
-                  <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
-                ) : collections.length === 0 ? (
-                  <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-16 shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
-                      <Bookmark size={32} className="text-[#f44336] dark:text-red-400" />
-                    </div>
-                    <h3 className="text-[18px] font-black text-gray-900 dark:text-white mb-2">Chưa có bài viết nào được lưu</h3>
-                    <p className="text-[14px] font-medium text-gray-500 dark:text-slate-400 max-w-[320px]">Hãy khám phá và lưu lại những bài viết bạn yêu thích nhé.</p>
+                {(activeTab === 'posts' ? userPosts : collections).length === 0 ? (
+                  <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-12 shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center justify-center text-center">
+                    <ImageIcon size={44} className="opacity-40 text-gray-400 mb-3" />
+                    <h3 className="text-[15px] font-black text-gray-900 dark:text-white">Chưa có bài viết nào</h3>
                   </div>
                 ) : (
-                  collections.map(post => (
-                    <div 
-                      key={post._id}
-                      onClick={() => handlePostClick(post._id)}
-                      className="bg-white dark:bg-[#1A2338] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer group"
-                    >
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                          <img 
-                             src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.displayName || post.createdBy?.username)} 
-                             alt="Avatar" 
-                             className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700" 
-                          />
-                          <div>
-                            <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">{post.createdBy?.displayName || post.createdBy?.username}</h3>
-                            <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
-                              {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
-                              {new Date(post.createdAt).toLocaleDateString('vi-VN')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {post.title && post.title !== `Trải nghiệm của ${post.createdBy?.username}` && (
-                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2 leading-tight group-hover:text-[#f44336] dark:group-hover:text-red-400 transition-colors">{post.title}</h2>
-                      )}
-                      
-                      <div className="text-[14px] text-gray-700 dark:text-slate-300 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
-
-                      {Array.isArray(post.images) && post.images.length > 0 && (
-                        <img 
-                          src={getImageUrl(post.images[0])} 
-                          alt="Post Media" 
-                          onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
-                          className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100 dark:border-slate-700" 
-                        />
-                      )}
-                    </div>
-                  ))
+                  (activeTab === 'posts' ? userPosts : collections).filter(Boolean).map(post => renderPost(post))
                 )}
               </div>
             )}
@@ -756,74 +1002,24 @@ function ProfileContent() {
                 <p className="text-[14px] leading-relaxed">{profile.bio || 'Bạn chưa cập nhật phần giới thiệu.'}</p>
               </div>
             )}
-
-            {activeTab === 'posts' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                {userPosts.length === 0 ? (
-                  <div className="bg-white dark:bg-[#1A2338] rounded-2xl p-12 shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center text-gray-400 dark:text-slate-500 gap-3">
-                    <ImageIcon size={44} className="opacity-40" />
-                    <p className="text-[14px] font-bold">Chưa có bài viết nào.</p>
-                  </div>
-                ) : (
-                  userPosts.map(post => (
-                    <div 
-                      key={post._id}
-                      onClick={() => handlePostClick(post._id)}
-                      className="bg-white dark:bg-[#1A2338] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer group"
-                    >
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                          <img 
-                             src={displayAvatar} 
-                             alt="Avatar" 
-                             onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName || profile.username || 'User')}&background=f44336&color=fff`; }}
-                             className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-slate-700" 
-                          />
-                          <div>
-                            <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">{profile.displayName || profile.username}</h3>
-                            <p className="text-[11px] font-medium text-gray-400 dark:text-slate-400">
-                              {post.location && post.location !== 'Chưa xác định' ? `${post.location} • ` : ''} 
-                              {new Date(post.createdAt).toLocaleDateString('vi-VN')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {post.title && post.title !== `Trải nghiệm của ${profile.username}` && (
-                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white mb-2 leading-tight group-hover:text-[#f44336] dark:group-hover:text-red-400 transition-colors">{post.title}</h2>
-                      )}
-                      
-                      <div className="text-[14px] text-gray-700 dark:text-slate-300 leading-relaxed font-medium mb-4 whitespace-pre-wrap">{post.description}</div>
-
-                      {Array.isArray(post.images) && post.images.length > 0 && (
-                        <img 
-                          src={getImageUrl(post.images[0])} 
-                          alt="Post Media" 
-                          onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1502602898657-3e90760b628e?auto=format&fit=crop&w=1000&q=80'; }}
-                          className="w-full rounded-xl object-cover max-h-[350px] mb-4 border border-gray-100 dark:border-slate-700" 
-                        />
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </section>
 
-        {/* RIGHT SIDEBAR */}
-        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6">
+        {/* RIGHT SIDEBAR - XU HƯỚNG VÀ GỢI Ý KẾT BẠN */}
+        <aside className="w-[340px] hidden xl:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white dark:bg-[#1A2338] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 transition-colors">
             <h3 className="text-[11px] font-extrabold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">🔥 {t.trendingKeywords}</h3>
             {isLoadingTrending ? (
               <p className="text-[13px] text-gray-500 dark:text-slate-400">Đang tải...</p>
             ) : trendingKeywords.length > 0 ? (
               <div className="space-y-4">
-                {trendingKeywords.slice(0, 5).map((item, idx) => (
+                {trendingKeywords.map((item, idx) => (
                   <div key={idx}>
-                    <p className="text-[10px] font-bold text-[#00897b] dark:text-teal-400 uppercase tracking-wider mb-0.5">{item.category}</p>
-                    <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight cursor-pointer hover:underline capitalize">{item.keyword}</p>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">{item.count} {t.mentions}</p>
+                    <p className="text-[10px] font-bold text-[#f44336] dark:text-red-400 uppercase tracking-wider mb-0.5">{item.category || 'Khám phá'}</p>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight cursor-pointer hover:underline" onClick={() => navigate(`/post-detail?postId=${item._id}`)}>
+                      {item.title || item.location}
+                    </p>
+                    <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5 flex items-center gap-1"><Heart size={10}/> {item.likeCount} lượt thích</p>
                   </div>
                 ))}
               </div>
@@ -834,18 +1030,17 @@ function ProfileContent() {
 
           <div className="bg-white dark:bg-[#1A2338] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 transition-colors">
             <h3 className="text-[11px] font-extrabold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">👥 {t.suggestedForYou}</h3>
-            {isLoadingTrending ? (
-              <p className="text-[13px] text-gray-500 dark:text-slate-400">Đang tải...</p>
-            ) : suggestedUsers.length > 0 ? (
+            {suggestedUsers.length > 0 ? (
               <div className="space-y-4 mb-4">
-                {suggestedUsers.map((user) => (
+                {suggestedUsers.filter(Boolean).map((user) => (
                   <div key={user._id} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <img 
                         src={getAvatarUrl(user.avatar, user.displayName || user.username)} 
                         alt={user.username} 
                         onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.username || 'User')}&background=f44336&color=fff`; }}
-                        className="w-9 h-9 rounded-full object-cover border border-gray-100 dark:border-slate-700" 
+                        className="w-9 h-9 rounded-full object-cover border border-gray-100 dark:border-slate-700 cursor-pointer" 
+                        onClick={() => navigate('/profile', { state: { targetUserId: user._id } })}
                       />
                       <div>
                         <p className="text-[12px] font-bold text-gray-900 dark:text-white cursor-pointer hover:underline" onClick={() => navigate('/profile', { state: { targetUserId: user._id } })}>{user.displayName || user.username}</p>
@@ -867,15 +1062,8 @@ function ProfileContent() {
   );
 }
 
-// Chú ý: Đổi tên function App() thành Profile() nếu bạn đưa vào React Router nhé!
-export default function App() {
-  const hasRouter = useInRouterContext();
-  if (!hasRouter) {
-    return (
-      <BrowserRouter>
-        <ProfileContent />
-      </BrowserRouter>
-    );
-  }
+export default function Profile() {
+  const hasRouter = typeof useInRouterContext === 'function' ? useInRouterContext() : false;
+  if (!hasRouter) return <BrowserRouter><ProfileContent /></BrowserRouter>;
   return <ProfileContent />;
 }

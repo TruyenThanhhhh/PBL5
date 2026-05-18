@@ -42,7 +42,6 @@ const notifyFriendsAboutLocation = async (userId, postTitle, postLocation) => {
   }
 };
 
-/* STREAMING_CHUNK:Logic xử lý AI Vision và Fallback (Giữ nguyên từ File 2)... */
 // ==========================================
 // 🤖 HÀM 1: AI PHÂN TÍCH ẢNH DÙNG GROQ VISION
 // ==========================================
@@ -59,7 +58,6 @@ const analyzeImageWithGroq = async (filePath) => {
     // Đọc ảnh và chuyển sang Base64
     const imageBuffer = fs.readFileSync(filePath);
     const base64Image = imageBuffer.toString('base64');
-    // Xác định mime type (mặc định lấy jpeg cho an toàn)
     let mimeType = "image/jpeg";
     if (filePath.endsWith('.png')) mimeType = "image/png";
     if (filePath.endsWith('.webp')) mimeType = "image/webp";
@@ -87,7 +85,7 @@ const analyzeImageWithGroq = async (filePath) => {
             ]
           }
         ],
-        temperature: 0.1, // Cấu hình thấp để kết quả ổn định, không sáng tạo lung tung
+        temperature: 0.1,
         max_tokens: 20
       }),
     });
@@ -102,7 +100,6 @@ const analyzeImageWithGroq = async (filePath) => {
     let category = data.choices[0]?.message?.content?.trim();
     console.log("🧠 AI_DEBUG: Groq Vision phân loại bức ảnh là:", category);
 
-    // Chuẩn hóa kết quả trả về để map với DB
     const validCategories = ["Ẩm thực", "Biển đảo", "Núi rừng", "Văn hóa / Kiến trúc", "Thành phố", "Thú cưng", "Góc làm việc", "Đời thường"];
     
     for (const validCat of validCategories) {
@@ -137,7 +134,6 @@ const autoCategorizeFromText = (text) => {
     return null; 
 };
 
-/* STREAMING_CHUNK:Logic CreatePost đã được gộp Community (Từ File 1)... */
 exports.createPost = async (req, res) => {
   try {
     const { title, description, location, category, images, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
@@ -161,12 +157,9 @@ exports.createPost = async (req, res) => {
       lng: lng || null,
       postType: finalPostType,
       createdBy: req.user?.id || null,
-      publishedToProfile: true, // Mặc định true theo logic File 1
+      publishedToProfile: true, 
     });
 
-    // ----------------------------------------------------------------------
-    // TÍCH HỢP COMMUNITY: Nếu có communityId, kiểm tra quyền và gán vào bài đăng
-    // ----------------------------------------------------------------------
     if (communityId && String(communityId).trim()) {
       const comm = await Community.findById(String(communityId).trim());
       if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
@@ -191,7 +184,6 @@ exports.createPost = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Logic CreatePostWithMedia đã được gộp Community (Từ File 1)... */
 exports.createPostWithMedia = async (req, res) => {
   try {
     const { title, description, location, category, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
@@ -216,12 +208,10 @@ exports.createPostWithMedia = async (req, res) => {
           uploadedUrls.push(`${host}/uploads/${file.filename}`);
       });
       
-      // Chạy AI Vision cho bức ảnh đầu tiên
       const firstImagePath = req.files[0].path;
       imageAiCategory = await analyzeImageWithGroq(firstImagePath);
     }
 
-    // Xử lý Description chặt chẽ
     let finalDescription = null;
     if (typeof description === "string") {
        const trimmed = description.trim();
@@ -230,14 +220,12 @@ exports.createPostWithMedia = async (req, res) => {
        }
     }
     
-    // Gán Category: Nếu người dùng để mặc định "General" thì áp dụng AI
     let finalCategory = category || "General";
     
     if (finalCategory === "General") {
         if (imageAiCategory) {
-            finalCategory = imageAiCategory; // Ưu tiên AI phân tích hình ảnh
+            finalCategory = imageAiCategory; 
         } else {
-            // Nếu AI nhìn ảnh thất bại, thử đoán qua chữ viết
             const textCat = autoCategorizeFromText(finalDescription);
             if (textCat) {
                 finalCategory = textCat;
@@ -257,12 +245,9 @@ exports.createPostWithMedia = async (req, res) => {
       lng: parsedLng,
       postType: finalPostType,
       createdBy: req.user?.id || null,
-      publishedToProfile: true, // Mặc định true theo logic File 1
+      publishedToProfile: true, 
     });
 
-    // ----------------------------------------------------------------------
-    // TÍCH HỢP COMMUNITY: Nếu có communityId, kiểm tra quyền và gán vào bài đăng
-    // ----------------------------------------------------------------------
     if (communityId && String(communityId).trim()) {
       const comm = await Community.findById(String(communityId).trim());
       if (!comm) return res.status(400).json({ message: "Cộng đồng không tồn tại" });
@@ -287,7 +272,68 @@ exports.createPostWithMedia = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Get Posts tích hợp lọc Community (Từ File 1)... */
+// ==========================================
+// ♻️ HÀM MỚI: SHARE BÀI VIẾT VỀ TRANG CÁ NHÂN
+// ==========================================
+exports.sharePost = async (req, res) => {
+  try {
+    const originalPostId = req.params.id;
+    const { description } = req.body;
+    const userId = req.user.id;
+
+    // Tìm bài gốc & Populate người tạo ra nó để lấy tên
+    const originalPost = await Post.findById(originalPostId).populate("createdBy", "username displayName");
+    if (!originalPost) {
+      return res.status(404).json({ message: "Không tìm thấy bài viết gốc" });
+    }
+
+    // Lấy ID gốc rễ: Nếu người dùng share 1 bài đã được share trước đó, ta lấy ID của bài GỐC NHẤT.
+    const targetShareId = originalPost.sharedFrom ? originalPost.sharedFrom : originalPost._id;
+    
+    // Tên của chủ bài viết (bài gốc rễ)
+    const authorName = originalPost.createdBy?.displayName || originalPost.createdBy?.username || 'người khác';
+
+    const newSharedPost = new Post({
+      title: `Đã chia sẻ bài viết của ${authorName}`, 
+      description: description || null, // Lời bình của người share
+      location: originalPost.location,  // Kế thừa location
+      category: originalPost.category,  // Kế thừa category
+      lat: originalPost.lat,
+      lng: originalPost.lng,
+      images: [], // Bài share không có ảnh riêng, chỉ render ảnh bài gốc từ frontend
+      createdBy: userId,
+      sharedFrom: targetShareId, // Cột quan trọng để nối bài!
+      publishedToProfile: true
+    });
+
+    await newSharedPost.save();
+    
+    // Tạo notification cho chủ bài viết gốc
+    if (originalPost.createdBy && String(originalPost.createdBy._id) !== String(userId)) {
+      await Notification.create({
+        receiver: originalPost.createdBy._id,
+        sender: userId,
+        type: "system",
+        content: `đã chia sẻ bài viết của bạn.`,
+        link: `/post-detail?postId=${newSharedPost._id}`
+      });
+    }
+
+    // Populate lại để trả về frontend dùng ngay
+    await newSharedPost.populate("createdBy", "username displayName avatar");
+    await newSharedPost.populate({
+      path: "sharedFrom",
+      populate: { path: "createdBy", select: "username displayName avatar" }
+    });
+
+    res.status(201).json({ message: "Đã chia sẻ bài viết thành công", post: newSharedPost });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+// ==========================================
+
+
 exports.deleteImage = async (req, res) => {
   try {
     const { publicId } = req.body;
@@ -306,7 +352,6 @@ exports.getPosts = async (req, res) => {
     if (location) filter.location = location;
     if (category) filter.category = category;
     
-    // TÍCH HỢP COMMUNITY: Logic lọc bài viết nâng cao từ File 1
     const isAdmin = normalizeRole(req.user?.role) === "admin";
     if (!isAdmin) {
       filter.isHidden = false;
@@ -318,24 +363,22 @@ exports.getPosts = async (req, res) => {
     }
 
     const posts = await Post.find(filter)
-      // ✅ Trả thêm thuộc tính displayName như ở File 1 và populate cả community
       .populate("createdBy", "username displayName email avatar role")
       .populate("community", "name")
+      // ĐÃ SỬA: Populate thêm sharedFrom để có đủ data render bài Share
+      .populate({
+        path: "sharedFrom",
+        populate: { path: "createdBy", select: "username displayName avatar role" }
+      })
       .sort({ createdAt: -1 });
 
-    // TÍCH HỢP COMMUNITY: Tính năng normalize output ở File 1
-    const normalizedPosts = posts.map((post) => {
-      const obj = post.toObject();
-      return obj;
-    });
-
+    const normalizedPosts = posts.map((post) => post.toObject());
     res.json(normalizedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/* STREAMING_CHUNK:Các tính năng xử lý cơ bản tiếp tục giữ nguyên... */
 exports.getExplorePosts = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user.id);
@@ -350,6 +393,11 @@ exports.getExplorePosts = async (req, res) => {
       isHidden: false
     })
       .populate("createdBy", "username email avatar role")
+      // ĐÃ SỬA: Populate thêm sharedFrom 
+      .populate({
+        path: "sharedFrom",
+        populate: { path: "createdBy", select: "username displayName avatar role" }
+      })
       .sort({ createdAt: -1 });
 
     res.json(posts);
@@ -407,7 +455,6 @@ exports.deletePost = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Thêm PublishPostToProfile (Từ File 1)... */
 exports.publishPostToProfile = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -426,7 +473,6 @@ exports.publishPostToProfile = async (req, res) => {
   }
 };
 
-/* STREAMING_CHUNK:Hoàn thiện với ToggleVisibility và GetTrendingPosts... */
 exports.toggleVisibility = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -445,17 +491,20 @@ exports.getTrendingPosts = async (req, res) => {
       {
         $match: {
           isHidden: false,
-          lat: { $ne: null }, // Đã sửa: Chỉ lấy bài có tọa độ lat
-          lng: { $ne: null }  // Đã sửa: Chỉ lấy bài có tọa độ lng
+          lat: { $ne: null }, 
+          lng: { $ne: null }  
         }
-      }, // Chỉ lấy bài không bị ẩn và có ghim vị trí thực sự
-      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, // Đếm số lượng phần tử trong mảng likes
-      { $sort: { likeCount: -1, createdAt: -1 } }, // Sắp xếp giảm dần theo like, sau đó là thời gian tạo
-      { $limit: 5 } // Lấy top 5
+      }, 
+      { $addFields: { likeCount: { $size: { $ifNull: ["$likes", []] } } } }, 
+      { $sort: { likeCount: -1, createdAt: -1 } }, 
+      { $limit: 5 } 
     ]);
 
-    // Populate thông tin người tạo (vì aggregate không tự populate)
-    await Post.populate(posts, { path: "createdBy", select: "username avatar role" });
+    // Populate thông tin người tạo VÀ bài gốc
+    await Post.populate(posts, [
+      { path: "createdBy", select: "username avatar role displayName" },
+      { path: "sharedFrom", populate: { path: "createdBy", select: "username displayName avatar role" } }
+    ]);
 
     res.json(posts);
   } catch (error) {
