@@ -1,9 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, BrowserRouter, useInRouterContext, Link } from 'react-router-dom';
 import { TrendingUp, Home, Compass, Bookmark, Settings, Heart, MessageCircle, MapPin, Loader2, Share2, Eye } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const trendingCopy = {
+  vi: {
+    home: 'Trang chủ',
+    explore: 'Khám phá',
+    trending: 'Thịnh hành',
+    saved: 'Đã lưu',
+    settings: 'Cài đặt',
+    subtitle: 'Những bài viết nổi bật và được quan tâm nhiều nhất trong cộng đồng.',
+    emptyTitle: 'Chưa có bài viết thịnh hành',
+    emptyBody: 'Hãy tương tác nhiều hơn để các bài viết được lên xu hướng nhé.',
+    noImage: 'Không có ảnh',
+    discover: 'Khám phá',
+    unknown: 'Chưa rõ',
+    unknownTitle: 'Chưa rõ tiêu đề',
+    user: 'Người dùng',
+  },
+  en: {
+    home: 'Home',
+    explore: 'Explore',
+    trending: 'Trending',
+    saved: 'Saved',
+    settings: 'Settings',
+    subtitle: 'Top posts getting the most attention from the community.',
+    emptyTitle: 'No trending posts yet',
+    emptyBody: 'Interact with more posts to help them trend.',
+    noImage: 'No image',
+    discover: 'Explore',
+    unknown: 'Unknown',
+    unknownTitle: 'Untitled',
+    user: 'User',
+  },
+};
 
 function TrendingContent() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const t = trendingCopy[language] || trendingCopy.vi;
   const [trendingPosts, setTrendingPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,19 +75,19 @@ function TrendingContent() {
 
         <nav className="flex-1 px-4 space-y-2">
           <button onClick={() => navigate('/dashboard')} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-red-50 text-gray-600 hover:text-[#f44336] rounded-xl font-bold transition-all group text-[15px]">
-            <Home size={22} className="group-hover:scale-110 transition-transform" /> Trang chủ
+            <Home size={22} className="group-hover:scale-110 transition-transform" /> {t.home}
           </button>
           <button onClick={() => navigate('/explore')} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-red-50 text-gray-600 hover:text-[#f44336] rounded-xl font-bold transition-all group text-[15px]">
-            <Compass size={22} className="group-hover:scale-110 transition-transform" /> Khám phá
+            <Compass size={22} className="group-hover:scale-110 transition-transform" /> {t.explore}
           </button>
           <button className="w-full flex items-center gap-4 px-4 py-3.5 bg-red-50 text-[#f44336] rounded-xl font-bold transition-all group text-[15px]">
-            <TrendingUp size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> Thịnh hành
+            <TrendingUp size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> {t.trending}
           </button>
           <button onClick={() => navigate('/saved')} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-red-50 text-gray-600 hover:text-[#f44336] rounded-xl font-bold transition-all group text-[15px]">
-            <Bookmark size={22} className="group-hover:scale-110 transition-transform" /> Đã lưu
+            <Bookmark size={22} className="group-hover:scale-110 transition-transform" /> {t.saved}
           </button>
           <button onClick={() => navigate('/profile')} className="w-full flex items-center gap-4 px-4 py-3.5 hover:bg-red-50 text-gray-600 hover:text-[#f44336] rounded-xl font-bold transition-all group text-[15px]">
-            <Settings size={22} className="group-hover:scale-110 transition-transform" /> Cài đặt
+            <Settings size={22} className="group-hover:scale-110 transition-transform" /> {t.settings}
           </button>
         </nav>
       </aside>
@@ -62,9 +98,9 @@ function TrendingContent() {
             <div className="w-12 h-12 bg-red-50 text-[#f44336] rounded-full flex items-center justify-center shadow-sm">
               <TrendingUp size={24} strokeWidth={2.5} />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Thịnh hành</h1>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">{t.trending}</h1>
           </div>
-          <p className="text-[15px] font-medium text-gray-500 ml-15">Những bài viết nổi bật và được quan tâm nhiều nhất trong cộng đồng.</p>
+          <p className="text-[15px] font-medium text-gray-500 ml-15">{t.subtitle}</p>
         </div>
 
         {isLoading ? (
@@ -74,8 +110,8 @@ function TrendingContent() {
         ) : trendingPosts.length === 0 ? (
           <div className="bg-white rounded-3xl p-16 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
             <TrendingUp size={64} className="text-gray-300 mb-6" strokeWidth={1.5} />
-            <h2 className="text-xl font-black text-gray-900 mb-2">Chưa có bài viết thịnh hành</h2>
-            <p className="text-[15px] text-gray-500 font-medium">Hãy tương tác nhiều hơn để các bài viết được lên xu hướng nhé.</p>
+            <h2 className="text-xl font-black text-gray-900 mb-2">{t.emptyTitle}</h2>
+            <p className="text-[15px] text-gray-500 font-medium">{t.emptyBody}</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -104,7 +140,7 @@ function TrendingContent() {
                     <img src={post.images[0]} alt="Post media" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold bg-gray-50">
-                      Không có ảnh
+                      {t.noImage}
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
@@ -113,15 +149,15 @@ function TrendingContent() {
                 <div className="p-6 flex flex-col justify-center flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="px-3 py-1 bg-red-50 text-[#f44336] text-[11px] font-bold uppercase tracking-wider rounded-lg border border-red-100/50">
-                      {post.category || 'Khám phá'}
+                      {post.category || t.discover}
                     </span>
                     <span className="text-[13px] font-medium text-gray-400 flex items-center gap-1">
-                      <MapPin size={14} /> {post.location || 'Chưa rõ'}
+                      <MapPin size={14} /> {post.location || t.unknown}
                     </span>
                   </div>
                   
                   <h2 className="text-[20px] font-extrabold text-gray-900 leading-tight mb-2 group-hover:text-[#f44336] transition-colors line-clamp-2">
-                    {post.title || post.location || 'Chưa rõ tiêu đề'}
+                    {post.title || post.location || t.unknownTitle}
                   </h2>
                   
                   <p className="text-[14px] text-gray-600 font-medium mb-6 line-clamp-2 leading-relaxed">
@@ -132,7 +168,7 @@ function TrendingContent() {
                     <div className="flex items-center gap-3">
                       <img src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.username)} alt="Avatar" className="w-9 h-9 rounded-full object-cover border border-gray-100" />
                       <span className="text-[14px] font-extrabold text-gray-900 truncate max-w-[120px]">
-                        {post.createdBy?.username || 'Người dùng'}
+                        {post.createdBy?.username || t.user}
                       </span>
                     </div>
 

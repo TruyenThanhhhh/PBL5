@@ -12,6 +12,153 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { accountNavMenu } from '../constants/accountNavMenu';
 
+const dashboardCopy = {
+  vi: {
+    searchAll: 'Tìm kiếm mọi thứ...',
+    home: 'Trang chủ',
+    explore: 'Khám phá',
+    friends: 'Bạn bè',
+    confirmDeleteTitle: 'Xác nhận xóa bình luận',
+    confirmDeleteBody: 'Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.',
+    cancel: 'Hủy',
+    delete: 'Xóa',
+    friendSearch: 'Tìm kiếm bạn bè...',
+    searchResults: 'Kết quả tìm kiếm',
+    noUsersFound: 'Không tìm thấy người dùng nào.',
+    message: 'Nhắn tin',
+    undo: 'Hoàn tác',
+    accept: 'Chấp nhận',
+    newFriendRequests: 'Lời mời kết bạn mới',
+    friendSuggestions: 'Gợi ý kết bạn',
+    noMoreSuggestions: 'Bạn đã kết bạn với tất cả mọi người!',
+    mutualHint: 'Có thể bạn quen',
+    addFriend: 'Kết bạn',
+    themeToggle: 'Chuyển chế độ tối/sáng',
+    createPostTitle: 'Tạo bài viết mới',
+    createPostSubtitle: 'Chia sẻ ảnh, ghim map, kể lại trải nghiệm của bạn.',
+    adminPlaceholder: 'Phát thông báo hệ thống...',
+    postPlaceholder: 'Chia sẻ địa điểm bạn vừa khám phá...',
+    mapPickerHelp: 'Click vào bản đồ để lấy tọa độ chính xác',
+    pinned: 'Đã ghim vị trí',
+    pinLocation: 'Ghim vị trí',
+    uploadImage: 'Tải ảnh lên',
+    posting: 'Đang tải...',
+    submitPost: 'Đăng Bài',
+    trending: 'Đang thịnh hành',
+    viewAll: 'Xem tất cả',
+    noImage: 'Không có ảnh',
+    discover: 'Khám phá',
+    unknown: 'Chưa rõ',
+    anonymous: 'Ẩn danh',
+    adminNotice: 'Thông báo từ Ban Quản Trị',
+    copyPostLink: 'Copy link bài viết',
+    deletePost: 'Xóa bài viết',
+    showPost: 'Hiện bài viết',
+    hidePost: 'Ẩn bài viết',
+    unknownLocation: 'Chưa xác định',
+    pinnedLocation: 'Vị trí được ghim',
+    closeMap: 'Đóng Map',
+    viewMap: 'Xem Map',
+    comments: 'Bình luận',
+    writeComment: 'Viết bình luận...',
+    save: 'Lưu',
+    reply: 'Phản hồi',
+    edit: 'Sửa',
+    noComments: 'Chưa có bình luận nào. Hãy là người đầu tiên!',
+    replyingTo: (name) => `Đang phản hồi @${name}...`,
+    replyTo: (name) => `Phản hồi ${name}...`,
+    hotPlaces: 'Địa Điểm Đang Hot',
+    noData: 'Chưa có dữ liệu',
+    unknownPlace: 'Chưa rõ vị trí',
+    likes: 'lượt thích',
+    quickSuggestions: 'Gợi ý nhanh',
+    quickTrip: 'Lịch trình Đà Nẵng 2N1Đ',
+    quickFood: 'Ăn gì ở Huế?',
+    quickCheckin: 'Check-in Hội An buổi tối',
+    quickTripPrompt: 'Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm',
+    quickFoodPrompt: 'Gợi ý món ăn ngon ở Huế',
+    quickCheckinPrompt: 'Địa điểm check-in đẹp ở Hội An buổi tối',
+    travelTip: 'Đăng bài có ảnh thật + tọa độ ghim sẽ giúp bài nổi bật hơn và được cộng đồng tương tác.',
+    aiTitle: 'AI Tư vấn địa điểm',
+    aiThinking: 'Đang tư vấn...',
+    aiPlaceholder: 'Ví dụ: Gợi ý lịch trình Đà Lạt 2 ngày',
+    send: 'Gửi',
+    aiGreeting: 'Xin chào! Mình là trợ lý du lịch. Bạn muốn đi đâu cuối tuần này?',
+  },
+  en: {
+    searchAll: 'Search everything...',
+    home: 'Home',
+    explore: 'Explore',
+    friends: 'Friends',
+    confirmDeleteTitle: 'Delete Comment',
+    confirmDeleteBody: 'Are you sure you want to delete this comment? This action cannot be undone.',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    friendSearch: 'Search friends...',
+    searchResults: 'Search Results',
+    noUsersFound: 'No users found.',
+    message: 'Message',
+    undo: 'Undo',
+    accept: 'Accept',
+    newFriendRequests: 'New Friend Requests',
+    friendSuggestions: 'Friend Suggestions',
+    noMoreSuggestions: 'You are already friends with everyone!',
+    mutualHint: 'People you may know',
+    addFriend: 'Add friend',
+    themeToggle: 'Toggle dark/light mode',
+    createPostTitle: 'Create New Post',
+    createPostSubtitle: 'Share photos, pin a map, and tell your travel story.',
+    adminPlaceholder: 'Post a system announcement...',
+    postPlaceholder: 'Share a place you just discovered...',
+    mapPickerHelp: 'Click the map to pick exact coordinates',
+    pinned: 'Location pinned',
+    pinLocation: 'Pin location',
+    uploadImage: 'Upload image',
+    posting: 'Uploading...',
+    submitPost: 'Post',
+    trending: 'Trending',
+    viewAll: 'View all',
+    noImage: 'No image',
+    discover: 'Explore',
+    unknown: 'Unknown',
+    anonymous: 'Anonymous',
+    adminNotice: 'Announcement from Admin Team',
+    copyPostLink: 'Copy post link',
+    deletePost: 'Delete post',
+    showPost: 'Show post',
+    hidePost: 'Hide post',
+    unknownLocation: 'Unknown',
+    pinnedLocation: 'Pinned location',
+    closeMap: 'Close Map',
+    viewMap: 'View Map',
+    comments: 'Comments',
+    writeComment: 'Write a comment...',
+    save: 'Save',
+    reply: 'Reply',
+    edit: 'Edit',
+    noComments: 'No comments yet. Be the first one!',
+    replyingTo: (name) => `Replying to @${name}...`,
+    replyTo: (name) => `Reply to ${name}...`,
+    hotPlaces: 'Hot Places',
+    noData: 'No data yet',
+    unknownPlace: 'Unknown place',
+    likes: 'likes',
+    quickSuggestions: 'Quick Suggestions',
+    quickTrip: 'Da Nang 2D1N itinerary',
+    quickFood: 'What to eat in Hue?',
+    quickCheckin: 'Hoi An night check-in',
+    quickTripPrompt: 'Suggest a 2-day 1-night Da Nang itinerary',
+    quickFoodPrompt: 'Suggest good food to try in Hue',
+    quickCheckinPrompt: 'Beautiful check-in places in Hoi An at night',
+    travelTip: 'Posts with real photos and pinned coordinates stand out more and get better community engagement.',
+    aiTitle: 'AI Travel Advisor',
+    aiThinking: 'Thinking...',
+    aiPlaceholder: 'Example: Suggest a 2-day Da Lat itinerary',
+    send: 'Send',
+    aiGreeting: 'Hi! I am your travel assistant. Where would you like to go this weekend?',
+  },
+};
+
 const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
@@ -173,6 +320,8 @@ function DashboardContent() {
   const location = useLocation();
   const { language } = useLanguage();
   const menuT = accountNavMenu[language] || accountNavMenu.vi;
+  const t = dashboardCopy[language] || dashboardCopy.vi;
+  const dateLocale = language === 'en' ? 'en-US' : 'vi-VN';
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
   
@@ -206,7 +355,7 @@ function DashboardContent() {
   const [aiChatInput, setAiChatInput] = useState('');
   const [isAiChatLoading, setIsAiChatLoading] = useState(false);
   const [aiChatMessages, setAiChatMessages] = useState([
-    { role: 'ai', content: 'Xin chào! Mình là trợ lý du lịch 🤖 Bạn muốn đi đâu cuối tuần này?' }
+    { role: 'ai', content: t.aiGreeting }
   ]);
 
   const [notifications, setNotifications] = useState([]);
@@ -276,6 +425,13 @@ function DashboardContent() {
   const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const [typingInfo, setTypingInfo] = useState(null); // { username }
+
+  useEffect(() => {
+    setAiChatMessages(prev => {
+      if (prev.length !== 1 || prev[0]?.role !== 'ai') return prev;
+      return [{ role: 'ai', content: t.aiGreeting }];
+    });
+  }, [t.aiGreeting]);
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
 
@@ -1251,11 +1407,11 @@ function DashboardContent() {
       {deleteConfirm.open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-gray-200">
-            <h3 className="text-lg font-extrabold text-gray-900 mb-2">Xác nhận xóa bình luận</h3>
-            <p className="text-sm text-gray-700 mb-5">Bạn có chắc chắn xóa bình luận này? Hành "ng này không thỒ hoàn tác.</p>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">{t.confirmDeleteTitle}</h3>
+            <p className="text-sm text-gray-700 mb-5">{t.confirmDeleteBody}</p>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={cancelDelete} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Hủy</button>
-              <button type="button" onClick={confirmDeleteComment} className="px-4 py-2 rounded-lg bg-[#f44336] text-white hover:bg-[#e22d41]">Xóa</button>
+              <button type="button" onClick={cancelDelete} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">{t.cancel}</button>
+              <button type="button" onClick={confirmDeleteComment} className="px-4 py-2 rounded-lg bg-[#f44336] text-white hover:bg-[#e22d41]">{t.delete}</button>
             </div>
           </div>
         </div>
@@ -1270,7 +1426,7 @@ function DashboardContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input 
               type="text" 
-              placeholder="Tìm kiếm mọi thứ..." 
+              placeholder={t.searchAll}
               className={`w-full pl-9 pr-3 py-2.5 rounded-full text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all shadow-sm border
                 ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-[#f8f9fa] border-gray-200 hover:bg-white focus:bg-white'}`}
             />
@@ -1278,10 +1434,10 @@ function DashboardContent() {
         </div>
         
         <nav className={`flex justify-center items-center gap-10 text-[15px] font-bold shrink-0 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          <Link to="/dashboard" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">Trang chủ</Link>
-          <Link to="/explore" className="hover:text-[#f44336] transition-colors h-[72px] flex items-center">Khám phá</Link>
+          <Link to="/dashboard" className="text-[#f44336] border-b-[3px] border-[#f44336] h-[72px] flex items-center">{t.home}</Link>
+          <Link to="/explore" className="hover:text-[#f44336] transition-colors h-[72px] flex items-center">{t.explore}</Link>
           <Link to="/community" className="hover:text-[#f44336] transition-colors h-[72px] flex items-center">{menuT.community}</Link>
-          <Link to="/friends" className="hover:text-[#f44336] transition-colors h-[72px] flex items-center">Bạn bè</Link>
+          <Link to="/friends" className="hover:text-[#f44336] transition-colors h-[72px] flex items-center">{t.friends}</Link>
         </nav>
 
         <div className="flex-1 flex items-center justify-end gap-2 md:gap-3 shrink-0 min-w-0">
@@ -1334,7 +1490,7 @@ function DashboardContent() {
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
                       type="text"
-                      placeholder="Tìm kiếm bạn bè..."
+                      placeholder={t.friendSearch}
                       value={friendSearchQuery}
                       onChange={(e) => setFriendSearchQuery(e.target.value)}
                       className={`w-full rounded-full py-2 pl-9 pr-4 text-[13px] outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-[#f4f4f5] text-gray-900'}`}
@@ -1345,9 +1501,9 @@ function DashboardContent() {
                 <div className="max-h-[350px] overflow-y-auto pb-4">
                   {friendSearchQuery.trim() !== '' ? (
                     <div className="px-2 pt-2">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Kết quả tìm kiếm</p>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">{t.searchResults}</p>
                       {searchResults.length === 0 ? (
-                        <p className="text-[13px] text-center text-gray-500 py-4">Không tìm thấy người dùng nào.</p>
+                        <p className="text-[13px] text-center text-gray-500 py-4">{t.noUsersFound}</p>
                       ) : (
                         searchResults.map(user => {
                           const strUserId = String(user._id);
@@ -1361,11 +1517,11 @@ function DashboardContent() {
                               </div>
                               <div className="shrink-0 flex items-center">
                                 {friends.includes(strUserId) ? (
-                                  <button onClick={() => { setIsFriendDropdownOpen(false); window.dispatchEvent(new CustomEvent('openChat', { detail: { targetUserId: user._id } })); }} className="text-[11px] font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">Nhắn tin</button>
+                                  <button onClick={() => { setIsFriendDropdownOpen(false); window.dispatchEvent(new CustomEvent('openChat', { detail: { targetUserId: user._id } })); }} className="text-[11px] font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">{t.message}</button>
                                 ) : sentRequests.includes(strUserId) ? (
-                                  <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                  <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> {t.undo}</button>
                                 ) : receivedRequests.includes(strUserId) ? (
-                                  <button onClick={() => handleAcceptFriend(user._id)} className="text-[11px] font-bold text-white bg-[#f44336] px-3 py-1.5 rounded-full hover:bg-[#e22d41]">Chấp nhận</button>
+                                  <button onClick={() => handleAcceptFriend(user._id)} className="text-[11px] font-bold text-white bg-[#f44336] px-3 py-1.5 rounded-full hover:bg-[#e22d41]">{t.accept}</button>
                                 ) : (
                                   <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors">
                                     <UserPlus size={16} />
@@ -1381,7 +1537,7 @@ function DashboardContent() {
                     <>
                       {receivedRequests.length > 0 ? (
                         <div className="px-2 pt-3 pb-2 border-b border-gray-100">
-                          <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest px-2 mb-2">Lời mời kết bạn mới</p>
+                          <p className="text-[11px] font-bold text-red-500 uppercase tracking-widest px-2 mb-2">{t.newFriendRequests}</p>
                           {receivedRequests.map(reqId => {
                             const user = getUserById(reqId);
                             return (
@@ -1403,9 +1559,9 @@ function DashboardContent() {
                       ) : null}
 
                       <div className="px-2 pt-3">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Gợi ý kết bạn</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">{t.friendSuggestions}</p>
                         {recommendedUsers.length === 0 ? (
-                          <p className="text-[12px] text-gray-400 text-center py-4">Bạn đã kết bạn với tất cả mọi người!</p>
+                          <p className="text-[12px] text-gray-400 text-center py-4">{t.noMoreSuggestions}</p>
                         ) : (
                           recommendedUsers.map(user => {
                             const strUserId = String(user._id);
@@ -1416,16 +1572,16 @@ function DashboardContent() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p onClick={() => handleNavigateProfile(user._id)} className="font-bold text-[13px] text-gray-900 truncate cursor-pointer hover:underline">{user.username}</p>
-                                  <p className="text-[11px] text-gray-400 truncate">Có thể bạn quen</p>
+                                  <p className="text-[11px] text-gray-400 truncate">{t.mutualHint}</p>
                                 </div>
                                 <div className="shrink-0 flex items-center">
                                   {sentRequests.includes(strUserId) ? (
-                                    <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> Hoàn tác</button>
+                                    <button onClick={() => handleUndoRequest(user._id)} className="text-[11px] font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-gray-200"><Clock size={12}/> {t.undo}</button>
                                   ) : (
                                     <button 
                                       onClick={() => handleAddFriend(user._id)}
                                       className="w-8 h-8 flex items-center justify-center bg-red-50 text-[#f44336] rounded-full hover:bg-red-100 transition-colors shrink-0"
-                                      title="Kết bạn"
+                                      title={t.addFriend}
                                     >
                                       <UserPlus size={16} />
                                     </button>
@@ -1450,7 +1606,7 @@ function DashboardContent() {
               setIsAvatarMenuOpen(false);
             }}
             className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${isDarkMode ? 'hover:bg-gray-800 text-yellow-400' : 'hover:bg-gray-100 text-gray-500'}`}
-            title="Chuyển chế độ tối/sáng"
+            title={t.themeToggle}
           >
             {isDarkMode ? <Sun size={22} /> : <Moon size={22} />}
           </button>
@@ -1640,8 +1796,8 @@ function DashboardContent() {
           <div className={`${isDarkMode ? 'bg-[#1e293b] border-gray-700' : 'bg-white border-gray-100'} rounded-2xl p-5 shadow-sm border mb-8 transition-colors duration-300`}>
             <div className={`flex items-center justify-between mb-4 pb-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-100'}`}>
               <div>
-                <p className={`text-[13px] font-black ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Tạo bài viết mới</p>
-                <p className={`text-[11px] font-semibold ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Chia sẻ ảnh, ghim map, kể lại trải nghiệm của bạn.</p>
+                <p className={`text-[13px] font-black ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{t.createPostTitle}</p>
+                <p className={`text-[11px] font-semibold ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{t.createPostSubtitle}</p>
               </div>
               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-50 text-[#f44336]">
                 Travel Feed
@@ -1652,7 +1808,7 @@ function DashboardContent() {
                 <img src={getAvatarUrl(currentUser.avatar, currentUser.username)} alt="Avatar" className="w-full h-full object-cover" />
               </div>
               <textarea 
-                placeholder={currentUser.role === 'admin' ? "Phát thông báo hệ thống..." : "Chia sẻ địa điểm bạn vừa khám phá..."}
+                placeholder={currentUser.role === 'admin' ? t.adminPlaceholder : t.postPlaceholder}
                 className={`w-full ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-[#f4f4f5] text-gray-900'} rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all`}
                 rows="3"
                 value={newPost.description}
@@ -1674,7 +1830,7 @@ function DashboardContent() {
             {showMapPicker ? (
               <div className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in duration-300 ml-12">
                 <div className="flex justify-between items-center mb-2">
-                  <p className="text-[12px] font-bold text-gray-500">📍 Click vào bản đồ để lấy tọa độ chính xác</p>
+                  <p className="text-[12px] font-bold text-gray-500"><MapPin size={14} className="inline mr-1" />{t.mapPickerHelp}</p>
                   {pickedCoords ? <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span> : null}
                 </div>
                 <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0 shadow-inner">
@@ -1686,15 +1842,15 @@ function DashboardContent() {
             <div className={`flex items-center justify-between border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-50'} pt-4 mt-2`}>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors select-none ${pickedCoords || showMapPicker ? 'bg-red-50 text-[#f44336]' : 'text-gray-600 hover:bg-gray-100'}`}>
-                  <MapPin size={16} strokeWidth={2.5} /> {pickedCoords ? 'Đã ghim vị trí' : 'Ghim vị trí'}
+                  <MapPin size={16} strokeWidth={2.5} /> {pickedCoords ? t.pinned : t.pinLocation}
                 </button>
                 <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                 <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-gray-600 hover:bg-gray-100 transition-colors select-none cursor-pointer">
-                  <ImageIcon size={16} strokeWidth={2.5} /> Tải ảnh lên
+                  <ImageIcon size={16} strokeWidth={2.5} /> {t.uploadImage}
                 </button>
               </div>
               <button type="button" onClick={handleQuickPost} disabled={isPosting} className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[14px] font-bold text-white transition-all shadow-md ${currentUser.role === 'admin' ? 'bg-gray-900 hover:bg-black' : 'bg-[#f44336] shadow-red-500/20 hover:bg-[#e53935]'} disabled:opacity-50`}>
-                {isPosting ? <span>Đang tải...</span> : <span className="flex items-center gap-1.5"><Send size={16} /> Đăng Bài</span>}
+                {isPosting ? <span>{t.posting}</span> : <span className="flex items-center gap-1.5"><Send size={16} /> {t.submitPost}</span>}
               </button>
             </div>
           </div>
@@ -1704,10 +1860,10 @@ function DashboardContent() {
             <div className="mb-8 animate-in fade-in slide-in-from-bottom-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[16px] font-black text-gray-900 flex items-center gap-2">
-                  <TrendingUp size={20} className="text-[#f44336]" /> Đang thịnh hành
+                  <TrendingUp size={20} className="text-[#f44336]" /> {t.trending}
                 </h2>
                 <button onClick={() => navigate('/trending')} className="text-[13px] font-bold text-[#f44336] hover:underline">
-                  Xem tất cả
+                  {t.viewAll}
                 </button>
               </div>
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -1720,7 +1876,7 @@ function DashboardContent() {
                     {post.images && post.images.length > 0 ? (
                       <img src={post.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Trending" />
                     ) : (
-                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold">Không có ảnh</div>
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold">{t.noImage}</div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity"></div>
                     
@@ -1730,14 +1886,14 @@ function DashboardContent() {
 
                     <div className="absolute bottom-0 left-0 right-0 p-4">
                       <span className="text-[10px] font-bold text-white/90 bg-white/20 backdrop-blur-md px-2 py-0.5 rounded border border-white/20 uppercase tracking-wider mb-2 inline-block">
-                        {post.category || 'Khám phá'}
+                        {post.category || t.discover}
                       </span>
                       <h3 className="text-[14px] font-black text-white leading-tight mb-2 line-clamp-2 drop-shadow-md group-hover:text-red-100 transition-colors">
-                        {post.title || post.location || 'Chưa rõ'}
+                        {post.title || post.location || t.unknown}
                       </h3>
                       <div className="flex items-center gap-2 mt-auto">
                         <img src={getAvatarUrl(post.createdBy?.avatar, post.createdBy?.username)} className="w-5 h-5 rounded-full border border-white/50" alt="Avatar"/>
-                        <span className="text-[11px] font-bold text-white/90 truncate">{post.createdBy?.username || 'Ẩn danh'}</span>
+                        <span className="text-[11px] font-bold text-white/90 truncate">{post.createdBy?.username || t.anonymous}</span>
                       </div>
                     </div>
                   </div>
@@ -1756,7 +1912,7 @@ function DashboardContent() {
                   {isAdmin ? (
                     <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
                       <ShieldAlert size={16} className="text-[#f44336]" />
-                      <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
+                      <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">{t.adminNotice}</span>
                     </div>
                   ) : null}
 
@@ -1779,7 +1935,7 @@ function DashboardContent() {
                           </h3>
                           <div className="flex items-center gap-2 mt-0.5">
                             <p className="text-[11px] font-medium text-gray-400">
-                              {post.createdAt ? new Date(post.createdAt).toLocaleDateString('vi-VN') : ''}
+                              {post.createdAt ? new Date(post.createdAt).toLocaleDateString(dateLocale) : ''}
                             </p>
                             {post.category ? (
                               <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-[#f44336] border border-red-100">
@@ -1804,7 +1960,7 @@ function DashboardContent() {
                               onClick={() => handleCopyPostLink(post._id)}
                               className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                             >
-                              Copy link bài viết
+                              {t.copyPostLink}
                             </button>
                             {(isOwner || currentUser.role === 'admin') ? (
                               <button
@@ -1812,7 +1968,7 @@ function DashboardContent() {
                                 onClick={() => handleDeletePost(post._id)}
                                 className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg"
                               >
-                                Xóa bài viết
+                                {t.deletePost}
                               </button>
                             ) : null}
                             {currentUser.role === 'admin' ? (
@@ -1821,7 +1977,7 @@ function DashboardContent() {
                                 onClick={() => handleToggleVisibility(post._id)}
                                 className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                               >
-                                {post.isHidden ? 'Hi!n bài viết' : 'Ẩn bài viết'}
+                                {post.isHidden ? t.showPost : t.hidePost}
                               </button>
                             ) : null}
                           </div>
@@ -1845,9 +2001,9 @@ function DashboardContent() {
                       <div className="mb-4">
                         <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
                           <MapPin size={16} /> 
-                          {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : "Vị trí được ghim"}
+                          {typeof post.location === 'string' && post.location !== t.unknownLocation ? post.location : t.pinnedLocation}
                           <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white text-[#f44336] shadow-sm'}`}>
-                            {expandedMap[post._id] ? 'Đóng Bản ' : 'x Xem Map'}
+                            {expandedMap[post._id] ? t.closeMap : t.viewMap}
                           </span>
                         </button>
                         {expandedMap[post._id] ? (
@@ -1899,7 +2055,7 @@ function DashboardContent() {
                         );
                       })()}
                       <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
-                        <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || 'Bình luận'}
+                        <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || t.comments}
                       </button>
                       <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(String(post._id))} onToggleSave={handleToggleSavedPost} />
                       <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
@@ -1916,7 +2072,7 @@ function DashboardContent() {
                           <div className="flex-1 relative">
                             <input 
                               type="text" 
-                              placeholder="Viết bình luận..." 
+                              placeholder={t.writeComment}
                               className={`w-full ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-[#f4f4f5] text-gray-900'} rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all`}
                               value={commentInputs[post._id] || ''}
                               onChange={(e) => setCommentInputs(prev => ({...prev, [post._id]: e.target.value}))}
@@ -1948,8 +2104,8 @@ function DashboardContent() {
                                             rows={3}
                                           />
                                           <div className="mt-2 flex justify-between items-center">
-                                            <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
-                                            <button onClick={() => saveEditComment(post._id, comment._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
+                                            <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
+                                            <button onClick={() => saveEditComment(post._id, comment._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
                                           </div>
                                         </div>
                                       ) : (
@@ -1960,12 +2116,12 @@ function DashboardContent() {
                                       )}
 
                                       <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
-                                        <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                        <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hi</button>
+                                        <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString(dateLocale) : ''}</span>
+                                        <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>{t.reply}</button>
                                         {isCommentAuthor ? (
                                           <>
-                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(comment._id, comment.content)}>Sửa</button>
-                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, comment._id)}>Xóa</button>
+                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(comment._id, comment.content)}>{t.edit}</button>
+                                            <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, comment._id)}>{t.delete}</button>
                                           </>
                                         ) : null}
                                       </div>
@@ -1989,8 +2145,8 @@ function DashboardContent() {
                                                     rows={3}
                                                   />
                                                   <div className="mt-2 flex justify-between items-center">
-                                                    <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
-                                                    <button onClick={() => saveEditComment(post._id, reply._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
+                                                    <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
+                                                    <button onClick={() => saveEditComment(post._id, reply._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
                                                   </div>
                                                 </div>
                                               ) : typeof reply.content === 'string' && reply.content.startsWith('@') ? (
@@ -2003,12 +2159,12 @@ function DashboardContent() {
                                               )}
                                             </div>
                                             <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
-                                              <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hi</button>
+                                              <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString(dateLocale) : ''}</span>
+                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>{t.reply}</button>
                                               {reply.author?._id?.toString() === currentUser.userId ? (
                                                 <>
-                                                  <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(reply._id, reply.content)}>Sửa</button>
-                                                  <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, reply._id)}>Xóa</button>
+                                                  <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(reply._id, reply.content)}>{t.edit}</button>
+                                                  <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, reply._id)}>{t.delete}</button>
                                                 </>
                                               ) : null}
                                             </div>
@@ -2023,7 +2179,7 @@ function DashboardContent() {
                                       <CornerDownRight size={16} className="text-gray-300 mt-2 flex-shrink-0" />
                                       <div className="flex-1 relative">
                                         <input 
-                                          type="text" autoFocus placeholder={replyingTo.childUsername ? `Đang phản hi @${replyingTo.childUsername}...` : `Phản hi ${comment.author?.username}...`}
+                                          type="text" autoFocus placeholder={replyingTo.childUsername ? t.replyingTo(replyingTo.childUsername) : t.replyTo(comment.author?.username)}
                                           className="w-full bg-white border border-[#f44336]/30 shadow-sm rounded-full py-2 pl-4 pr-10 text-[12px] font-medium focus:outline-none focus:border-[#f44336] transition-all"
                                           value={replyInputs[comment._id] || ''}
                                           onChange={(e) => setReplyInputs(prev => ({...prev, [comment._id]: e.target.value}))}
@@ -2039,7 +2195,7 @@ function DashboardContent() {
                                 </div>
                               )})}
                               {(!commentsData[post._id] || commentsData[post._id].length === 0) ? (
-                                <div className="text-center py-6 text-gray-400 text-[13px] font-bold">Chưa có bình luận nào. Hãy là người ầu tiên!</div>
+                                <div className="text-center py-6 text-gray-400 text-[13px] font-bold">{t.noComments}</div>
                               ) : null}
                             </div>
                           )}
@@ -2055,15 +2211,15 @@ function DashboardContent() {
         {}
         <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa Điểm Đang Hot</h3>
+            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4"><MapPin size={14} className="inline mr-1 text-[#f44336]" />{t.hotPlaces}</h3>
             <div className="space-y-4">
               {trendingPosts.length === 0 ? (
-                <p className="text-[12px] font-medium text-gray-400 text-center py-2">Chưa có dữ liệu</p>
+                <p className="text-[12px] font-medium text-gray-400 text-center py-2">{t.noData}</p>
               ) : (
                 trendingPosts.map((trendingPost) => (
                   <div key={trendingPost._id}>
                     <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">
-                      {trendingPost.category || 'Khám phá'}
+                      {trendingPost.category || t.discover}
                     </p>
                     <p 
                       onClick={() => {
@@ -2071,10 +2227,10 @@ function DashboardContent() {
                       }} 
                       className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline"
                     >
-                      {trendingPost.title || trendingPost.location || 'Chưa rõ vị trí'}
+                      {trendingPost.title || trendingPost.location || t.unknownPlace}
                     </p>
                     <p className="text-[11px] font-medium text-gray-500 mt-1 flex items-center gap-1.5">
-                      <Heart size={12} className="text-[#f44336]" fill="#f44336" /> {trendingPost.likeCount || 0} lượt thích
+                      <Heart size={12} className="text-[#f44336]" fill="#f44336" /> {trendingPost.likeCount || 0} {t.likes}
                     </p>
                   </div>
                 ))
@@ -2082,23 +2238,23 @@ function DashboardContent() {
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ Gợi ý nhanh</h3>
+            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">{t.quickSuggestions}</h3>
             <div className="space-y-2">
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                Lịch trình Đà Nẵng 2N1Đ
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.quickTripPrompt); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+                {t.quickTrip}
               </button>
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Gợi ý món ăn ngon ở Huế'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                Ăn gì ở Huế?
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.quickFoodPrompt); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+                {t.quickFood}
               </button>
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput('Địa điểm check-in đẹp ở Hội An buổi tối'); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                Check-in H"i An bu"i ti
+              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.quickCheckinPrompt); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+                {t.quickCheckin}
               </button>
             </div>
           </div>
           <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-5 rounded-2xl shadow-sm text-white">
             <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Travel Tip</p>
             <p className="text-[13px] font-bold leading-relaxed">
-              Đăng bài có ảnh thật + tọa độ ghim sẽ giúp bài nổi bật hơn và được cộng đồng tương tác.
+              {t.travelTip}
             </p>
           </div>
         </aside>
@@ -2117,7 +2273,7 @@ function DashboardContent() {
       {isAiChatOpen ? (
         <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[13px] font-black text-gray-900">AI Tư vấn địa điểm</h3>
+            <h3 className="text-[13px] font-black text-gray-900">{t.aiTitle}</h3>
             <button type="button" onClick={() => setIsAiChatOpen(false)} className="text-gray-400 hover:text-gray-700">
               <X size={16} />
             </button>
@@ -2130,7 +2286,7 @@ function DashboardContent() {
             ))}
             {isAiChatLoading ? (
               <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
-                Đang tư vấn...
+                {t.aiThinking}
               </div>
             ) : null}
           </div>
@@ -2139,7 +2295,7 @@ function DashboardContent() {
               value={aiChatInput}
               onChange={(e) => setAiChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendAiChat()}
-              placeholder="Ví dụ: Gợi ý lịch trình Đà Lạt 2 ngày"
+              placeholder={t.aiPlaceholder}
               className="flex-1 bg-[#f4f4f5] rounded-xl px-3 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20"
             />
             <button
@@ -2148,7 +2304,7 @@ function DashboardContent() {
               disabled={isAiChatLoading || !aiChatInput.trim()}
               className="px-4 py-2 rounded-xl bg-[#f44336] text-white text-[13px] font-bold hover:bg-[#e53935] disabled:opacity-50"
             >
-              Gửi
+              {t.send}
             </button>
           </div>
         </div>

@@ -198,34 +198,213 @@ const createNotImplemented = (name) => async (_req, res) => {
 exports.requestPosterRole = createNotImplemented("requestPosterRole");
 exports.getPendingRequests = createNotImplemented("getPendingRequests");
 exports.approveRoleRequest = createNotImplemented("approveRoleRequest");
-exports.sendFriendRequest = createNotImplemented("sendFriendRequest");
-exports.acceptFriendRequest = createNotImplemented("acceptFriendRequest");
-exports.unfriend = createNotImplemented("unfriend");
-exports.blockUser = createNotImplemented("blockUser");
-exports.unblockUser = createNotImplemented("unblockUser");
-exports.getProfile = async (req, res) => {
+exports.sendFriendRequest = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password").lean();
-    if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
-    res.json({ user });
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
+      return res.status(400).json({ message: "ID nguoi dung khong hop le" });
+    }
+    if (String(targetId) === String(myId)) {
+      return res.status(400).json({ message: "Khong the gui loi moi cho chinh minh" });
+    }
+
+    const [me, target] = await Promise.all([
+      User.findById(myId),
+      User.findById(targetId),
+    ]);
+
+    if (!me || !target) return res.status(404).json({ message: "Khong tim thay nguoi dung" });
+
+    if ((me.blockedUsers || []).some((id) => String(id) === String(targetId))) {
+      return res.status(400).json({ message: "Ban da chan nguoi nay" });
+    }
+    if ((target.blockedUsers || []).some((id) => String(id) === String(myId))) {
+      return res.status(403).json({ message: "Khong the gui loi moi" });
+    }
+
+    if (target.allowFriendRequests === false) {
+      return res.status(403).json({ message: "Nguoi dung khong nhan loi moi ket ban" });
+    }
+
+    const alreadyFriends = (me.friends || []).some((id) => String(id) === String(targetId));
+    const alreadyRequested = (target.friendRequests || []).some((id) => String(id) === String(myId));
+    if (alreadyFriends) return res.status(400).json({ message: "Hai nguoi da la ban be" });
+    if (alreadyRequested) return res.json({ message: "Da gui loi moi ket ban" });
+
+    target.friendRequests = target.friendRequests || [];
+    target.friendRequests.push(myId);
+    await target.save();
+
+    res.json({ message: "Da gui loi moi ket ban" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/** Cập nhật tên hiển thị + bio (JSON), không cần multipart — tránh lỗi Cloudinary/multer khi chỉ sửa chữ */
+exports.acceptFriendRequest = async (req, res) => {
+  try {
+    const senderId = req.params.id;
+    const myId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(senderId)) {
+      return res.status(400).json({ message: "ID nguoi dung khong hop le" });
+    }
+
+    const [me, sender] = await Promise.all([
+      User.findById(myId),
+      User.findById(senderId),
+    ]);
+
+    if (!me || !sender) return res.status(404).json({ message: "Khong tim thay nguoi dung" });
+
+    const hasRequest = (me.friendRequests || []).some((id) => String(id) === String(senderId));
+    if (!hasRequest) return res.status(400).json({ message: "Khong co loi moi ket ban nay" });
+
+    me.friendRequests.pull(senderId);
+    if (!(me.friends || []).some((id) => String(id) === String(senderId))) me.friends.push(senderId);
+    if (!(sender.friends || []).some((id) => String(id) === String(myId))) sender.friends.push(myId);
+
+    await Promise.all([me.save(), sender.save()]);
+    res.json({ message: "Da chap nhan loi moi ket ban" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.unfriend = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
+      return res.status(400).json({ message: "ID nguoi dung khong hop le" });
+    }
+
+    const [me, target] = await Promise.all([
+      User.findById(myId),
+      User.findById(targetId),
+    ]);
+
+    if (!me || !target) return res.status(404).json({ message: "Khong tim thay nguoi dung" });
+
+    me.friends.pull(targetId);
+    me.friendRequests.pull(targetId);
+    target.friends.pull(myId);
+    target.friendRequests.pull(myId);
+
+    await Promise.all([me.save(), target.save()]);
+    res.json({ message: "Da cap nhat quan he ban be" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.blockUser = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
+      return res.status(400).json({ message: "ID người dùng không hợp lệ" });
+    }
+    if (String(targetId) === String(myId)) {
+      return res.status(400).json({ message: "Không thể chặn chính mình" });
+    }
+
+    const [me, target] = await Promise.all([User.findById(myId), User.findById(targetId)]);
+    if (!me || !target) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    if (!(me.blockedUsers || []).some((id) => String(id) === String(targetId))) {
+      me.blockedUsers = me.blockedUsers || [];
+      me.blockedUsers.push(targetId);
+    }
+
+    me.friends.pull(targetId);
+    me.friendRequests.pull(targetId);
+    me.following.pull(targetId);
+    target.friends.pull(myId);
+    target.friendRequests.pull(myId);
+    target.followers.pull(myId);
+    target.following.pull(myId);
+    me.followers.pull(targetId);
+    me.following.pull(targetId);
+
+    await Promise.all([me.save(), target.save()]);
+    res.json({ message: "Đã chặn người dùng" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.unblockUser = async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const myId = req.user.id;
+
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
+      return res.status(400).json({ message: "ID người dùng không hợp lệ" });
+    }
+
+    const me = await User.findById(myId);
+    if (!me) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    me.blockedUsers.pull(targetId);
+    await me.save();
+    res.json({ message: "Đã bỏ chặn người dùng" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+const getAuthUserId = (req) => {
+  const u = req.user;
+  if (!u) return null;
+  return u.id || u.userId || u._id || u.sub;
+};
+
+exports.getProfile = async (req, res) => {
+  try {
+    const uid = getAuthUserId(req);
+    if (!uid) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const user = await User.findById(uid)
+      .select("-password")
+      .populate("friends", "username displayName avatar bio friendRequests")
+      .populate("friendRequests", "username displayName avatar bio")
+      .populate("blockedUsers", "username displayName avatar")
+      .lean();
+    if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    res.json({ ...user, user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/** Cập nhật tên hiển thị + bio + quyền riêng tư (JSON), không cần multipart — tránh lỗi Cloudinary/multer khi chỉ sửa chữ */
 exports.updateProfileJson = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const uid = getAuthUserId(req);
+    if (!uid) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const user = await User.findById(uid);
     if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
 
-    const { displayName, bio } = req.body || {};
+    const { displayName, bio, profileVisibility, allowFriendRequests, showActivity } = req.body || {};
     if (typeof displayName === "string") {
       const trimmed = displayName.trim();
       if (trimmed) user.displayName = trimmed;
     }
     if (typeof bio === "string") {
       user.bio = bio.trim();
+    }
+    if (profileVisibility && ["public", "friends", "private"].includes(profileVisibility)) {
+      user.profileVisibility = profileVisibility;
+    }
+    if (typeof allowFriendRequests === "boolean") {
+      user.allowFriendRequests = allowFriendRequests;
+    }
+    if (typeof showActivity === "boolean") {
+      user.showActivity = showActivity;
     }
 
     await user.save();
@@ -236,8 +415,124 @@ exports.updateProfileJson = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-exports.changePassword = createNotImplemented("changePassword");
-exports.searchUsers = createNotImplemented("searchUsers");
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Vui lòng nhập đầy đủ mật khẩu" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự" });
+    }
+
+    const uid = getAuthUserId(req);
+    if (!uid) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const user = await User.findById(uid);
+    if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Mật khẩu hiện tại không đúng" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    res.json({ message: "Đổi mật khẩu thành công" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updatePrivacySettings = async (req, res) => {
+  try {
+    const uid = getAuthUserId(req);
+    if (!uid) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const user = await User.findById(uid);
+    if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    const { profileVisibility, allowFriendRequests, showActivity } = req.body || {};
+    if (profileVisibility && ["public", "friends", "private"].includes(profileVisibility)) {
+      user.profileVisibility = profileVisibility;
+    }
+    if (typeof allowFriendRequests === "boolean") {
+      user.allowFriendRequests = allowFriendRequests;
+    }
+    if (typeof showActivity === "boolean") {
+      user.showActivity = showActivity;
+    }
+
+    await user.save();
+    const out = user.toObject();
+    delete out.password;
+    res.json({
+      message: "Cập nhật quyền riêng tư thành công",
+      profileVisibility: out.profileVisibility,
+      allowFriendRequests: out.allowFriendRequests,
+      showActivity: out.showActivity,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getBlockedUsers = async (req, res) => {
+  try {
+    const uid = getAuthUserId(req);
+    if (!uid) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const user = await User.findById(uid)
+      .populate("blockedUsers", "username displayName avatar")
+      .select("blockedUsers")
+      .lean();
+    if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    const blocked = (user.blockedUsers || []).map((u) => ({
+      _id: u._id,
+      username: u.username,
+      displayName: u.displayName || u.username,
+      avatar: u.avatar,
+    }));
+    res.json(blocked);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.searchUsers = async (req, res) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 50);
+    const filter = { _id: { $ne: req.user.id } };
+
+    if (q) {
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const rx = new RegExp(escaped, "i");
+      filter.$or = [{ username: rx }, { displayName: rx }];
+    }
+
+    const users = await User.find(filter)
+      .select("username displayName avatar email role followers friends friendRequests")
+      .sort({ username: 1 })
+      .limit(limit)
+      .lean();
+
+    res.json(users.map((user) => ({
+      _id: user._id,
+      username: user.username,
+      displayName: user.displayName || user.username,
+      avatar: user.avatar,
+      email: user.email,
+      role: normalizeRole(user.role),
+      followersCount: user.followers ? user.followers.length : 0,
+      friends: user.friends || [],
+      friendRequests: user.friendRequests || [],
+    })));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 exports.updateProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -417,13 +712,15 @@ exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .populate("followers", "username avatar bio")
-      .populate("following", "username avatar bio");
+      .populate("following", "username avatar bio")
+      .populate("friends", "username displayName avatar bio friendRequests");
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     res.json({
       followers: user.followers,
       following: user.following,
+      friends: user.friends,
       followersCount: user.followers.length,
       followingCount: user.following.length,
     });

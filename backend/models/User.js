@@ -28,10 +28,20 @@ const userSchema = new mongoose.Schema(
     friends:        [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách bạn bè chính thức
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Những người ĐÃ GỬI lời mời cho user này
     blockedUsers:   [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Danh sách người dùng bị chặn
+    profileVisibility: {
+      type: String,
+      enum: ["public", "friends", "private"],
+      default: "public",
+    },
+    allowFriendRequests: { type: Boolean, default: true },
+    showActivity: { type: Boolean, default: true },
     deletedConversations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Conversation" }], // Danh sách hội thoại đã xóa (ẩn đi)
     savedPosts:     [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // Danh sách bài đăng đã lưu
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.models.User || mongoose.model("User", userSchema);
+if (mongoose.models.User) {
+  delete mongoose.models.User;
+}
+module.exports = mongoose.model("User", userSchema);

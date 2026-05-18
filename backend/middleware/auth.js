@@ -18,7 +18,11 @@ const protect = (req, res, next) => {
   if (!token) return res.status(401).json({ message: "Chưa đăng nhập" });
 
   try {
-    req.user = jwt.verify(token, jwtSecret());
+    const decoded = jwt.verify(token, jwtSecret());
+    req.user = {
+      ...decoded,
+      id: decoded.id || decoded.userId || decoded.sub,
+    };
     next();
   } catch {
     return res.status(401).json({ message: "Token không hợp lệ" });
@@ -29,7 +33,13 @@ const protect = (req, res, next) => {
 const optionalAuth = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (token) {
-    try { req.user = jwt.verify(token, jwtSecret()); } catch {}
+    try {
+      const decoded = jwt.verify(token, jwtSecret());
+      req.user = {
+        ...decoded,
+        id: decoded.id || decoded.userId || decoded.sub,
+      };
+    } catch {}
   }
   next();
 };

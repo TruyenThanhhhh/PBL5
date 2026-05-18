@@ -34,6 +34,8 @@ router.post("/unblock/:id", protect, userController.unblockUser);
 router.get("/profile", protect, userController.getProfile);
 router.put("/profile", protect, userController.updateProfileJson);
 router.put("/change-password", protect, userController.changePassword);
+router.put("/privacy-settings", protect, userController.updatePrivacySettings);
+router.get("/blocked-users", protect, userController.getBlockedUsers);
 router.get("/feed", protect, userController.getFeed);
 router.get("/search", protect, userController.searchUsers);
 router.put("/update-profile", protect, uploadLocal.fields([{ name: "avatar", maxCount: 1 }, { name: "cover", maxCount: 1 }]), userController.updateProfile);
