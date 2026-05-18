@@ -4,101 +4,23 @@ import {
   MessageSquare, Compass, Settings, 
   MapPin, Image as ImageIcon, Send, ShieldAlert,
   Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot,
-  ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell
+  ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell,
+  UserCircle, Home, TrendingUp, LogOut, Shield
 } from 'lucide-react';
 
-// =====================================================================
-// BẢN MOCK COMPONENTS ĐỂ SỬA LỖI VÔ HIỆU HÓA CHUÔNG & AVATAR TRONG CANVAS
-// (Đã tích hợp sẵn cơ chế chống đè chéo bảng)
-// LƯU Ý KHI MANG VÀO DỰ ÁN THẬT: Bạn hãy xóa đoạn Mock này đi và bỏ comment
-// các dòng import thật ở ngay bên dưới nhé.
-// =====================================================================
-const useLanguage = () => ({ language: 'vi', setLanguage: () => {} });
+import NotificationBell from '../components/NotificationBell';
+import AccountMenu from '../components/AccountMenu';
+import { useLanguage } from '../contexts/LanguageContext';
 
-const NotificationBell = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const bellRef = useRef(null);
-
-  useEffect(() => {
-    const handleClose = () => setIsOpen(false);
-    const handleClickOutside = (e) => {
-      if (bellRef.current && !bellRef.current.contains(e.target)) setIsOpen(false);
-    };
-    window.addEventListener('closeAllMenus', handleClose);
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-       window.removeEventListener('closeAllMenus', handleClose);
-       document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  return (
-    <div className="relative" ref={bellRef}>
-      <button 
-        type="button" 
-        onClick={(e) => {
-           e.stopPropagation();
-           const nextState = !isOpen;
-           window.dispatchEvent(new Event('closeAllMenus'));
-           if (nextState) setIsOpen(true);
-        }} 
-        className={`transition-colors relative ${isOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
-      >
-        <Bell size={22} strokeWidth={2} />
-      </button>
-      {isOpen && (
-         <div className="absolute right-0 top-12 w-[320px] bg-white border border-gray-200 shadow-2xl rounded-2xl z-[130] animate-in slide-in-from-top-2 fade-in">
-           <div className="p-3 border-b border-gray-100 bg-white"><p className="font-bold text-[14px]">Thông báo</p></div>
-           <div className="p-6 text-center text-[12px] text-gray-500">Chưa có thông báo nào</div>
-         </div>
-      )}
-    </div>
-  );
+const getImageUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  return `http://localhost:5000/${url.replace(/\\/g, '/')}`;
 };
-
-const AccountMenu = ({ avatar, username }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const accRef = useRef(null);
-
-  useEffect(() => {
-    const handleClose = () => setIsOpen(false);
-    const handleClickOutside = (e) => {
-      if (accRef.current && !accRef.current.contains(e.target)) setIsOpen(false);
-    };
-    window.addEventListener('closeAllMenus', handleClose);
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-       window.removeEventListener('closeAllMenus', handleClose);
-       document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  return (
-    <div className="relative" ref={accRef}>
-      <div 
-        onClick={(e) => {
-           e.stopPropagation();
-           const nextState = !isOpen;
-           window.dispatchEvent(new Event('closeAllMenus'));
-           if (nextState) setIsOpen(true);
-        }} 
-        className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-300 hover:opacity-80"
-      >
-         <img src={avatar || `https://ui-avatars.com/api/?name=${username || 'User'}`} alt="avatar" className="w-full h-full object-cover" />
-      </div>
-      {isOpen && (
-         <div className="absolute right-0 top-12 w-48 bg-white border border-gray-200 shadow-2xl rounded-xl z-[130] animate-in slide-in-from-top-2 fade-in text-gray-700 font-bold">
-           <div className="p-3 text-[13px] border-b border-gray-100 hover:bg-gray-50 cursor-pointer">Cài đặt</div>
-           <div className="p-3 text-[13px] text-red-500 hover:bg-red-50 cursor-pointer rounded-b-xl">Đăng xuất</div>
-         </div>
-      )}
-    </div>
-  );
-};
-// =================== KẾT THÚC MOCK ===================
 
 const getAvatarUrl = (url, name) => {
-  return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
+  const finalUrl = getImageUrl(url);
+  return finalUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
 
 const SavePostButton = ({ postId, initialIsSaved, onToggleSave }) => {
@@ -499,12 +421,13 @@ function DashboardContent() {
     };
 
     const handleClickOutside = (e) => {
+      if (e.target.closest('.global-toggle-btn')) return;
+
       if (friendDropdownRef.current && !friendDropdownRef.current.contains(e.target)) {
         setIsFriendDropdownOpen(false);
       }
       if (userChatModalRef.current && !userChatModalRef.current.contains(e.target)) {
-        const isChatTrigger = e.target.closest('.chat-trigger-btn');
-        if (!isChatTrigger) setIsUserChatOpen(false);
+        setIsUserChatOpen(false);
       }
     };
 
@@ -1365,7 +1288,8 @@ function DashboardContent() {
           
           <button 
             type="button" 
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (!isUserChatOpen) {
                  window.dispatchEvent(new Event('closeAllMenus')); 
                  setIsUserChatOpen(true);
@@ -1382,7 +1306,8 @@ function DashboardContent() {
           <div className="relative" ref={friendDropdownRef}>
             <button 
               type="button" 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (!isFriendDropdownOpen) {
                    window.dispatchEvent(new Event('closeAllMenus')); 
                    setIsFriendDropdownOpen(true);
@@ -1391,7 +1316,7 @@ function DashboardContent() {
                    setIsFriendDropdownOpen(false);
                 }
               }} 
-              className={`transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`transition-colors relative global-toggle-btn ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <Users size={22} strokeWidth={2} />
               {receivedRequests.length > 0 ? (
@@ -1400,7 +1325,7 @@ function DashboardContent() {
             </button>
             
             {isFriendDropdownOpen && (
-              <div className="absolute right-0 top-12 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[130] animate-in slide-in-from-top-2 fade-in">
+              <div className="absolute right-0 top-12 w-[340px] bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[130] animate-in slide-in-from-top-2 fade-in" onClick={e => e.stopPropagation()}>
                 <div className="p-3 border-b border-gray-100 bg-white">
                   <div className="relative">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1521,7 +1446,7 @@ function DashboardContent() {
 
       {/* Giao diện Modal Chat... */}
       {isUserChatOpen && (
-        <div ref={userChatModalRef} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
+        <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2">
               {chatView === 'conversation' ? (
@@ -1661,11 +1586,11 @@ function DashboardContent() {
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
                 <div>
-                  <p className="text-[13px] font-black text-gray-900">{t.createPost}</p>
-                  <p className="text-[11px] font-semibold text-gray-500">{t.createPostHint}</p>
+                  <p className="text-[13px] font-black text-gray-900">Tạo bài viết mới</p>
+                  <p className="text-[11px] font-semibold text-gray-500">Chia sẻ ảnh, ghim bản đồ, kể lại trải nghiệm của bạn.</p>
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-red-50 text-[#f44336]">
-                  {t.travelFeed}
+                  BẢNG TIN DU LỊCH
                 </span>
               </div>
               <div className="flex gap-3 mb-3">
@@ -1673,7 +1598,7 @@ function DashboardContent() {
                   <img src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
                 <textarea 
-                  placeholder={currentUser.role === 'admin' ? t.systemPlaceholder : t.sharePlaceholder}
+                  placeholder={currentUser.role === 'admin' ? "Phát thông báo hệ thống..." : "Chia sẻ địa điểm bạn vừa khám phá..."}
                   className="w-full bg-[#f4f4f5] rounded-xl p-3.5 text-[14px] font-medium resize-none focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
                   rows="3"
                   value={newPost.description}
@@ -1695,7 +1620,7 @@ function DashboardContent() {
               {showMapPicker ? (
                 <div className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-in fade-in duration-300 ml-12">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-[12px] font-bold text-gray-500">📍 {t.mapPickerHint}</p>
+                    <p className="text-[12px] font-bold text-gray-500">📍 Nhấn vào bản đồ để lấy tọa độ chính xác</p>
                     {pickedCoords ? <span className="text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">[{pickedCoords.lat.toFixed(4)}, {pickedCoords.lng.toFixed(4)}]</span> : null}
                   </div>
                   <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0 shadow-inner">
@@ -1707,15 +1632,15 @@ function DashboardContent() {
               <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-2">
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setShowMapPicker(!showMapPicker)} className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold transition-colors select-none ${pickedCoords || showMapPicker ? 'bg-red-50 text-[#f44336]' : 'text-gray-600 hover:bg-gray-100'}`}>
-                    <MapPin size={16} strokeWidth={2.5} /> {pickedCoords ? t.pinnedLocation : t.pinLocation}
+                    <MapPin size={16} strokeWidth={2.5} /> {pickedCoords ? 'Đã ghim vị trí' : 'Ghim vị trí'}
                   </button>
                   <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
                   <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold text-gray-600 hover:bg-gray-100 transition-colors select-none cursor-pointer">
-                    <ImageIcon size={16} strokeWidth={2.5} /> {t.uploadImage}
+                    <ImageIcon size={16} strokeWidth={2.5} /> Tải ảnh lên
                   </button>
                 </div>
                 <button type="button" onClick={handleQuickPost} disabled={isPosting} className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[14px] font-bold text-white transition-all shadow-md ${currentUser.role === 'admin' ? 'bg-gray-900 hover:bg-black' : 'bg-[#f44336] shadow-red-500/20 hover:bg-[#e53935]'} disabled:opacity-50`}>
-                  {isPosting ? <span>{t.posting}</span> : <span className="flex items-center gap-1.5"><Send size={16} /> {t.submitPost}</span>}
+                  {isPosting ? <span>Đang tải...</span> : <span className="flex items-center gap-1.5"><Send size={16} /> Đăng bài</span>}
                 </button>
               </div>
             </div>
@@ -1735,7 +1660,7 @@ function DashboardContent() {
                     {isAdmin ? (
                       <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
                         <ShieldAlert size={16} className="text-[#f44336]" />
-                        <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">{t.adminNotice}</span>
+                        <span className="text-[11px] font-black text-[#f44336] uppercase tracking-widest">Thông báo từ Ban Quản Trị</span>
                       </div>
                     ) : null}
 
@@ -1784,7 +1709,7 @@ function DashboardContent() {
                                 onClick={(e) => handleCopyPostLink(post._id, e)}
                                 className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                               >
-                                {t.copyLink}
+                                Copy link bài viết
                               </button>
                               {(isOwner || currentUser.role === 'admin') ? (
                                 <button
@@ -1792,7 +1717,7 @@ function DashboardContent() {
                                   onClick={(e) => handleDeletePost(post._id, e)}
                                   className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg"
                                 >
-                                  {t.deletePost}
+                                  Xóa bài viết
                                 </button>
                               ) : null}
                               {currentUser.role === 'admin' ? (
@@ -1801,7 +1726,7 @@ function DashboardContent() {
                                   onClick={(e) => handleToggleVisibility(post._id, e)}
                                   className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                                 >
-                                  {post.isHidden ? t.showPost : t.hidePost}
+                                  {post.isHidden ? "Hiện bài viết" : "Ẩn bài viết"}
                                 </button>
                               ) : null}
                             </div>
@@ -1826,9 +1751,9 @@ function DashboardContent() {
                         <div className="mb-4" onClick={e => e.stopPropagation()}>
                           <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
                             <MapPin size={16} /> 
-                            {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : t.pinnedSpot}
+                            {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : "Vị trí được ghim"}
                             <span className={`text-[10px] px-2 py-0.5 rounded-md ml-2 transition-colors ${expandedMap[post._id] ? 'bg-black/20 text-white' : 'bg-white text-[#f44336] shadow-sm'}`}>
-                              {expandedMap[post._id] ? t.closeMap : t.viewMap}
+                              {expandedMap[post._id] ? "Đóng Bản đồ" : "📍 Xem Map"}
                             </span>
                           </button>
                           {expandedMap[post._id] ? (
@@ -1881,7 +1806,7 @@ function DashboardContent() {
                           );
                         })()}
                         <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
-                          <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || t.comment}
+                          <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || "Bình luận"}
                         </button>
                         <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
                         <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
@@ -1899,7 +1824,7 @@ function DashboardContent() {
                             <div className="flex-1 relative">
                               <input 
                                 type="text" 
-                                placeholder={t.commentPlaceholder}
+                                placeholder="Viết bình luận..."
                                 className="w-full bg-[#f4f4f5] rounded-full py-2 pl-4 pr-10 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
                                 value={commentInputs[post._id] || ''}
                                 onChange={(e) => setCommentInputs(prev => ({...prev, [post._id]: e.target.value}))}
@@ -1931,8 +1856,8 @@ function DashboardContent() {
                                               rows={3}
                                             />
                                             <div className="mt-2 flex justify-between items-center">
-                                              <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
-                                              <button onClick={(e) => saveEditComment(post._id, comment._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
+                                              <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                              <button onClick={(e) => saveEditComment(post._id, comment._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
                                             </div>
                                           </div>
                                         ) : (
@@ -1944,11 +1869,11 @@ function DashboardContent() {
 
                                         <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                           <span>{comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                          <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>{t.reply}</button>
+                                          <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>Phản hồi</button>
                                           {isCommentAuthor ? (
                                             <>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(comment._id, comment.content, e)}>{t.edit}</button>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, comment._id, e)}>{t.delete}</button>
+                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(comment._id, comment.content, e)}>Sửa</button>
+                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, comment._id, e)}>Xóa</button>
                                             </>
                                           ) : null}
                                         </div>
@@ -1972,8 +1897,8 @@ function DashboardContent() {
                                                       rows={3}
                                                     />
                                                     <div className="mt-2 flex justify-between items-center">
-                                                      <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
-                                                      <button onClick={(e) => saveEditComment(post._id, reply._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
+                                                      <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">Hủy</button>
+                                                      <button onClick={(e) => saveEditComment(post._id, reply._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">Lưu</button>
                                                     </div>
                                                   </div>
                                                 ) : typeof reply.content === 'string' && reply.content.startsWith('@') ? (
@@ -1987,11 +1912,11 @@ function DashboardContent() {
                                               </div>
                                               <div className="flex items-center gap-3 mt-1 ml-2 text-[11px] font-bold text-gray-500">
                                                 <span>{reply.createdAt ? new Date(reply.createdAt).toLocaleDateString('vi-VN') : ''}</span>
-                                                <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>{t.reply}</button>
+                                                <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>Phản hồi</button>
                                                 {reply.author?._id?.toString() === currentUser.userId ? (
                                                   <>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(reply._id, reply.content, e)}>{t.edit}</button>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, reply._id, e)}>{t.delete}</button>
+                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(reply._id, reply.content, e)}>Sửa</button>
+                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, reply._id, e)}>Xóa</button>
                                                   </>
                                                 ) : null}
                                               </div>
@@ -2023,7 +1948,7 @@ function DashboardContent() {
                                 )
                               })}
                               {(!commentsData[post._id] || commentsData[post._id].length === 0) ? (
-                                <div className="text-center py-6 text-gray-400 text-[13px] font-bold">{t.noComment}</div>
+                                <div className="text-center py-6 text-gray-400 text-[13px] font-bold">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
                               ) : null}
                             </div>
                           )}
@@ -2040,15 +1965,15 @@ function DashboardContent() {
         {/* Vùng Cột phải (Gợi ý và Trending)... */}
         <aside className="w-[340px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 {t.hotPlaces}</h3>
+            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">📍 Địa điểm đang hot</h3>
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">{t.beach}</p>
-                <p onClick={() => showToast('success', t.savedBaySao)} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">{t.baySao}</p>
+                <p className="text-[10px] font-bold text-[#f44336] uppercase tracking-wider mb-0.5">Biển</p>
+                <p onClick={() => showToast('success', 'Đã lưu vào danh sách xem sau: Bãi Sao')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Bãi Sao, Phú Quốc</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">{t.culture}</p>
-                <p onClick={() => showToast('success', t.savedPhoCo)} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">{t.phoCo}</p>
+                <p className="text-[10px] font-bold text-[#00897b] uppercase tracking-wider mb-0.5">Văn hóa</p>
+                <p onClick={() => showToast('success', 'Đã thêm Phố cổ Hội An vào Gợi ý')} className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline">Phố cổ Hội An</p>
               </div>
               {trendingPosts.map((trendingPost) => (
                 <div key={trendingPost._id}>
@@ -2061,7 +1986,7 @@ function DashboardContent() {
                     }} 
                     className="text-[13px] font-bold text-gray-900 leading-tight cursor-pointer hover:underline"
                   >
-                    {trendingPost.title || trendingPost.location || t.locationUndetermined}
+                    {trendingPost.title || trendingPost.location || "Chưa xác định"}
                   </p>
                   <p className="text-[11px] font-medium text-gray-500 mt-1 flex items-center gap-1.5">
                     <Heart size={12} className="text-[#f44336]" fill="#f44336" /> {trendingPost.likeCount || 0} lượt thích
@@ -2071,33 +1996,36 @@ function DashboardContent() {
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ {t.quickSuggestions}</h3>
+            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ Gợi ý nhanh</h3>
             <div className="space-y-2">
-              <button type="button" onClick={() => { 
+              <button type="button" onClick={(e) => { 
+                e.stopPropagation();
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
-                setAiChatInput(t.chatTrip); 
+                setAiChatInput("Gợi ý lịch trình Đà Nẵng 2 ngày 1 đêm"); 
               }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickTrip}
+                Lịch trình Đà Nẵng 2N1Đ
               </button>
-              <button type="button" onClick={() => { 
+              <button type="button" onClick={(e) => { 
+                e.stopPropagation();
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
-                setAiChatInput(t.chatFood); 
+                setAiChatInput("Gợi ý món ăn ngon ở Huế"); 
               }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickFood}
+                Ăn gì ở Huế?
               </button>
-              <button type="button" onClick={() => { 
+              <button type="button" onClick={(e) => { 
+                e.stopPropagation();
                 window.dispatchEvent(new Event('closeAllMenus'));
                 setIsAiChatOpen(true); 
-                setAiChatInput(t.chatCheckin); 
+                setAiChatInput("Điểm check-in đẹp ở Hội An buổi tối"); 
               }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
-                {t.quickCheckin}
+                Check-in Hội An buổi tối
               </button>
             </div>
           </div>
           <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-5 rounded-2xl shadow-sm text-white">
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">{t.travelTip}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Mẹo du lịch</p>
             <p className="text-[13px] font-bold leading-relaxed">
               Đăng bài có ảnh thật + tọa độ ghim sẽ giúp bài nổi bật hơn và dễ được cộng đồng tương tác.
             </p>
@@ -2108,7 +2036,8 @@ function DashboardContent() {
 
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           if (!isAiChatOpen) {
              window.dispatchEvent(new Event('closeAllMenus'));
              setIsAiChatOpen(true);
@@ -2125,7 +2054,7 @@ function DashboardContent() {
       {isAiChatOpen ? (
         <div className="fixed right-6 bottom-24 z-[101] w-[340px] bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-[13px] font-black text-gray-900">{t.chatTitle}</h3>
+            <h3 className="text-[13px] font-black text-gray-900">AI tư vấn địa điểm</h3>
             <button type="button" onClick={() => setIsAiChatOpen(false)} className="text-gray-400 hover:text-gray-700">
               <X size={16} />
             </button>

@@ -433,11 +433,11 @@ export default function PostDetail() {
               className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 hover:text-[#f44336]'} transition-colors text-[14px] font-bold disabled:opacity-50`}
             >
               <Heart size={22} strokeWidth={2.5} fill={likedByCurrentUser ? '#f44336' : 'none'} /> 
-              {Array.isArray(post.likes) ? post.likes.length : 0} Lượt thích
+              {Array.isArray(post.likes) ? post.likes.length : 0}
             </button>
             
             <div className="flex items-center gap-1.5 text-gray-500 text-[14px] font-bold">
-              <MessageSquare size={22} strokeWidth={2.5} /> {comments.length} Bình luận
+              <MessageSquare size={22} strokeWidth={2.5} /> {comments.length}
             </div>
 
             <SavePostButton postId={post._id} initialIsSaved={isSaved} />
