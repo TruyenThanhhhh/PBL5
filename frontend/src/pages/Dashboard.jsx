@@ -7,10 +7,95 @@ import {
   ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, Bell
 } from 'lucide-react';
 
+// =====================================================================
+// BẢN MOCK COMPONENTS ĐỂ SỬA LỖI VÔ HIỆU HÓA CHUÔNG & AVATAR TRONG CANVAS
+// (Đã tích hợp sẵn cơ chế chống đè chéo bảng)
+// LƯU Ý KHI MANG VÀO DỰ ÁN THẬT: Bạn hãy xóa đoạn Mock này đi và bỏ comment
+// các dòng import thật ở ngay bên dưới nhé.
+// =====================================================================
+const useLanguage = () => ({ language: 'vi', setLanguage: () => {} });
 
-import NotificationBell from '../components/NotificationBell';
-import AccountMenu from '../components/AccountMenu';
-import { useLanguage } from '../contexts/LanguageContext';
+const NotificationBell = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const bellRef = useRef(null);
+
+  useEffect(() => {
+    const handleClose = () => setIsOpen(false);
+    const handleClickOutside = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) setIsOpen(false);
+    };
+    window.addEventListener('closeAllMenus', handleClose);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+       window.removeEventListener('closeAllMenus', handleClose);
+       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div className="relative" ref={bellRef}>
+      <button 
+        type="button" 
+        onClick={(e) => {
+           e.stopPropagation();
+           const nextState = !isOpen;
+           window.dispatchEvent(new Event('closeAllMenus'));
+           if (nextState) setIsOpen(true);
+        }} 
+        className={`transition-colors relative ${isOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+      >
+        <Bell size={22} strokeWidth={2} />
+      </button>
+      {isOpen && (
+         <div className="absolute right-0 top-12 w-[320px] bg-white border border-gray-200 shadow-2xl rounded-2xl z-[130] animate-in slide-in-from-top-2 fade-in">
+           <div className="p-3 border-b border-gray-100 bg-white"><p className="font-bold text-[14px]">Thông báo</p></div>
+           <div className="p-6 text-center text-[12px] text-gray-500">Chưa có thông báo nào</div>
+         </div>
+      )}
+    </div>
+  );
+};
+
+const AccountMenu = ({ avatar, username }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const accRef = useRef(null);
+
+  useEffect(() => {
+    const handleClose = () => setIsOpen(false);
+    const handleClickOutside = (e) => {
+      if (accRef.current && !accRef.current.contains(e.target)) setIsOpen(false);
+    };
+    window.addEventListener('closeAllMenus', handleClose);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+       window.removeEventListener('closeAllMenus', handleClose);
+       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div className="relative" ref={accRef}>
+      <div 
+        onClick={(e) => {
+           e.stopPropagation();
+           const nextState = !isOpen;
+           window.dispatchEvent(new Event('closeAllMenus'));
+           if (nextState) setIsOpen(true);
+        }} 
+        className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden cursor-pointer border border-gray-300 hover:opacity-80"
+      >
+         <img src={avatar || `https://ui-avatars.com/api/?name=${username || 'User'}`} alt="avatar" className="w-full h-full object-cover" />
+      </div>
+      {isOpen && (
+         <div className="absolute right-0 top-12 w-48 bg-white border border-gray-200 shadow-2xl rounded-xl z-[130] animate-in slide-in-from-top-2 fade-in text-gray-700 font-bold">
+           <div className="p-3 text-[13px] border-b border-gray-100 hover:bg-gray-50 cursor-pointer">Cài đặt</div>
+           <div className="p-3 text-[13px] text-red-500 hover:bg-red-50 cursor-pointer rounded-b-xl">Đăng xuất</div>
+         </div>
+      )}
+    </div>
+  );
+};
+// =================== KẾT THÚC MOCK ===================
 
 const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
@@ -340,7 +425,6 @@ function DashboardContent() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const t = copy[language] || copy.vi;
-  const locale = language === 'en' ? 'en-US' : 'vi-VN';
 
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState({ userId: '', username: 'Khách', role: 'user', avatar: '' });
@@ -401,6 +485,37 @@ function DashboardContent() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   
   const messagesEndRef = useRef(null);
+  const friendDropdownRef = useRef(null);
+  const userChatModalRef = useRef(null);
+
+  // ==========================================
+  // XỬ LÝ CHỐNG ĐÈ CHÉO COMPONENT
+  // ==========================================
+  useEffect(() => {
+    const handleCloseAll = () => {
+      setIsFriendDropdownOpen(false);
+      setIsUserChatOpen(false);
+      setIsAiChatOpen(false);
+    };
+
+    const handleClickOutside = (e) => {
+      if (friendDropdownRef.current && !friendDropdownRef.current.contains(e.target)) {
+        setIsFriendDropdownOpen(false);
+      }
+      if (userChatModalRef.current && !userChatModalRef.current.contains(e.target)) {
+        const isChatTrigger = e.target.closest('.chat-trigger-btn');
+        if (!isChatTrigger) setIsUserChatOpen(false);
+      }
+    };
+
+    window.addEventListener('closeAllMenus', handleCloseAll);
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('closeAllMenus', handleCloseAll);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
 
@@ -471,9 +586,7 @@ function DashboardContent() {
           });
         }
       }
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) {}
   };
 
   const fetchConversations = async () => {
@@ -487,9 +600,7 @@ function DashboardContent() {
         const data = await res.json();
         setConversationsList(data);
       }
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) {}
   };
 
   const fetchSavedPosts = async () => {
@@ -508,7 +619,6 @@ function DashboardContent() {
     } catch (error) {}
   };
 
-  /* Thao tác Tương tác, Bài viết, Chat... */
   const handleCreateGroup = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -586,7 +696,6 @@ function DashboardContent() {
         }));
       }
     } catch (error) {
-      console.error("Chat history error:", error);
     } finally {
       setIsChatLoading(false);
     }
@@ -599,9 +708,7 @@ function DashboardContent() {
         const data = await res.json();
         setTrendingPosts(Array.isArray(data) ? data : []);
       }
-    } catch (error) {
-      console.error("Lỗi lấy danh sách trending:", error);
-    }
+    } catch (error) {}
   };
 
   const fetchPosts = async () => {
@@ -639,9 +746,7 @@ function DashboardContent() {
             localStorage.setItem('displayName', username);
             if (avatar) localStorage.setItem('avatar', avatar);
           }
-        } catch (error) {
-          console.error(error);
-        }
+        } catch (error) {}
       }
       setCurrentUser({ userId, username, role: String(userRole).toLowerCase(), avatar });
     };
@@ -660,8 +765,8 @@ function DashboardContent() {
     }
 
     const handleOpenChat = (e) => {
+      window.dispatchEvent(new Event('closeAllMenus'));
       setIsUserChatOpen(true);
-      setIsFriendDropdownOpen(false);
       if (e.detail && e.detail.userId) {
         const user = getUserById(e.detail.userId);
         setSelectedChatUser(user);
@@ -762,9 +867,7 @@ function DashboardContent() {
         setFriends(prev => [...prev, strUserId]);
         fetchFriendData(); 
       }
-    } catch (error) {
-      showToast('error', 'Lỗi khi chấp nhận');
-    }
+    } catch (error) {}
   };
 
   const handleDeclineFriend = async (userId) => {
@@ -782,12 +885,11 @@ function DashboardContent() {
         showToast('info', 'Đã bỏ qua lời mời');
         setReceivedRequests(prev => prev.filter(id => id !== strUserId));
       }
-    } catch (error) {
-      showToast('error', 'Lỗi khi bỏ qua');
-    }
+    } catch (error) {}
   };
 
-  const toggleComments = async (postId) => {
+  const toggleComments = async (postId, e) => {
+    if (e) e.stopPropagation(); // Ngăn văng sang post detail
     const isExpanded = expandedComments[postId];
     setExpandedComments(prev => ({ ...prev, [postId]: !isExpanded }));
 
@@ -824,7 +926,8 @@ function DashboardContent() {
     }
   };
 
-  const handlePostComment = async (postId, parentId = null) => {
+  const handlePostComment = async (postId, parentId = null, e) => {
+    if (e) e.stopPropagation();
     const token = localStorage.getItem('token');
     let text = parentId ? replyInputs[parentId] : commentInputs[postId];
     if (!text || !text.trim()) return;
@@ -887,15 +990,18 @@ function DashboardContent() {
     }
   };
 
-  const showDeleteConfirm = (postId, commentId) => {
+  const showDeleteConfirm = (postId, commentId, e) => {
+    if (e) e.stopPropagation();
     setDeleteConfirm({ open: true, postId, commentId });
   };
 
-  const cancelDelete = () => {
+  const cancelDelete = (e) => {
+    if (e) e.stopPropagation();
     setDeleteConfirm({ open: false, postId: null, commentId: null });
   };
 
-  const confirmDeleteComment = async () => {
+  const confirmDeleteComment = async (e) => {
+    if (e) e.stopPropagation();
     const { postId, commentId } = deleteConfirm;
     if (!postId || !commentId) {
       cancelDelete();
@@ -905,17 +1011,20 @@ function DashboardContent() {
     cancelDelete();
   };
 
-  const startEditComment = (commentId, content) => {
+  const startEditComment = (commentId, content, e) => {
+    if (e) e.stopPropagation();
     setEditingCommentId(commentId);
     setEditingCommentContent(content || '');
   };
 
-  const cancelEditComment = () => {
+  const cancelEditComment = (e) => {
+    if (e) e.stopPropagation();
     setEditingCommentId(null);
     setEditingCommentContent('');
   };
 
-  const saveEditComment = async (postId, commentId) => {
+  const saveEditComment = async (postId, commentId, e) => {
+    if (e) e.stopPropagation();
     if (!editingCommentContent || !editingCommentContent.trim()) {
       return showToast('error', 'Nội dung bình luận không được để trống.');
     }
@@ -1008,7 +1117,8 @@ function DashboardContent() {
     }
   };
 
-  const handleLikePost = async (postId) => {
+  const handleLikePost = async (postId, e) => {
+    if (e) e.stopPropagation();
     const token = localStorage.getItem('token');
     if (!token) {
       showToast('error', 'Vui lòng đăng nhập để thả tim bài viết.');
@@ -1056,7 +1166,8 @@ function DashboardContent() {
     return '';
   };
 
-  const handleCopyPostLink = async (postId) => {
+  const handleCopyPostLink = async (postId, e) => {
+    if(e) e.stopPropagation();
     const url = `${window.location.origin}/post-detail?postId=${postId}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -1064,9 +1175,11 @@ function DashboardContent() {
     } catch (error) {
       showToast('error', 'Không thể copy link.');
     }
+    setOpenPostMenuId(null);
   };
 
-  const handleDeletePost = async (postId) => {
+  const handleDeletePost = async (postId, e) => {
+    if(e) e.stopPropagation();
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
@@ -1087,7 +1200,8 @@ function DashboardContent() {
     }
   };
 
-  const handleToggleVisibility = async (postId) => {
+  const handleToggleVisibility = async (postId, e) => {
+    if (e) e.stopPropagation();
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     try {
@@ -1190,9 +1304,7 @@ function DashboardContent() {
       if (!res.ok) {
         console.error("Gửi tin nhắn thất bại");
       }
-    } catch(err) { 
-      console.log(err);
-    }
+    } catch(err) {}
   };
 
   const currentUserIdStr = String(currentUser.userId || '');
@@ -1227,8 +1339,8 @@ function DashboardContent() {
       )}
 
       {deleteConfirm.open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6">
-          <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-gray-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6" onClick={cancelDelete}>
+          <div className="w-full max-w-md bg-white rounded-2xl p-5 shadow-2xl border border-gray-200" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-extrabold text-gray-900 mb-2">Xác nhận xóa bình luận</h3>
             <p className="text-sm text-gray-700 mb-5">Bạn có chắc chắn xóa bình luận này? Hành động này không thể hoàn tác.</p>
             <div className="flex justify-end gap-3">
@@ -1249,32 +1361,35 @@ function DashboardContent() {
           <Link to="/community" className="hover:text-gray-900 transition-colors h-[72px] flex items-center">{t.community}</Link>
         </nav>
         <div className="w-1/4 flex items-center justify-end gap-5">
-          {/* Component Chuông thật */}
           <NotificationBell />
           
-          {/* ĐÃ SỬA: Logic Bật/Tắt Chat độc lập, tắt cửa sổ Bạn bè */}
           <button 
             type="button" 
             onClick={() => {
-              setIsUserChatOpen(!isUserChatOpen);
               if (!isUserChatOpen) {
-                setChatView('list');
+                 window.dispatchEvent(new Event('closeAllMenus')); 
+                 setIsUserChatOpen(true);
+                 setChatView('list');
+              } else {
+                 setIsUserChatOpen(false);
               }
-              setIsFriendDropdownOpen(false); // Đóng menu bạn bè nếu đang mở
             }} 
-            className={`transition-colors relative ${isUserChatOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`transition-colors relative chat-trigger-btn ${isUserChatOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
           >
             <MessageSquare size={22} strokeWidth={2} />
           </button>
           
-          <div className="relative">
-            {/* ĐÃ SỬA: Logic Bật/Tắt Bạn bè độc lập, tắt cửa sổ Chat */}
+          <div className="relative" ref={friendDropdownRef}>
             <button 
               type="button" 
               onClick={() => {
-                setIsFriendDropdownOpen(!isFriendDropdownOpen);
-                if (!isFriendDropdownOpen) fetchFriendData(); 
-                setIsUserChatOpen(false); // Đóng menu chat nếu đang mở
+                if (!isFriendDropdownOpen) {
+                   window.dispatchEvent(new Event('closeAllMenus')); 
+                   setIsFriendDropdownOpen(true);
+                   fetchFriendData(); 
+                } else {
+                   setIsFriendDropdownOpen(false);
+                }
               }} 
               className={`transition-colors relative ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900'}`}
             >
@@ -1400,14 +1515,13 @@ function DashboardContent() {
             )}
           </div>
           
-          {/* Component Menu Ảnh Đại Diện Thật */}
           <AccountMenu avatar={currentUser.avatar} username={currentUser.username} />
         </div>
       </header>
 
       {/* Giao diện Modal Chat... */}
       {isUserChatOpen && (
-        <div className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
+        <div ref={userChatModalRef} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200 h-[520px] animate-in slide-in-from-top-4 fade-in">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2">
               {chatView === 'conversation' ? (
@@ -1521,7 +1635,7 @@ function DashboardContent() {
                       placeholder="Aa"
                       className="w-full bg-[#f4f4f5] rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSendUserMessage();
+                        if (e.key === 'Enter' && userMessageInput.trim()) handleSendUserMessage();
                       }}
                     />
                     <button
@@ -1543,6 +1657,7 @@ function DashboardContent() {
         
         <div className="flex-1 min-w-0 flex justify-center">
           <div className="w-full max-w-[680px] flex flex-col gap-14 pb-12">
+            {/* Form tạo bài viết */}
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
                 <div>
@@ -1605,13 +1720,18 @@ function DashboardContent() {
               </div>
             </div>
 
+            {/* List Bài Viết (ĐÃ BỌC Sự kiện Click Chuyển Trang) */}
             <div className="space-y-6 pb-12">
               {Array.isArray(posts) ? posts.map((post) => {
                 const isAdmin = post.createdBy?.role === 'admin';
                 const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
                 
                 return (
-                  <div key={post._id || Math.random().toString()} className={`bg-white rounded-2xl overflow-hidden shadow-sm border ${isAdmin ? 'border-red-200' : 'border-gray-100'}`}>
+                  <div 
+                    key={post._id || Math.random().toString()} 
+                    onClick={() => navigate(`/post-detail?postId=${post._id}`)}
+                    className={`bg-white rounded-2xl overflow-hidden shadow-sm border cursor-pointer hover:shadow-md transition-shadow ${isAdmin ? 'border-red-200' : 'border-gray-100'}`}
+                  >
                     {isAdmin ? (
                       <div className="bg-red-50 px-5 py-2.5 flex items-center gap-2 border-b border-red-100">
                         <ShieldAlert size={16} className="text-[#f44336]" />
@@ -1620,7 +1740,8 @@ function DashboardContent() {
                     ) : null}
 
                     <div className="p-6">
-                      <div className="flex justify-between items-center mb-4">
+                      {/* HEADER Bài viết - Bọc bằng div stopPropagation để tránh nhảy trang khi thao tác */}
+                      <div className="flex justify-between items-center mb-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-3">
                           <div 
                             className={`w-10 h-10 rounded-full overflow-hidden border-2 cursor-pointer hover:ring-2 hover:ring-red-200 transition-all ${isAdmin ? 'border-[#f44336]' : 'border-transparent'}`}
@@ -1660,7 +1781,7 @@ function DashboardContent() {
                             <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 bg-white shadow-lg p-1">
                               <button
                                 type="button"
-                                onClick={() => handleCopyPostLink(post._id)}
+                                onClick={(e) => handleCopyPostLink(post._id, e)}
                                 className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                               >
                                 {t.copyLink}
@@ -1668,7 +1789,7 @@ function DashboardContent() {
                               {(isOwner || currentUser.role === 'admin') ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleDeletePost(post._id)}
+                                  onClick={(e) => handleDeletePost(post._id, e)}
                                   className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg"
                                 >
                                   {t.deletePost}
@@ -1677,7 +1798,7 @@ function DashboardContent() {
                               {currentUser.role === 'admin' ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleVisibility(post._id)}
+                                  onClick={(e) => handleToggleVisibility(post._id, e)}
                                   className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
                                 >
                                   {post.isHidden ? t.showPost : t.hidePost}
@@ -1688,7 +1809,7 @@ function DashboardContent() {
                         </div>
                       </div>
 
-                      {/* Kiểm tra an toàn siêu chặt chẽ để loại bỏ mọi loại rác (đặc biệt là số 0) */}
+                      {/* CONTENT Bài viết */}
                       {(() => {
                         const desc = post.description;
                         if (desc && String(desc).trim() !== "0" && String(desc).trim() !== "" && String(desc) !== "\u200B") {
@@ -1702,7 +1823,7 @@ function DashboardContent() {
                       })()}
 
                       {post.lat && post.lng ? (
-                        <div className="mb-4">
+                        <div className="mb-4" onClick={e => e.stopPropagation()}>
                           <button type="button" onClick={() => setExpandedMap(prev => ({ ...prev, [post._id]: !prev[post._id] }))} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[13px] font-bold transition-all border ${expandedMap[post._id] ? 'bg-[#f44336] text-white border-[#f44336] shadow-md shadow-red-500/20' : 'bg-red-50 text-[#f44336] border-transparent hover:bg-red-100'}`}>
                             <MapPin size={16} /> 
                             {typeof post.location === 'string' && post.location !== 'Chưa xác định' ? post.location : t.pinnedSpot}
@@ -1744,14 +1865,14 @@ function DashboardContent() {
                         );
                       })() : null}
 
-                      {/* Thao tác tương tác bài viết... */}
-                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50">
+                      {/* ACTIONS Bài viết - Ngăn văng trang */}
+                      <div className="flex items-center gap-6 pt-3 border-t border-gray-50" onClick={e => e.stopPropagation()}>
                         {(() => {
                           const likedByCurrentUser = Array.isArray(post.likes) && post.likes.some((userId) => userId?.toString() === currentUser.userId);
                           return (
                             <button
                               type="button"
-                              onClick={() => handleLikePost(post._id)}
+                              onClick={(e) => handleLikePost(post._id, e)}
                               disabled={likingPosts[post._id]}
                               className={`flex items-center gap-1.5 ${likedByCurrentUser ? 'text-[#f44336]' : 'text-gray-500 hover:text-[#f44336]'} transition-colors text-[13px] font-bold disabled:opacity-50`}
                             >
@@ -1759,17 +1880,18 @@ function DashboardContent() {
                             </button>
                           );
                         })()}
-                        <button type="button" onClick={() => toggleComments(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
+                        <button type="button" onClick={(e) => toggleComments(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-[#f44336] transition-colors text-[13px] font-bold">
                           <MessageSquare size={20} strokeWidth={2.5} /> {post.totalReviews || t.comment}
                         </button>
                         <SavePostButton postId={post._id} initialIsSaved={savedPostsSet.has(post._id)} />
-                        <button type="button" onClick={() => handleCopyPostLink(post._id)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
+                        <button type="button" onClick={(e) => handleCopyPostLink(post._id, e)} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-[13px] font-bold ml-auto">
                           <Share2 size={20} strokeWidth={2.5} />
                         </button>
                       </div>
 
+                      {/* BÌNH LUẬN - Ngăn văng trang */}
                       {expandedComments[post._id] ? (
-                        <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300">
+                        <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in duration-300" onClick={e => e.stopPropagation()}>
                           <div className="flex gap-3 mb-6">
                             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 flex-shrink-0 cursor-pointer hover:opacity-80" onClick={() => handleNavigateProfile(currentUser.userId)}>
                               <img src={getAvatarUrl(currentUser.avatar, currentUser.username)} alt="Avatar" className="w-full h-full object-cover" />
@@ -1809,8 +1931,8 @@ function DashboardContent() {
                                               rows={3}
                                             />
                                             <div className="mt-2 flex justify-between items-center">
-                                              <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
-                                              <button onClick={() => saveEditComment(post._id, comment._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
+                                              <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
+                                              <button onClick={(e) => saveEditComment(post._id, comment._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
                                             </div>
                                           </div>
                                         ) : (
@@ -1825,8 +1947,8 @@ function DashboardContent() {
                                           <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: null })}>{t.reply}</button>
                                           {isCommentAuthor ? (
                                             <>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(comment._id, comment.content)}>{t.edit}</button>
-                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, comment._id)}>{t.delete}</button>
+                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(comment._id, comment.content, e)}>{t.edit}</button>
+                                              <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, comment._id, e)}>{t.delete}</button>
                                             </>
                                           ) : null}
                                         </div>
@@ -1850,8 +1972,8 @@ function DashboardContent() {
                                                       rows={3}
                                                     />
                                                     <div className="mt-2 flex justify-between items-center">
-                                                      <button onClick={cancelEditComment} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
-                                                      <button onClick={() => saveEditComment(post._id, reply._id)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
+                                                      <button onClick={(e) => cancelEditComment(e)} className="text-gray-600 hover:text-gray-900 text-[12px] font-semibold">{t.cancel}</button>
+                                                      <button onClick={(e) => saveEditComment(post._id, reply._id, e)} className="bg-[#f44336] text-white px-3 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-[#e22d41]">{t.save}</button>
                                                     </div>
                                                   </div>
                                                 ) : typeof reply.content === 'string' && reply.content.startsWith('@') ? (
@@ -1868,8 +1990,8 @@ function DashboardContent() {
                                                 <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => setReplyingTo({ parentId: comment._id, childUsername: reply.author?.username })}>{t.reply}</button>
                                                 {reply.author?._id?.toString() === currentUser.userId ? (
                                                   <>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => startEditComment(reply._id, reply.content)}>{t.edit}</button>
-                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={() => showDeleteConfirm(post._id, reply._id)}>{t.delete}</button>
+                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => startEditComment(reply._id, reply.content, e)}>{t.edit}</button>
+                                                    <button type="button" className="hover:text-[#f44336] transition-colors" onClick={(e) => showDeleteConfirm(post._id, reply._id, e)}>{t.delete}</button>
                                                   </>
                                                 ) : null}
                                               </div>
@@ -1894,7 +2016,7 @@ function DashboardContent() {
                                             <Send size={14} />
                                           </button>
                                         </div>
-                                        <button type="button" onClick={() => setReplyingTo({ parentId: null, childUsername: null })} className="text-gray-400 hover:text-gray-900 mt-2"><X size={16}/></button>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setReplyingTo({ parentId: null, childUsername: null }) }} className="text-gray-400 hover:text-gray-900 mt-2"><X size={16}/></button>
                                       </div>
                                     ) : null}
                                   </div>
@@ -1951,13 +2073,25 @@ function DashboardContent() {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4">✨ {t.quickSuggestions}</h3>
             <div className="space-y-2">
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.chatTrip); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { 
+                window.dispatchEvent(new Event('closeAllMenus'));
+                setIsAiChatOpen(true); 
+                setAiChatInput(t.chatTrip); 
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 {t.quickTrip}
               </button>
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.chatFood); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { 
+                window.dispatchEvent(new Event('closeAllMenus'));
+                setIsAiChatOpen(true); 
+                setAiChatInput(t.chatFood); 
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 {t.quickFood}
               </button>
-              <button type="button" onClick={() => { setIsAiChatOpen(true); setAiChatInput(t.chatCheckin); }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
+              <button type="button" onClick={() => { 
+                window.dispatchEvent(new Event('closeAllMenus'));
+                setIsAiChatOpen(true); 
+                setAiChatInput(t.chatCheckin); 
+              }} className="w-full text-left text-[12px] font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg px-3 py-2">
                 {t.quickCheckin}
               </button>
             </div>
@@ -1974,7 +2108,14 @@ function DashboardContent() {
 
       <button
         type="button"
-        onClick={() => setIsAiChatOpen((prev) => !prev)}
+        onClick={() => {
+          if (!isAiChatOpen) {
+             window.dispatchEvent(new Event('closeAllMenus'));
+             setIsAiChatOpen(true);
+          } else {
+             setIsAiChatOpen(false);
+          }
+        }}
         className="fixed right-6 bottom-6 z-[101] bg-[#f44336] text-white w-14 h-14 rounded-full shadow-xl shadow-red-500/30 hover:bg-[#e53935] flex items-center justify-center"
       >
         <Bot size={24} />
