@@ -2,12 +2,10 @@ const mongoose = require("mongoose");
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Notification = require("../models/Notification");
-const User = require("../models/User"); // Thêm model User để kiểm tra bạn bè
+const User = require("../models/User");
 
-// Helper to convert to ObjectId
 const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
-// Lấy danh sách tất cả conversations của user hiện tại
 exports.getConversations = async (req, res) => {
   try {
     const currentUserId = req.user.id;
@@ -23,7 +21,6 @@ exports.getConversations = async (req, res) => {
   }
 };
 
-// Tạo group chat
 exports.createGroupConversation = async (req, res) => {
   try {
     const { groupName, participantIds } = req.body;
@@ -33,10 +30,7 @@ exports.createGroupConversation = async (req, res) => {
       return res.status(400).json({ message: "Vui lòng cung cấp tên nhóm và chọn ít nhất 1 thành viên." });
     }
 
-    // Đảm bảo người tạo luôn ở trong nhóm
     const allParticipants = [currentUserId, ...participantIds];
-    
-    // Loại bỏ duplicate ids
     const uniqueParticipants = [...new Set(allParticipants)];
 
     const conversation = await Conversation.create({
@@ -52,7 +46,6 @@ exports.createGroupConversation = async (req, res) => {
   }
 };
 
-// Lấy hoặc tạo conversation giữa 2 người
 exports.getOrCreateConversation = async (req, res) => {
   try {
     const { targetUserId } = req.body;
@@ -60,7 +53,6 @@ exports.getOrCreateConversation = async (req, res) => {
 
     if (!targetUserId) return res.status(400).json({ message: "Thiếu targetUserId" });
 
-    // KIỂM TRA ĐIỀU KIỆN BẠN BÈ
     const currentUser = await User.findById(currentUserId);
     if (!currentUser.friends.includes(targetUserId)) {
       return res.status(403).json({ message: "Bạn chỉ có thể nhắn tin với người đã kết bạn." });
@@ -84,7 +76,6 @@ exports.getOrCreateConversation = async (req, res) => {
   }
 };
 
-// Gửi tin nhắn
 exports.sendMessage = async (req, res) => {
   try {
     const { conversationId, text, receiverId } = req.body;
@@ -95,7 +86,6 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy cuộc trò chuyện" });
     }
 
-    // KIỂM TRA LẠI ĐIỀU KIỆN BẠN BÈ NẾU LÀ CHAT 1-1
     if (!conversation.isGroup && receiverId) {
        const currentUser = await User.findById(senderId);
        if (!currentUser.friends.includes(receiverId)) {
@@ -103,20 +93,39 @@ exports.sendMessage = async (req, res) => {
        }
     }
 
-    const message = await Message.create({
+    let message = await Message.create({
       conversationId,
       sender: senderId,
       text
     });
 
-    // Cập nhật tin nhắn cuối cùng trong conversation
+    // Populate sender name & avatar để FE render ngay lập tức qua Socket
+    await message.populate("sender", "username avatar");
+
     await Conversation.findByIdAndUpdate(conversationId, {
       lastMessage: text
     });
 
-    // Tạo thông báo cho người nhận (nếu chat 1-1) hoặc cho các thành viên nhóm
+    // --- PHÁT SỰ KIỆN REALTIME QUA SOCKET.IO ---
+    const io = req.app.get("io");
+    if (io) {
+      if (conversation.isGroup) {
+        // Gửi tới room của Group (Tất cả thành viên đang join room sẽ nhận được)
+        io.to(conversationId.toString()).emit("receive_message", {
+          ...message.toObject(),
+          groupId: conversationId.toString()
+        });
+      } else if (receiverId) {
+        // Gửi thẳng vào room cá nhân của người nhận
+        io.to(receiverId.toString()).emit("receive_message", {
+          ...message.toObject(),
+          conversationId: conversationId.toString()
+        });
+      }
+    }
+    // -------------------------------------------
+
     if (conversation.isGroup) {
-      // Gửi thông báo cho tất cả mọi người trong nhóm trừ sender
       const receivers = conversation.participants.filter(p => p.toString() !== senderId);
       for (const recId of receivers) {
         await Notification.create({
@@ -133,7 +142,7 @@ exports.sendMessage = async (req, res) => {
         sender: senderId,
         type: "message",
         content: "đã gửi cho bạn một tin nhắn mới.",
-        link: `/dashboard` // Frontend sẽ xử lý việc mở chat
+        link: `/dashboard`
       });
     }
 
@@ -143,7 +152,6 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// Lấy lịch sử tin nhắn
 exports.getMessages = async (req, res) => {
   try {
     const { conversationId } = req.params;

@@ -7,7 +7,12 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const upload = require("./middleware/upload");
 
+// --- TÍCH HỢP SOCKET.IO ---
+const http = require("http");
+const { Server } = require("socket.io");
+
 const app = express();
+const server = http.createServer(app); // Bọc Express bằng HTTP Server
 
 const normalizeRole = (role) => {
   if (typeof role !== "string") return "viewer";
@@ -22,6 +27,37 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   credentials: true
 }));
+
+// Khởi tạo Socket.io với cấu hình CORS
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    methods: ["GET", "POST"]
+  }
+});
+
+// Lưu trữ io instance vào app để có thể gọi từ controllers
+app.set("io", io);
+
+// Lắng nghe các kết nối Socket realtime
+io.on("connection", (socket) => {
+  console.log("🟢 1 Client đã kết nối Socket:", socket.id);
+
+  // User join vào room cá nhân (ID của user) để nhận tin nhắn 1-1
+  socket.on("join", (userId) => {
+    socket.join(userId);
+  });
+
+  // User join vào room của Group chat (ID của group)
+  socket.on("join_group", (groupId) => {
+    socket.join(groupId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Client đã ngắt kết nối:", socket.id);
+  });
+});
+// ----------------------------
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -80,9 +116,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
-  // Logic tự động điền displayName cho Users (Giữ lại nếu bạn có sẵn bên kia, nếu không thì bỏ qua)
-  // Ở đây chúng ta chỉ quan tâm phần backfill của Community theo yêu cầu ảnh chụp.
-
   try {
     const needCommKey = await Community.find({
       $or: [{ nameKey: { $exists: false } }, { nameKey: null }, { nameKey: "" }],
@@ -101,8 +134,9 @@ async function startServer() {
     console.error("Error during backfilling: ", error);
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running perfectly on http://localhost:${PORT}`);
+  // THAY ĐỔI: Sử dụng server.listen thay vì app.listen để chạy cả HTTP và WebSockets
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server + WebSockets running perfectly on http://localhost:${PORT}`);
   });
 }
 

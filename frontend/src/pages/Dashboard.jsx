@@ -11,6 +11,9 @@ import NotificationBell from '../components/NotificationBell';
 import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
 
+// IMPORT SOCKET.IO CLIENT CHO REALTIME CHAT
+import { io } from 'socket.io-client';
+
 const getAvatarUrl = (url, name) => {
   return url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=f44336&color=fff&size=200`;
 };
@@ -397,6 +400,9 @@ function DashboardContent() {
   const [groupNameInput, setGroupNameInput] = useState('');
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
+
+  // STATE LƯU SOCKET CONNECTION CHO REALTIME
+  const [socket, setSocket] = useState(null);
   
   const messagesEndRef = useRef(null);
   const friendDropdownRef = useRef(null);
@@ -469,6 +475,76 @@ function DashboardContent() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // ==========================================
+  // LOGIC SOCKET.IO CHO REALTIME CHAT
+  // ==========================================
+  
+  // 1. Kết nối Socket khi load trang (nếu đã đăng nhập)
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+
+    const newSocket = io("http://localhost:5000");
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      // Báo cho backend biết user này đang online và join vào phòng cá nhân
+      newSocket.emit("join", userId); 
+    });
+
+    return () => newSocket.close();
+  }, []);
+
+  // 2. Lắng nghe tin nhắn mới tới
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleReceiveMessage = (incomingMsg) => {
+      const currentUserId = localStorage.getItem('userId');
+      
+      // Bỏ qua nếu chính mình là người gửi (để không bị lặp tin nhắn do Optimistic Update)
+      if (String(incomingMsg.sender._id) === currentUserId) return;
+
+      const isGroupMsg = !!incomingMsg.groupId;
+      const key = String(isGroupMsg ? incomingMsg.groupId : incomingMsg.sender._id);
+
+      const formattedMsg = {
+        sender: 'them',
+        senderName: incomingMsg.sender.username,
+        senderAvatar: incomingMsg.sender.avatar,
+        text: incomingMsg.text
+      };
+
+      // Đẩy tin nhắn mới vào state
+      setUserMessages(prev => ({
+        ...prev,
+        [key]: [...(prev[key] || []), formattedMsg]
+      }));
+
+      // Gọi lại danh sách hội thoại để update tin nhắn mới nhất ngoài Sidebar
+      fetchConversations();
+    };
+
+    socket.on("receive_message", handleReceiveMessage);
+
+    return () => {
+      socket.off("receive_message", handleReceiveMessage);
+    };
+  }, [socket]);
+
+  // 3. Tự động Join room cho Group Chat
+  useEffect(() => {
+    if (socket && conversationsList.length > 0) {
+      conversationsList.forEach(conv => {
+        if (conv.isGroup) {
+          socket.emit("join_group", conv._id);
+        }
+      });
+    }
+  }, [socket, conversationsList]);
+
+  // ==========================================
 
   const getUserById = (id) => allUsers.find(u => String(u._id) === String(id)) || { username: 'Người dùng', _id: id };
 
@@ -842,7 +918,7 @@ function DashboardContent() {
   };
 
   const toggleComments = async (postId, e) => {
-    if (e) e.stopPropagation(); // Ngăn văng sang post detail
+    if (e) e.stopPropagation(); 
     const isExpanded = expandedComments[postId];
     setExpandedComments(prev => ({ ...prev, [postId]: !isExpanded }));
 
@@ -1256,6 +1332,9 @@ function DashboardContent() {
       });
       if (!res.ok) {
         console.error("Gửi tin nhắn thất bại");
+      } else {
+        // Lấy lại danh sách để chat mới nhảy lên top
+        fetchConversations();
       }
     } catch(err) {}
   };
