@@ -506,7 +506,7 @@ function DashboardContent() {
     return () => {
       socket.off("receive_message", handleReceiveMessage);
     };
-  }, [socket, conversationsList]); // Đã thêm conversationsList vào dependency
+  }, [socket, conversationsList]);
 
   useEffect(() => {
     if (socket && conversationsList.length > 0) {
@@ -925,6 +925,10 @@ function DashboardContent() {
     } catch (error) {}
   };
 
+  // =========================================================================
+  // FIX CHÍNH: XỬ LÝ LỖI MÀ KHÔNG CẦN LOAD LẠI TRANG (OPTIMISTIC REVERT)
+  // =========================================================================
+
   const handlePostComment = async (postId, parentId = null, e) => {
     if (e) e.stopPropagation();
     const token = localStorage.getItem('token');
@@ -942,15 +946,82 @@ function DashboardContent() {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text, parentComment: parentId || null })
       });
+      
+      const data = await res.json().catch(()=>({}));
+
       if (res.ok) {
         if (parentId) { setReplyInputs(prev => ({ ...prev, [parentId]: '' })); setReplyingTo({ parentId: null, childUsername: null }); } 
         else { setCommentInputs(prev => ({ ...prev, [postId]: '' })); }
         await refreshComments(postId);
-      } else throw new Error('Lỗi gửi bình luận');
+      } else {
+        // AI CHẶN -> HIỆN LỖI LÊN TOAST TRỰC TIẾP TỪ BACKEND TRẢ VỀ
+        throw new Error(data.message || 'Lỗi gửi bình luận');
+      }
     } catch (error) {
       showToast('error', error.message || 'Lỗi mạng!');
     } finally { setIsSubmittingComment(false); }
   };
+
+  const handleSendUserMessage = async () => {
+    if (!userMessageInput.trim() || (!selectedChatUser && !selectedGroup)) return;
+    const token = localStorage.getItem('token');
+    const text = userMessageInput;
+    
+    const key = selectedGroup ? selectedGroup._id : String(selectedChatUser._id);
+    const tempMsgId = Date.now().toString(); // ID tạm thời để có thể xóa nếu lỗi
+
+    // 1. Optimistic Update: Thêm tin nhắn vào màn hình NGAY LẬP TỨC với trạng thái isPending (Hơi mờ)
+    setUserMessages(prev => ({
+      ...prev,
+      [key]: [...(prev[key] || []), { _id: tempMsgId, sender: 'me', text, senderName: currentUser.username, senderAvatar: currentUser.avatar, isPending: true }]
+    }));
+    setUserMessageInput('');
+
+    try {
+      let convId = currentConversationId;
+      if (!convId && !selectedGroup) {
+        const targetUserId = String(selectedChatUser._id);
+        const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
+          method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ targetUserId })
+        });
+        if (convRes.ok) {
+          const conversation = await convRes.json();
+          convId = conversation._id; setCurrentConversationId(convId);
+        } else throw new Error("Không thể tạo hội thoại");
+      }
+
+      const res = await fetch('http://localhost:5000/api/messages', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiverId: selectedGroup ? undefined : String(selectedChatUser._id), text: text, conversationId: convId })
+      });
+
+      const data = await res.json().catch(()=>({}));
+
+      if (!res.ok) {
+        // 2. NẾU AI CHẶN -> TỰ ĐỘNG XÓA TIN NHẮN TẠM THỜI KHỎI UI + BÁO LỖI
+        setUserMessages(prev => ({
+          ...prev,
+          [key]: prev[key].filter(msg => msg._id !== tempMsgId)
+        }));
+        showToast('error', data.message || "Gửi tin nhắn thất bại");
+      } else {
+        // 3. THÀNH CÔNG -> GỠ BỎ TRẠNG THÁI PENDING
+        setUserMessages(prev => ({
+          ...prev,
+          [key]: prev[key].map(msg => msg._id === tempMsgId ? { ...msg, _id: data._id, isPending: false } : msg)
+        }));
+      }
+    } catch(err) {
+      // 4. MẤT MẠNG -> XÓA TIN NHẮN TẠM THỜI KHỎI UI
+      setUserMessages(prev => ({
+        ...prev,
+        [key]: prev[key].filter(msg => msg._id !== tempMsgId)
+      }));
+      showToast('error', "Lỗi kết nối máy chủ");
+    }
+  };
+
+  // =========================================================================
 
   const handleDeleteComment = async (postId, commentId) => {
     const token = localStorage.getItem('token');
@@ -1172,55 +1243,6 @@ function DashboardContent() {
     }
   };
 
-  /* Gửi tin nhắn riêng (User-to-User) hoặc Group... */
-  const handleSendUserMessage = async () => {
-    if (!userMessageInput.trim() || (!selectedChatUser && !selectedGroup)) return;
-    const token = localStorage.getItem('token');
-    const text = userMessageInput;
-    
-    const key = selectedGroup ? selectedGroup._id : String(selectedChatUser._id);
-    
-    // Optimistic Update
-    setUserMessages(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), { sender: 'me', text, senderName: currentUser.username, senderAvatar: currentUser.avatar }]
-    }));
-    setUserMessageInput('');
-
-    try {
-      let convId = currentConversationId;
-      
-      if (!convId && !selectedGroup) {
-        const targetUserId = String(selectedChatUser._id);
-        const convRes = await fetch('http://localhost:5000/api/messages/conversation', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targetUserId })
-        });
-        if (convRes.ok) {
-          const conversation = await convRes.json();
-          convId = conversation._id;
-          setCurrentConversationId(convId);
-        } else {
-          throw new Error("Không thể tạo hội thoại");
-        }
-      }
-
-      const res = await fetch('http://localhost:5000/api/messages', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          receiverId: selectedGroup ? undefined : String(selectedChatUser._id), 
-          text: text, 
-          conversationId: convId 
-        })
-      });
-      if (!res.ok) {
-        console.error("Gửi tin nhắn thất bại");
-      }
-    } catch(err) {}
-  };
-
   // ==========================================
   // THÊM MỚI: TÍNH NĂNG SHARE BÀI VIẾT TỪ DASHBOARD
   // ==========================================
@@ -1431,7 +1453,7 @@ function DashboardContent() {
                                 ) : receivedRequests.includes(strUserId) ? (
                                   <button onClick={() => handleAcceptFriend(user._id)} className="text-[11px] font-bold text-white bg-[#f44336] px-3 py-1.5 rounded-full hover:bg-[#e22d41]">Chấp nhận</button>
                                 ) : (
-                                  <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900">
+                                  <button onClick={() => handleAddFriend(user._id)} className="w-8 h-8 flex items-center justify-center bg-red-50 dark:bg-red-950/40 text-[#f44336] dark:text-red-400 rounded-full hover:bg-red-100 dark:hover:bg-red-900 transition-colors shrink-0" title="Kết bạn">
                                     <UserPlus size={16} />
                                   </button>
                                 )}
@@ -1511,27 +1533,18 @@ function DashboardContent() {
         </div>
       </header>
 
-      {/* Giao diện Modal Chat... */}
+      {/* Giao diện Modal Chat */}
       {isUserChatOpen && (
         <div ref={userChatModalRef} onClick={e => e.stopPropagation()} className="fixed right-6 top-[85px] z-[120] w-[340px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col h-[520px] animate-in slide-in-from-top-4 fade-in rounded-2xl">
           <div className="bg-[#f44336] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2">
               {chatView === 'conversation' ? (
                 <>
-                  <button onClick={() => setChatView('list')} className="hover:bg-red-600 p-1 rounded-full transition-colors">
-                    <ArrowLeft size={18} />
-                  </button>
-                  <span onClick={() => {
-                      if(selectedChatUser) handleNavigateProfile(selectedChatUser?._id)
-                  }} className={`font-bold text-[14px] ${selectedChatUser ? 'cursor-pointer hover:underline' : ''}`}>
-                    {selectedGroup ? selectedGroup.groupName : (selectedChatUser?.username || 'Trò chuyện')}
-                  </span>
+                  <button onClick={() => setChatView('list')} className="hover:bg-red-600 p-1 rounded-full transition-colors"><ArrowLeft size={18} /></button>
+                  <span onClick={() => { if(selectedChatUser) handleNavigateProfile(selectedChatUser?._id) }} className={`font-bold text-[14px] ${selectedChatUser ? 'cursor-pointer hover:underline' : ''}`}>{selectedGroup ? selectedGroup.groupName : (selectedChatUser?.username || 'Trò chuyện')}</span>
                 </>
               ) : (
-                <>
-                  <MessageSquare size={18} />
-                  <span className="font-bold text-[14px]">Tin nhắn</span>
-                </>
+                <><MessageSquare size={18} /><span className="font-bold text-[14px]">Tin nhắn</span></>
               )}
             </div>
             <button onClick={() => setIsUserChatOpen(false)} className="hover:bg-red-600 p-1 rounded-full transition-colors"><X size={18} /></button>
@@ -1540,80 +1553,30 @@ function DashboardContent() {
           <div className="flex-1 overflow-y-auto bg-white dark:bg-slate-800 flex flex-col">
             {chatView === 'list' ? (
               <div className="p-2 pb-4 flex flex-col h-full bg-white dark:bg-slate-800">
-                <button onClick={() => setIsCreateGroupOpen(true)} className="mb-2 bg-red-50 dark:bg-red-950/30 text-[#f44336] dark:text-red-400 text-[13px] font-bold py-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900 transition-colors">
-                  + Tạo nhóm chat
-                </button>
+                <button onClick={() => setIsCreateGroupOpen(true)} className="mb-2 bg-red-50 dark:bg-red-950/30 text-[#f44336] dark:text-red-400 text-[13px] font-bold py-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900 transition-colors">+ Tạo nhóm chat</button>
                 <div className="flex-1 overflow-y-auto">
-                  {conversationsList.length === 0 ? (
-                    <div className="p-6 text-center text-[12px] text-gray-500 dark:text-slate-400">
-                      <Users size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
-                      Chưa có cuộc trò chuyện nào.<br/>Tạo nhóm hoặc chọn bạn bè để chat!
-                    </div>
-                  ) : (
-                    conversationsList.map(conv => {
-                      const isGroup = conv.isGroup;
-                      const otherUser = !isGroup ? conv.participants.find(p => String(p._id) !== currentUser.userId) : null;
-                      const displayName = isGroup ? conv.groupName : (otherUser?.username || 'Người dùng');
-                      const displayAvatar = isGroup ? null : otherUser?.avatar;
-                      const lastMessage = conv.lastMessage || 'Bắt đầu trò chuyện';
-
-                      return (
-                        <div key={conv._id} onClick={() => { 
-                            if (isGroup) {
-                                setSelectedGroup(conv);
-                                setSelectedChatUser(null);
-                            } else {
-                                setSelectedGroup(null);
-                                setSelectedChatUser(otherUser);
-                            }
-                            setChatView('conversation'); 
-                          }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-colors">
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 relative overflow-hidden hover:opacity-80">
-                            {isGroup ? <Users size={20} /> : (displayAvatar ? <img src={displayAvatar} className="w-full h-full object-cover"/> : <User size={20} />)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[13px] text-gray-900 dark:text-white truncate">{displayName}</p>
-                            <p className="text-[12px] text-gray-500 dark:text-slate-400 truncate">{lastMessage}</p>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
+                  {conversationsList.length === 0 ? ( <div className="p-6 text-center text-[12px] text-gray-500 dark:text-slate-400"><Users size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />Chưa có cuộc trò chuyện nào.<br/>Tạo nhóm hoặc chọn bạn bè để chat!</div> ) : ( conversationsList.map(conv => { const isGroup = conv.isGroup; const otherUser = !isGroup ? conv.participants.find(p => String(p._id) !== currentUser.userId) : null; const displayName = isGroup ? conv.groupName : (otherUser?.username || 'Người dùng'); const displayAvatar = isGroup ? null : otherUser?.avatar; const lastMessage = conv.lastMessage || 'Bắt đầu trò chuyện'; return ( <div key={conv._id} onClick={() => { if (isGroup) { setSelectedGroup(conv); setSelectedChatUser(null); } else { setSelectedGroup(null); setSelectedChatUser(otherUser); } setChatView('conversation'); }} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-colors"> <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 relative overflow-hidden hover:opacity-80"> {isGroup ? <Users size={20} /> : (displayAvatar ? <img src={displayAvatar} className="w-full h-full object-cover"/> : <User size={20} />)} </div> <div className="flex-1 min-w-0"> <p className="font-bold text-[13px] text-gray-900 dark:text-white truncate">{displayName}</p> <p className="text-[12px] text-gray-500 dark:text-slate-400 truncate">{lastMessage}</p> </div> </div> ) }) )}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col h-full bg-white dark:bg-slate-800 relative">
                 <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-white dark:bg-[#131B2E]">
-                  {isChatLoading ? (
-                    <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div>
-                  ) : (
+                  {isChatLoading ? ( <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#f44336]" /></div> ) : (
                     <>
-                      <div className="text-center text-[11px] text-gray-400 dark:text-slate-500 mb-4">
-                        {selectedGroup ? `Bắt đầu trò chuyện trong ${selectedGroup.groupName}` : `Bắt đầu trò chuyện với ${selectedChatUser?.username}`}
-                      </div>
-                      
+                      <div className="text-center text-[11px] text-gray-400 dark:text-slate-500 mb-4">{selectedGroup ? `Bắt đầu trò chuyện trong ${selectedGroup.groupName}` : `Bắt đầu trò chuyện với ${selectedChatUser?.username}`}</div>
                       {currentChatMessages.map((msg, i) => (
                         <div key={i} className={`flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}`}>
-                          {msg.sender === 'them' && selectedGroup && (
-                            <span className="text-[10px] text-gray-400 dark:text-slate-400 ml-10 mb-0.5">{msg.senderName}</span>
-                          )}
+                          {msg.sender === 'them' && selectedGroup && ( <span className="text-[10px] text-gray-400 dark:text-slate-400 ml-10 mb-0.5">{msg.senderName}</span> )}
                           <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} w-full`}>
-                            {msg.sender === 'them' && (
-                              <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 mr-2 self-end mb-1 overflow-hidden cursor-pointer hover:opacity-80">
-                                {msg.senderAvatar ? <img src={msg.senderAvatar} className="w-full h-full object-cover"/> : (selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />)}
-                              </div>
-                            )}
-                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm shadow-sm' : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm border border-transparent dark:border-slate-700 shadow-sm'}`}>
+                            {msg.sender === 'them' && ( <div onClick={() => !selectedGroup && handleNavigateProfile(msg.senderId)} className="w-7 h-7 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center text-gray-400 shrink-0 border border-gray-200 dark:border-slate-600 mr-2 self-end mb-1 overflow-hidden cursor-pointer hover:opacity-80"> {msg.senderAvatar ? <img src={msg.senderAvatar} className="w-full h-full object-cover"/> : (selectedChatUser?.avatar ? <img src={selectedChatUser.avatar} className="w-full h-full object-cover"/> : <User size={14} />)} </div> )}
+                            {/* TIN NHẮN TẠM THỜI SẼ BỊ MỜ */}
+                            <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-[13px] ${msg.sender === 'me' ? 'bg-[#f44336] text-white rounded-br-sm shadow-sm' : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-900 dark:text-white rounded-bl-sm border border-transparent dark:border-slate-700 shadow-sm'} ${msg.isPending ? 'opacity-50' : ''}`}>
                               {msg.text}
                             </div>
                           </div>
                         </div>
                       ))}
-                      {currentChatMessages.length === 0 && (
-                         <div className="flex justify-center text-[12px] text-gray-400 dark:text-slate-500 mt-4">
-                           Hãy nói lời chào 👋
-                         </div>
-                      )}
+                      {currentChatMessages.length === 0 && ( <div className="flex justify-center text-[12px] text-gray-400 dark:text-slate-500 mt-4">Hãy nói lời chào 👋</div> )}
                       <div ref={messagesEndRef} />
                     </>
                   )}
@@ -1621,21 +1584,11 @@ function DashboardContent() {
                 <div className="p-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 transition-colors">
                   <div className="relative">
                     <input
-                      type="text"
-                      value={userMessageInput}
-                      onChange={(e) => setUserMessageInput(e.target.value)}
-                      placeholder="Aa"
+                      type="text" value={userMessageInput} onChange={(e) => setUserMessageInput(e.target.value)} placeholder="Aa"
                       className="w-full bg-[#f4f4f5] dark:bg-slate-750 dark:text-white rounded-full py-2 pl-4 pr-10 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#f44336]/20 transition-all border border-transparent dark:border-slate-700 placeholder-gray-400 dark:placeholder-slate-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && userMessageInput.trim()) handleSendUserMessage();
-                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && userMessageInput.trim()) handleSendUserMessage(); }}
                     />
-                    <button
-                      onClick={handleSendUserMessage}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
-                    >
-                      <Send size={16} />
-                    </button>
+                    <button onClick={handleSendUserMessage} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#f44336] p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-full transition-colors"><Send size={16} /></button>
                   </div>
                 </div>
               </div>
@@ -1775,6 +1728,7 @@ function DashboardContent() {
                           </button>
                           {openPostMenuId === post._id ? (
                             <div className="absolute right-0 top-7 z-20 w-44 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg p-1">
+                              {/* ĐÃ CHUYỂN NÚT COPY LINK VÀO ĐÂY */}
                               <button
                                 type="button"
                                 onClick={(e) => handleCopyPostLink(post._id, e)}
@@ -1782,6 +1736,7 @@ function DashboardContent() {
                               >
                                 <Copy size={14} /> Copy link bài viết
                               </button>
+
                               {(isOwner || currentUser.role === 'admin') ? (
                                 <button
                                   type="button"
@@ -1791,6 +1746,7 @@ function DashboardContent() {
                                   <Trash2 size={14} /> Xóa bài viết
                                 </button>
                               ) : null}
+
                               {currentUser.role === 'admin' ? (
                                 <button
                                   type="button"
@@ -1829,7 +1785,7 @@ function DashboardContent() {
                           {/* Header bài gốc */}
                           <div className="p-4 pb-2 flex items-center gap-3">
                             <div 
-                              className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-600 cursor-pointer hover:opacity-80"
+                              className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-slate-600 cursor-pointer"
                               onClick={() => handleNavigateProfile(originalPost.createdBy?._id)}
                             >
                               <img src={getAvatarUrl(originalPost.createdBy?.avatar, originalPost.createdBy?.displayName || originalPost.createdBy?.username)} className="w-full h-full object-cover" />

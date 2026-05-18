@@ -4,6 +4,9 @@ const Message = require("../models/Message");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 
+// --- IMPORT HÀM KIỂM DUYỆT BẰNG AI ---
+const { checkTextModeration } = require("../utils/contentModerator");
+
 const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 
 exports.getConversations = async (req, res) => {
@@ -80,6 +83,17 @@ exports.sendMessage = async (req, res) => {
   try {
     const { conversationId, text, receiverId } = req.body;
     const senderId = req.user.id;
+
+    // --- KIỂM DUYỆT AI: Khi gửi tin nhắn ---
+    if (text && text.trim()) {
+      const isSafe = await checkTextModeration(text.trim());
+      if (!isSafe) {
+        return res.status(400).json({ 
+          message: "Tin nhắn của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
+        });
+      }
+    }
+    // ----------------------------------------------
 
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {

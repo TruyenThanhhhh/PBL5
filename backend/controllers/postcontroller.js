@@ -5,6 +5,9 @@ const Notification = require("../models/Notification");
 const { cloudinary } = require("../config/cloudinary");
 const fs = require('fs');
 
+// --- IMPORT HÀM KIỂM DUYỆT BẰNG AI ---
+const { checkTextModeration } = require("../utils/contentModerator");
+
 const normalizeRole = (role) => {
   if (typeof role !== "string") return "user";
   const r = role.trim().toLowerCase();
@@ -138,6 +141,16 @@ exports.createPost = async (req, res) => {
   try {
     const { title, description, location, category, images, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
 
+    // --- KIỂM DUYỆT AI: Dành cho Bài đăng không kèm Media (Text Only) ---
+    const textToCheck = `${title || ''} ${description || ''}`.trim();
+    if (textToCheck) {
+      const isSafe = await checkTextModeration(textToCheck);
+      if (!isSafe) {
+        return res.status(400).json({ message: "Nội dung bài viết chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
+      }
+    }
+    // -------------------------------------------------------------------
+
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     let finalPostType = "regular";
     if (postType === "promotional") {
@@ -188,6 +201,24 @@ exports.createPostWithMedia = async (req, res) => {
   try {
     const { title, description, location, category, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
 
+    let finalDescription = null;
+    if (typeof description === "string") {
+       const trimmed = description.trim();
+       if (trimmed !== "" && trimmed !== "0" && trimmed !== "\u200B") {
+           finalDescription = trimmed;
+       }
+    }
+
+    // --- KIỂM DUYỆT AI: Dành cho Bài đăng có kèm Media ---
+    const textToCheck = `${title || ''} ${finalDescription || ''}`.trim();
+    if (textToCheck) {
+      const isSafe = await checkTextModeration(textToCheck);
+      if (!isSafe) {
+        return res.status(400).json({ message: "Nội dung bài viết chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
+      }
+    }
+    // ------------------------------------------------------
+
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const parsedLat = Number.isFinite(Number(lat)) ? Number(lat) : null;
     const parsedLng = Number.isFinite(Number(lng)) ? Number(lng) : null;
@@ -210,14 +241,6 @@ exports.createPostWithMedia = async (req, res) => {
       
       const firstImagePath = req.files[0].path;
       imageAiCategory = await analyzeImageWithGroq(firstImagePath);
-    }
-
-    let finalDescription = null;
-    if (typeof description === "string") {
-       const trimmed = description.trim();
-       if (trimmed !== "" && trimmed !== "0" && trimmed !== "\u200B") {
-           finalDescription = trimmed;
-       }
     }
     
     let finalCategory = category || "General";
@@ -280,6 +303,15 @@ exports.sharePost = async (req, res) => {
     const originalPostId = req.params.id;
     const { description } = req.body;
     const userId = req.user.id;
+
+    // --- KIỂM DUYỆT AI: Kiểm duyệt Lời bình khi Share bài ---
+    if (description && description.trim()) {
+      const isSafe = await checkTextModeration(description.trim());
+      if (!isSafe) {
+        return res.status(400).json({ message: "Lời bình chia sẻ chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
+      }
+    }
+    // ---------------------------------------------------------
 
     // Tìm bài gốc & Populate người tạo ra nó để lấy tên
     const originalPost = await Post.findById(originalPostId).populate("createdBy", "username displayName");
@@ -434,6 +466,17 @@ exports.likePost = async (req, res) => {
 exports.updatePost = async (req, res) => {
   try {
     const { title, description, location, category, images, price } = req.body;
+    
+    // --- KIỂM DUYỆT AI: Khi cập nhật bài viết ---
+    const textToCheck = `${title || ''} ${description || ''}`.trim();
+    if (textToCheck) {
+      const isSafe = await checkTextModeration(textToCheck);
+      if (!isSafe) {
+        return res.status(400).json({ message: "Nội dung cập nhật chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
+      }
+    }
+    // --------------------------------------------
+
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const post = await Post.findByIdAndUpdate(
       req.params.id,
