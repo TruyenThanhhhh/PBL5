@@ -4,6 +4,7 @@ const Message = require("../models/Message");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Post = require("../models/Post");
+const { checkTextModeration } = require("../utils/contentModerator");
 
 const messagePopulate = [
   { path: "sender", select: "username displayName avatar" },
@@ -145,6 +146,16 @@ exports.sendMessage = async (req, res) => {
   try {
     const { conversationId, text, receiverId, image, postId } = req.body;
     const senderId = req.user.id;
+
+    // --- KIỂM DUYỆT AI: Khi gửi tin nhắn ---
+    if (text && text.trim()) {
+      const isSafe = await checkTextModeration(text.trim());
+      if (!isSafe) {
+        return res.status(400).json({ 
+          message: "Tin nhắn của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
+        });
+      }
+    }
 
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {

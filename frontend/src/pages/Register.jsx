@@ -1,9 +1,68 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, User, Camera, Plus, Loader2 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const copy = {
+  vi: {
+    brandName: "The Wanderer",
+    heroTitle: "Gia nhập Cộng đồng Đam mê Xê dịch Lớn nhất Thế giới",
+    heroSubtitle: "Cùng 50k+ nhà thám hiểm chia sẻ hành trình của họ.",
+    createAccount: "Tạo tài khoản",
+    startAdventure: "Bắt đầu chuyến phiêu lưu của bạn ngay hôm nay.",
+    uploadPhoto: "TẢI ẢNH LÊN",
+    usernamePlaceholder: "Tên đăng nhập",
+    emailPlaceholder: "Địa chỉ Email",
+    passwordPlaceholder: "Mật khẩu",
+    confirmPasswordPlaceholder: "Xác nhận mật khẩu",
+    agreeTo: "Tôi đồng ý với ",
+    terms: "Điều khoản dịch vụ",
+    and: " và ",
+    privacy: "Chính sách bảo mật",
+    includingCookie: " bao gồm cả việc sử dụng cookie.",
+    createAccountBtn: "Tạo tài khoản",
+    processing: "Đang xử lý...",
+    orJoinWith: "HOẶC ĐĂNG KÝ VỚI",
+    alreadyHaveAccount: "Đã có tài khoản?",
+    loginLink: "Đăng nhập",
+    passwordsDoNotMatch: "Mật khẩu xác nhận không khớp!",
+    registerSuccess: "Đăng ký thành công! Chào mừng bạn!",
+    registerError: "Có lỗi xảy ra khi đăng ký.",
+    connectionError: "Không thể kết nối đến server."
+  },
+  en: {
+    brandName: "The Wanderer",
+    heroTitle: "Join the World's Greatest Wanderlust Community",
+    heroSubtitle: "Join 50k+ explorers sharing their journeys.",
+    createAccount: "Create Your Account",
+    startAdventure: "Start your next adventure today.",
+    uploadPhoto: "UPLOAD PHOTO",
+    usernamePlaceholder: "Username",
+    emailPlaceholder: "Email Address",
+    passwordPlaceholder: "Password",
+    confirmPasswordPlaceholder: "Confirm Password",
+    agreeTo: "I agree to the ",
+    terms: "Terms of Service",
+    and: " and ",
+    privacy: "Privacy Policy",
+    includingCookie: " including cookie use.",
+    createAccountBtn: "Create Account",
+    processing: "Processing...",
+    orJoinWith: "OR JOIN WITH",
+    alreadyHaveAccount: "Already have an account?",
+    loginLink: "Log in",
+    passwordsDoNotMatch: "Passwords do not match!",
+    registerSuccess: "Register Successfully! Welcome!",
+    registerError: "An error occurred during registration.",
+    connectionError: "Cannot connect to server."
+  }
+};
 
 export default function Register() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const t = copy[language];
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -34,7 +93,7 @@ export default function Register() {
 
     // Validate cơ bản ở Frontend
     if (password !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Mật khẩu xác nhận không khớp!' });
+      setMessage({ type: 'error', text: t.passwordsDoNotMatch });
       return;
     }
 
@@ -42,7 +101,6 @@ export default function Register() {
 
     try {
       // TẠO FORMDATA ĐỂ GỬI LÊN BACKEND (Vì có upload file ảnh)
-      // Lưu ý: Các key ('username', 'email', 'avatar') phải khớp với backend của bạn
       const formData = new FormData();
       formData.append('username', username);
       formData.append('email', email);
@@ -52,27 +110,25 @@ export default function Register() {
       }
 
       // GỌI API XUỐNG BACKEND
-      // TODO: Đổi 'http://localhost:5000/api/users/register' thành đường dẫn API thật của bạn
       const response = await fetch('http://localhost:5000/api/users/register', {
         method: 'POST',
         body: formData, 
-        // Không set 'Content-Type': 'application/json' vì đang gửi FormData
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Register Successfully! Welcome!' });
+        setMessage({ type: 'success', text: t.registerSuccess });
         // Chuyển về trang login sau 2 giây
         setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Có lỗi xảy ra khi đăng ký.' });
+        setMessage({ type: 'error', text: data.message || t.registerError });
       }
     } catch (error) {
       console.error("Lỗi call API:", error);
-      setMessage({ type: 'error', text: 'Không thể kết nối đến server.' });
+      setMessage({ type: 'error', text: t.connectionError });
     } finally {
       setIsLoading(false);
     }
@@ -87,11 +143,11 @@ export default function Register() {
       >
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative z-10">
-          <span className="text-white text-xl font-extrabold tracking-tight">The Wanderer</span>
+          <span className="text-white text-xl font-extrabold tracking-tight">{t.brandName}</span>
         </div>
         <div className="relative z-10 text-white pb-8">
           <h1 className="text-[3rem] font-bold leading-[1.1] mb-8 tracking-tight max-w-md">
-            Join the World's<br />Greatest<br />Wanderlust<br />Community
+            {t.heroTitle}
           </h1>
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
@@ -99,7 +155,7 @@ export default function Register() {
               <img className="w-8 h-8 rounded-full border-2 border-white/20 object-cover" src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="User 2" />
               <img className="w-8 h-8 rounded-full border-2 border-white/20 object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="User 3" />
             </div>
-            <p className="text-[13px] text-white/90 font-medium">Join 50k+ explorers sharing their journeys.</p>
+            <p className="text-[13px] text-white/90 font-medium">{t.heroSubtitle}</p>
           </div>
         </div>
       </div>
@@ -108,8 +164,8 @@ export default function Register() {
       <div className="w-full lg:w-[55%] flex flex-col items-center justify-center p-8 overflow-y-auto">
         <div className="w-full max-w-[380px]">
           <div className="mb-8 text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-[#f44336] mb-2">Create Your Account</h2>
-            <p className="text-gray-500 text-[13px] font-medium">Start your next adventure today.</p>
+            <h2 className="text-3xl font-bold text-[#f44336] mb-2">{t.createAccount}</h2>
+            <p className="text-gray-500 text-[13px] font-medium">{t.startAdventure}</p>
           </div>
 
           {/* Hiển thị thông báo Lỗi hoặc Thành công */}
@@ -135,7 +191,7 @@ export default function Register() {
                 </div>
                 <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
               </label>
-              <span className="text-[10px] font-bold tracking-widest text-gray-500 mt-3 uppercase">Upload Photo</span>
+              <span className="text-[10px] font-bold tracking-widest text-gray-500 mt-3 uppercase">{t.uploadPhoto}</span>
             </div>
 
             {/* Các Input */}
@@ -150,7 +206,7 @@ export default function Register() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                  placeholder="Username"
+                  placeholder={t.usernamePlaceholder}
                 />
               </div>
             </div>
@@ -166,7 +222,7 @@ export default function Register() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                  placeholder="Email Address"
+                  placeholder={t.emailPlaceholder}
                 />
               </div>
             </div>
@@ -182,7 +238,7 @@ export default function Register() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-10 py-3 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                  placeholder="Password"
+                  placeholder={t.passwordPlaceholder}
                 />
                 <button
                   type="button"
@@ -205,7 +261,7 @@ export default function Register() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="block w-full pl-10 pr-10 py-3 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                  placeholder="Confirm Password"
+                  placeholder={t.confirmPasswordPlaceholder}
                 />
               </div>
             </div>
@@ -221,7 +277,11 @@ export default function Register() {
               </div>
               <div className="ml-2 text-[11px] text-gray-500 font-medium leading-tight">
                 <label htmlFor="terms" className="cursor-pointer">
-                  I agree to the <a href="#" className="text-[#f44336] font-bold hover:underline">Terms of Service</a> and <a href="#" className="text-[#f44336] font-bold hover:underline">Privacy Policy</a> including cookie use.
+                  {t.agreeTo}
+                  <a href="#" className="text-[#f44336] font-bold hover:underline">{t.terms}</a>
+                  {t.and}
+                  <a href="#" className="text-[#f44336] font-bold hover:underline">{t.privacy}</a>
+                  {t.includingCookie}
                 </label>
               </div>
             </div>
@@ -233,10 +293,10 @@ export default function Register() {
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="animate-spin mr-2" size={18} /> Processing...
+                  <Loader2 className="animate-spin mr-2" size={18} /> {t.processing}
                 </>
               ) : (
-                "Create Account"
+                t.createAccountBtn
               )}
             </button>
           </form>
@@ -246,7 +306,7 @@ export default function Register() {
               <div className="w-full border-t border-gray-200" />
             </div>
             <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-              <span className="bg-white px-4 text-gray-400">OR JOIN WITH</span>
+              <span className="bg-white px-4 text-gray-400">{t.orJoinWith}</span>
             </div>
           </div>
 
@@ -270,9 +330,9 @@ export default function Register() {
 
           <div className="mt-8 text-center">
             <p className="text-[13px] font-medium text-gray-600">
-              Already have an account?{' '}
+              {t.alreadyHaveAccount}{' '}
               <Link to="/login" className="text-[#f44336] font-bold hover:underline">
-                Log in
+                {t.loginLink}
               </Link>
             </p>
           </div>

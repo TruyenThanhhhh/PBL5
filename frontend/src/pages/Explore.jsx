@@ -21,7 +21,7 @@ const exploreCopy = {
     food: 'Ẩm thực',
     discover: 'Khám phá',
     noPlaces: 'Không tìm thấy địa điểm nào.',
-    details: '{t.details}',
+    details: 'Chi tiết',
     unknown: 'Chưa rõ',
     anonymous: 'Ẩn danh',
     place: 'Địa điểm',
@@ -173,6 +173,9 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
           </div>
         `);
 
+        // Gắn postId vào marker để mở popup tương ứng khi chọn từ danh sách bên trái
+        marker.postId = post._id;
+
         markersRef.current.push(marker);
       }
     });
@@ -180,11 +183,30 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
 
   useEffect(() => {
     if (mapInstance.current && flyToLocation) {
-      // flyTo(tọa độ, zoom_level, tùy chọn animation)
-      mapInstance.current.flyTo(flyToLocation, 13, {
+      let lat, lng, postId;
+      if (Array.isArray(flyToLocation)) {
+        lat = flyToLocation[0];
+        lng = flyToLocation[1];
+      } else {
+        lat = flyToLocation.lat;
+        lng = flyToLocation.lng;
+        postId = flyToLocation.postId;
+      }
+
+      mapInstance.current.flyTo([lat, lng], 13, {
         animate: true,
         duration: 1.5 // Thời gian bay (giây)
       });
+
+      // Tìm và mở popup của marker tương ứng sau khi bay xong
+      if (postId) {
+        const marker = markersRef.current.find(m => m.postId === postId);
+        if (marker) {
+          setTimeout(() => {
+            marker.openPopup();
+          }, 500);
+        }
+      }
     }
   }, [flyToLocation]);
 
@@ -363,8 +385,8 @@ function ExploreContent() {
               posts.map((post) => (
                 <div 
                   key={post._id}
-                  onClick={() => post.lat && post.lng && setFlyToLocation([post.lat, post.lng])}
-                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#f44336]/30 transition-all cursor-pointer group flex flex-col gap-3"
+                  onClick={() => post.lat && post.lng && setFlyToLocation({ lat: post.lat, lng: post.lng, postId: post._id })}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#f44336]/30 transition-all cursor-pointer group flex flex-col gap-3 animate-in fade-in"
                 >
                   {post.images && post.images.length > 0 && (
                     <div className="w-full h-[160px] rounded-xl overflow-hidden relative">
@@ -387,7 +409,7 @@ function ExploreContent() {
                         <img src={post.createdBy?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.createdBy?.username || 'U')}&background=f44336&color=fff`} className="w-5 h-5 rounded-full object-cover" alt="User" />
                         <span className="text-[11px] font-bold text-gray-700">{post.createdBy?.username || t.anonymous}</span>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); navigate(`/post-detail?postId=${post._id}`); }} className="text-[11px] font-bold text-[#f44336] bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); post.lat && post.lng && setFlyToLocation({ lat: post.lat, lng: post.lng, postId: post._id }); }} className="text-[11px] font-bold text-[#f44336] bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                         {t.details}
                       </button>
                     </div>

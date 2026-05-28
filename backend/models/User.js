@@ -37,6 +37,7 @@ const userSchema = new mongoose.Schema(
     showActivity: { type: Boolean, default: true },
     deletedConversations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Conversation" }], // Danh sách hội thoại đã xóa (ẩn đi)
     savedPosts:     [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // Danh sách bài đăng đã lưu
+    hiddenPosts:    [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // Danh sách bài đăng bị ẩn cá nhân
   },
   { timestamps: true }
 );

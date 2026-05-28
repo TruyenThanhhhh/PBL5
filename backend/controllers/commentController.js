@@ -2,12 +2,23 @@ const Comment = require("../models/Comment");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const { checkTextModeration } = require("../utils/contentModerator");
 
 // ➕ THÊM COMMENT / REVIEW
 exports.addComment = async (req, res) => {
   try {
     const { content, rating, parentComment } = req.body;
     const postId = req.params.postId;
+
+    // --- KIỂM DUYỆT AI: Khi thêm bình luận mới ---
+    if (content && content.trim()) {
+      const isSafe = await checkTextModeration(content.trim());
+      if (!isSafe) {
+        return res.status(400).json({ 
+          message: "Bình luận của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
+        });
+      }
+    }
 
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: "Post không tồn tại" });
@@ -98,7 +109,17 @@ exports.updateComment = async (req, res) => {
       return res.status(403).json({ message: "Không có quyền sửa" });
 
     const { content, rating } = req.body;
-    if (content) comment.content = content;
+
+    // --- KIỂM DUYỆT AI: Khi cập nhật bình luận ---
+    if (content && content.trim() && content.trim() !== comment.content) {
+      const isSafe = await checkTextModeration(content.trim());
+      if (!isSafe) {
+        return res.status(400).json({ 
+          message: "Nội dung bình luận sửa đổi chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
+        });
+      }
+    }
+
     if (content) comment.content = content;
     if (!comment.parentComment && rating !== undefined) comment.rating = rating;
     await comment.save();
@@ -152,7 +173,5 @@ async function recalcRating(postId) {
   await Post.findByIdAndUpdate(postId, {
     averageRating: Math.round(avg * 10) / 10, // làm tròn 1 chữ số thập phân
     totalReviews: commentCount, // hiển thị số comment gốc
-    // Nếu cần, có thể lưu rating count ở trường khác sau này
-    // ratingCount: ratingCount,
   });
 }

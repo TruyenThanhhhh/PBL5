@@ -86,6 +86,13 @@ router.post("/:id/share-profile", protect, postController.sharePostToProfile);
 // ❤️ Like — phải đăng nhập (viewer cũng like được)
 router.put("/like/:id", protect, postController.likePost);
 
+// 🚩 Tố cáo bài viết — phải đăng nhập
+router.post("/:id/report", protect, postController.reportPost);
+
+// 🙈 Ẩn bài viết — phải đăng nhập
+router.post("/:id/hide", protect, postController.hidePost);
+router.post("/:id/unhide", protect, postController.unhidePost);
+
 // 💬 Comments
 router.use("/:postId/comments", commentRoutes);
 

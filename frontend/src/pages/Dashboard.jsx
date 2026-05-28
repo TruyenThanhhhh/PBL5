@@ -6,7 +6,8 @@ import {
   MapPin, Image as ImageIcon, Send, ShieldAlert,
   Heart, Share2, MoreHorizontal, CheckCircle, X, Info, CornerDownRight, Loader2, Bot,
   ArrowLeft, User, Bookmark, Users, UserPlus, Check, Search, Clock, TrendingUp, Trash2,
-  Sun, Moon, ChevronDown, LogOut, Globe2, Home, Upload
+  Sun, Moon, ChevronDown, LogOut, Globe2, Home, Upload,
+  EyeOff
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -55,6 +56,8 @@ const dashboardCopy = {
     deletePost: 'Xóa bài viết',
     showPost: 'Hiện bài viết',
     hidePost: 'Ẩn bài viết',
+    reportPost: 'Tố cáo bài viết',
+    hidePostPersonal: 'Ẩn bài viết',
     unknownLocation: 'Chưa xác định',
     pinnedLocation: 'Vị trí được ghim',
     closeMap: 'Đóng Map',
@@ -127,6 +130,8 @@ const dashboardCopy = {
     deletePost: 'Delete post',
     showPost: 'Show post',
     hidePost: 'Hide post',
+    reportPost: 'Report post',
+    hidePostPersonal: 'Hide post',
     unknownLocation: 'Unknown',
     pinnedLocation: 'Pinned location',
     closeMap: 'Close Map',
@@ -1193,6 +1198,84 @@ function DashboardContent() {
     }
   };
 
+  const handleReportPost = async (postId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập.');
+    
+    showToast('info', 'Đang kiểm duyệt và tố cáo bài viết...');
+    try {
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/report`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Không thể gửi tố cáo bài viết');
+      }
+      const data = await res.json();
+      if (data.status === 'deleted') {
+        setPosts((prev) => prev.filter((p) => p._id !== postId));
+        setTrendingPosts((prev) => prev.filter((p) => p._id !== postId));
+        showToast('success', data.message);
+      } else {
+        showToast('success', data.message);
+      }
+    } catch (error) {
+      showToast('error', error.message || 'Lỗi khi gửi báo cáo bài viết.');
+    } finally {
+      setOpenPostMenuId(null);
+    }
+  };
+
+  const handleHidePost = async (postId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập.');
+
+    try {
+      setPosts((prev) => prev.map((p) => p._id === postId ? { ...p, isTemporarilyHidden: true } : p));
+      setTrendingPosts((prev) => prev.filter((p) => p._id !== postId));
+
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/hide`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Không thể ẩn bài viết');
+      }
+      const data = await res.json();
+      showToast('success', data.message || 'Đã ẩn bài viết thành công.');
+    } catch (error) {
+      setPosts((prev) => prev.map((p) => p._id === postId ? { ...p, isTemporarilyHidden: false } : p));
+      showToast('error', error.message || 'Lỗi khi ẩn bài viết.');
+    } finally {
+      setOpenPostMenuId(null);
+    }
+  };
+
+  const handleUnhidePost = async (postId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return showToast('error', 'Vui lòng đăng nhập.');
+
+    try {
+      setPosts((prev) => prev.map((p) => p._id === postId ? { ...p, isTemporarilyHidden: false } : p));
+
+      const res = await fetch(`http://localhost:5000/api/posts/${postId}/unhide`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Không thể hoàn tác ẩn');
+      }
+      const data = await res.json();
+      showToast('success', 'Đã hoàn tác ẩn bài viết.');
+    } catch (error) {
+      setPosts((prev) => prev.map((p) => p._id === postId ? { ...p, isTemporarilyHidden: true } : p));
+      showToast('error', error.message || 'Lỗi khi hoàn tác ẩn.');
+    }
+  };
+
   const handleSendAiChat = async () => {
     const text = aiChatInput.trim();
     if (!text || isAiChatLoading) return;
@@ -1442,6 +1525,8 @@ function DashboardContent() {
           <button onClick={() => setNotification({ type: '', text: '' })} className="ml-4 text-gray-400 hover:text-gray-900"><X size={18} /></button>
         </div>
       )}
+
+
 
       {deleteConfirm.open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4 py-6">
@@ -2045,6 +2130,45 @@ function DashboardContent() {
                 );
               }
               return filteredPosts.map((post) => {
+              if (post.isTemporarilyHidden) {
+                return (
+                  <div 
+                    key={post._id || Math.random().toString()} 
+                    className={`${isDarkMode ? 'bg-[#1e293b]/60 border-gray-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-2xl p-6 border flex items-center justify-between gap-4 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 mb-6`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <EyeOff className="text-blue-500" size={20} />
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-black">
+                          {language === 'vi' ? 'Đã ẩn bài viết này' : 'This post has been hidden'}
+                        </span>
+                        <span className="text-[11px] text-gray-400 font-medium">
+                          {language === 'vi' ? 'Bài viết sẽ biến mất khi bạn tải lại trang.' : 'The post will vanish when you reload.'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleUnhidePost(post._id)}
+                        className="px-4 py-1.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[12px] font-black shadow-md shadow-blue-500/20 transition-all flex items-center gap-1 active:scale-95 animate-pulse"
+                      >
+                        {language === 'vi' ? 'Hoàn tác' : 'Undo'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPosts((prev) => prev.filter((p) => p._id !== post._id))}
+                        className={`p-1.5 rounded-lg border transition-all ${
+                          isDarkMode ? 'border-gray-700 hover:bg-gray-800 text-gray-400' : 'border-gray-200 hover:bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               const isAdmin = post.createdBy?.role === 'admin';
               const isOwner = Boolean(currentUser.userId) && String(post.createdBy?._id || '') === String(currentUser.userId);
               
@@ -2103,6 +2227,24 @@ function DashboardContent() {
                             >
                               {t.copyPostLink}
                             </button>
+                            {!isOwner && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleHidePost(post._id)}
+                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg"
+                                >
+                                  {t.hidePostPersonal}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleReportPost(post._id)}
+                                  className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg"
+                                >
+                                  {t.reportPost}
+                                </button>
+                              </>
+                            )}
                             {(isOwner || currentUser.role === 'admin') ? (
                               <button
                                 type="button"

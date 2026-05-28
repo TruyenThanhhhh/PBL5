@@ -2,9 +2,70 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, User, Loader2 } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { useLanguage } from '../contexts/LanguageContext';
+
+const copy = {
+  vi: {
+    brandName: "THE WANDERER",
+    heroTitle: "Khám phá & Chia sẻ những địa điểm tuyệt vời",
+    heroSubtitle: "Tham gia cộng đồng khách du lịch toàn cầu và tìm kiếm điểm đến ít người biết trước bất kỳ ai.",
+    copyright: "© 2026 The Wanderer",
+    terms: "Điều khoản",
+    privacy: "Quyền riêng tư",
+    welcomeBack: "Chào mừng quay trở lại",
+    signInDetails: "Vui lòng điền thông tin để đăng nhập",
+    emailOrUsername: "Email hoặc Tên đăng nhập",
+    emailOrUsernamePlaceholder: "Ví dụ: wanderer@travel.com hoặc username",
+    password: "Mật khẩu",
+    rememberMe: "Ghi nhớ đăng nhập",
+    forgotPassword: "Quên mật khẩu?",
+    loginBtn: "Đăng nhập",
+    loggingIn: "Đang đăng nhập...",
+    or: "HOẶC",
+    continueWith: "Tiếp tục với",
+    dontHaveAccount: "Chưa có tài khoản?",
+    signUpLink: "Đăng ký",
+    loginSuccess: "Đăng nhập thành công!",
+    loginError: "Sai thông tin đăng nhập!",
+    networkError: "Lỗi Mạng: Không thể kết nối Backend.",
+    googleLoginSuccess: "Đăng nhập Google thành công!",
+    googleLoginFail: "Đăng nhập Google thất bại tại Server.",
+    googleCancel: "Google Đăng nhập bị hủy hoặc thất bại."
+  },
+  en: {
+    brandName: "THE WANDERER",
+    heroTitle: "Discover & Share Amazing Places",
+    heroSubtitle: "Join a community of global travelers and find your next hidden gem before anyone else does.",
+    copyright: "© 2026 The Wanderer",
+    terms: "Terms",
+    privacy: "Privacy",
+    welcomeBack: "Welcome Back",
+    signInDetails: "Please enter your details to sign in",
+    emailOrUsername: "Email or Username",
+    emailOrUsernamePlaceholder: "e.g. wanderer@travel.com or username",
+    password: "Password",
+    rememberMe: "Remember me",
+    forgotPassword: "Forgot password?",
+    loginBtn: "Login",
+    loggingIn: "Logging in...",
+    or: "OR",
+    continueWith: "Continue with",
+    dontHaveAccount: "Don't have an account?",
+    signUpLink: "Sign up",
+    loginSuccess: "Login successful!",
+    loginError: "Wrong login details!",
+    networkError: "Network Error: Cannot connect to Backend.",
+    googleLoginSuccess: "Google login successful!",
+    googleLoginFail: "Google login failed at Server.",
+    googleCancel: "Google Login cancelled or failed."
+  }
+};
 
 export default function Login() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const t = copy[language];
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -35,7 +96,7 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Đăng nhập thành công!' });
+        setMessage({ type: 'success', text: t.loginSuccess });
         
         const userRole = data.role ? data.role.toLowerCase() : 'viewer';
 
@@ -52,11 +113,11 @@ export default function Login() {
         }, 1000);
         
       } else {
-        setMessage({ type: 'error', text: data.message || 'Sai thông tin đăng nhập!' });
+        setMessage({ type: 'error', text: data.message || t.loginError });
       }
     } catch (error) {
       console.error("Lỗi Network:", error);
-      setMessage({ type: 'error', text: 'Lỗi Mạng: Không thể kết nối Backend.' });
+      setMessage({ type: 'error', text: t.networkError });
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +139,7 @@ export default function Login() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Đăng nhập Google thành công!' });
+        setMessage({ type: 'success', text: t.googleLoginSuccess });
         
         const userRole = data.role ? data.role.toLowerCase() : 'viewer';
 
@@ -94,19 +155,19 @@ export default function Login() {
           else navigate('/dashboard');
         }, 1000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Đăng nhập Google thất bại tại Server.' });
+        setMessage({ type: 'error', text: data.message || t.googleLoginFail });
       }
 
     } catch (error) {
       console.error("Google Login Error:", error);
-      setMessage({ type: 'error', text: 'Lỗi Mạng khi kết nối Backend.' });
+      setMessage({ type: 'error', text: t.networkError });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleFailure = () => {
-    setMessage({ type: 'error', text: 'Google Đăng nhập bị hủy hoặc thất bại.' });
+    setMessage({ type: 'error', text: t.googleCancel });
   };
 
   return (
@@ -115,29 +176,29 @@ export default function Login() {
         <div className="hidden lg:flex w-[45%] bg-gradient-to-br from-[#8a7a5e] to-[#544d3c] p-12 flex-col justify-between">
           <div>
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest">
-              <span className="w-1.5 h-1.5 rounded-full bg-white"></span> THE WANDERER
+              <span className="w-1.5 h-1.5 rounded-full bg-white"></span> {t.brandName}
             </span>
           </div>
           <div className="text-white pr-8">
             <h1 className="text-[2.75rem] font-bold leading-[1.1] mb-6 tracking-tight">
-              Discover & Share<br />Amazing Places
+              {t.heroTitle}
             </h1>
             <p className="text-[15px] text-white/80 max-w-sm leading-relaxed font-light">
-              Join a community of global travelers and find your next hidden gem before anyone else does.
+              {t.heroSubtitle}
             </p>
           </div>
           <div className="text-white/50 text-[11px] flex gap-4 font-medium tracking-wide">
-            <span>© 2026 The Wanderer</span>
-            <span className="cursor-pointer hover:text-white transition-colors">Terms</span>
-            <span className="cursor-pointer hover:text-white transition-colors">Privacy</span>
+            <span>{t.copyright}</span>
+            <span className="cursor-pointer hover:text-white transition-colors">{t.terms}</span>
+            <span className="cursor-pointer hover:text-white transition-colors">{t.privacy}</span>
           </div>
         </div>
 
         <div className="w-full lg:w-[55%] flex flex-col items-center justify-center p-8 overflow-y-auto">
           <div className="w-full max-w-[380px]">
             <div className="mb-10 text-center lg:text-left">
-              <h2 className="text-3xl font-bold text-[#f44336] mb-2">Welcome Back</h2>
-              <p className="text-gray-500 text-[13px] font-medium">Please enter your details to sign in</p>
+              <h2 className="text-3xl font-bold text-[#f44336] mb-2">{t.welcomeBack}</h2>
+              <p className="text-gray-500 text-[13px] font-medium">{t.signInDetails}</p>
             </div>
 
             {message.text && (
@@ -148,7 +209,7 @@ export default function Login() {
 
             <form className="space-y-4" onSubmit={handleLogin}>
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">Email or Username</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">{t.emailOrUsername}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                     <User size={16} strokeWidth={2.5} />
@@ -159,13 +220,13 @@ export default function Login() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3.5 bg-[#f4f4f5] border-transparent rounded-xl text-sm focus:ring-2 focus:ring-[#f44336]/20 focus:bg-white focus:border-[#f44336] transition-all placeholder-gray-400 font-medium"
-                    placeholder="e.g. wanderer@travel.com or username"
+                    placeholder={t.emailOrUsernamePlaceholder}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">Password</label>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1.5 ml-1">{t.password}</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                     <Lock size={16} strokeWidth={2.5} />
@@ -196,12 +257,12 @@ export default function Login() {
                     className="h-4 w-4 text-[#f44336] focus:ring-[#f44336] border-gray-300 rounded cursor-pointer"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-[12px] text-gray-600 font-medium cursor-pointer">
-                    Remember me
+                    {t.rememberMe}
                   </label>
                 </div>
                 <div className="text-[12px]">
                   <a href="#" className="font-semibold text-[#f44336] hover:text-[#d32f2f]">
-                    Forgot password?
+                    {t.forgotPassword}
                   </a>
                 </div>
               </div>
@@ -212,9 +273,9 @@ export default function Login() {
                 className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f44336] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <><Loader2 className="animate-spin mr-2" size={18} /> Logging in...</>
+                  <><Loader2 className="animate-spin mr-2" size={18} /> {t.loggingIn}</>
                 ) : (
-                  "Login"
+                  t.loginBtn
                 )}
               </button>
             </form>
@@ -224,7 +285,7 @@ export default function Login() {
                 <div className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                <span className="bg-white px-4 text-gray-400">OR</span>
+                <span className="bg-white px-4 text-gray-400">{t.or}</span>
               </div>
             </div>
 
@@ -261,9 +322,9 @@ export default function Login() {
 
             <div className="mt-8 text-center space-y-4">
               <p className="text-[13px] font-medium text-gray-600">
-                Don't have an account?{' '}
+                {t.dontHaveAccount}{' '}
                 <Link to="/register" className="text-[#f44336] font-bold hover:underline">
-                  Sign up
+                  {t.signUpLink}
                 </Link>
               </p>
             </div>
