@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import AccountMenu from '../components/AccountMenu';
+import ReportModal from '../components/ReportModal';
 
 const stringToColor = (str) => {
   let hash = 0;
@@ -207,6 +208,7 @@ function ProfileContent() {
   const [collections, setCollections] = useState([]);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [friendStatus, setFriendStatus] = useState('none'); // 'none', 'pending', 'friends'
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const [zoomedImage, setZoomedImage] = useState(null); 
   const [zoomedImageType, setZoomedImageType] = useState(null); 
@@ -600,6 +602,13 @@ function ProfileContent() {
                         <UserPlus size={16} /> Thêm bạn bè
                       </button>
                     )}
+                    <button 
+                      onClick={() => setIsReportModalOpen(true)}
+                      className="bg-amber-50 hover:bg-amber-100 text-amber-600 p-2 rounded-lg transition-colors inline-flex items-center justify-center"
+                      title="Báo cáo tài khoản"
+                    >
+                      <ShieldAlert size={18} strokeWidth={2.5} />
+                    </button>
                   </div>
                 )}
               </div>
@@ -769,6 +778,16 @@ function ProfileContent() {
           </div>
         </section>
       </main>
+      
+      {/* Report Modal cho tài khoản */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        targetType="user"
+        targetId={targetUserId}
+        onSuccess={(msg) => alert(msg)}
+        onError={(msg) => alert(msg)}
+      />
     </div>
   );
 }

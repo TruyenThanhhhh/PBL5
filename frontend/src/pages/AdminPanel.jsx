@@ -85,6 +85,27 @@ const copy = {
     accountStatus: 'Trạng thái',
     active: 'Đang hoạt động',
     editProfile: 'Chỉnh sửa hồ sơ',
+    reportsNav: 'Báo cáo vi phạm',
+    manageReports: 'Quản lý Báo cáo',
+    reporter: 'Người báo cáo',
+    target: 'Đối tượng bị tố cáo',
+    reason: 'Lý do',
+    details: 'Chi tiết',
+    action: 'Hành động',
+    dismiss: 'Bỏ qua',
+    banUser: 'Khóa tài khoản',
+    unbanUser: 'Mở khóa',
+    bannedStatus: 'Bị khóa',
+    activeStatus: 'Hoạt động',
+    targetPost: 'Bài viết',
+    targetUser: 'Tài khoản',
+    noReportsFound: 'Không tìm thấy báo cáo nào',
+    cannotLoadReports: 'Lỗi tải danh sách báo cáo',
+    reportProcessed: 'Xử lý báo cáo thành công',
+    confirmBanTitle: 'Khóa tài khoản này?',
+    confirmBanDesc: 'Tài khoản này sẽ không thể đăng nhập hoặc dùng hệ thống.',
+    confirmDismissTitle: 'Bỏ qua báo cáo?',
+    confirmDismissDesc: 'Báo cáo này sẽ được đánh dấu là đã xử lý và bỏ qua.',
   },
   en: {
     cancel: 'Cancel',
@@ -152,6 +173,27 @@ const copy = {
     accountStatus: 'Status',
     active: 'Active',
     editProfile: 'Edit profile',
+    reportsNav: 'Violations / Reports',
+    manageReports: 'Manage Reports',
+    reporter: 'Reporter',
+    target: 'Reported Target',
+    reason: 'Reason',
+    details: 'Details',
+    action: 'Action',
+    dismiss: 'Dismiss',
+    banUser: 'Ban Account',
+    unbanUser: 'Unban',
+    bannedStatus: 'Banned',
+    activeStatus: 'Active',
+    targetPost: 'Post',
+    targetUser: 'Account',
+    noReportsFound: 'No reports found',
+    cannotLoadReports: 'Failed to load reports',
+    reportProcessed: 'Report processed successfully',
+    confirmBanTitle: 'Ban this account?',
+    confirmBanDesc: 'This user will no longer be able to log in or use the platform.',
+    confirmDismissTitle: 'Dismiss report?',
+    confirmDismissDesc: 'This report will be marked as resolved and ignored.',
   },
 };
 
@@ -608,6 +650,24 @@ function UsersTab({ showToast, t }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const handleToggleBan = async (userId) => {
+    try {
+      const res = await fetch(`${API}/users/admin/${userId}/toggle-ban`, {
+        method: 'PUT',
+        headers: authHeader()
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Lỗi hệ thống khi khóa tài khoản');
+      }
+      const data = await res.json();
+      showToast('success', data.message);
+      setUsers(prev => prev.map(u => u._id === userId ? { ...u, isBanned: data.isBanned } : u));
+    } catch (error) {
+      showToast('error', error.message);
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const role = normalizeRole(user.role);
     const keyword = search.trim().toLowerCase();
@@ -683,11 +743,13 @@ function UsersTab({ showToast, t }) {
                   <th className="text-left px-5 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.users}</th>
                   <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider hidden md:table-cell">{t.role}</th>
                   <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider hidden lg:table-cell">{t.post}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.accountStatus}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.action}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <tr key={user._id} className="border-b border-gray-50 hover:bg-[#fafafa] transition-colors">
+                  <tr key={user._id} className="border-b border-gray-55 hover:bg-[#fafafa] transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {user.avatar ? (
@@ -711,8 +773,301 @@ function UsersTab({ showToast, t }) {
                     <td className="px-4 py-3.5 text-gray-700 font-bold hidden lg:table-cell">
                       {user.postCount || 0} {t.postsCountSuffix}
                     </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-block px-2 py-1 rounded-md text-[11px] font-black ${user.isBanned ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>
+                        {user.isBanned ? t.bannedStatus : t.activeStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={() => handleToggleBan(user._id)}
+                        className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors
+                          ${user.isBanned ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-[#f44336] hover:bg-red-100'}`}
+                      >
+                        {user.isBanned ? t.unbanUser : t.banUser}
+                      </button>
+                    </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// TAB: QUẢN LÝ BÁO CÁO VI PHẠM
+// ════════════════════════════════════════════════════════════════
+function ReportsTab({ showToast, t, locale }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [confirm, setConfirm] = useState(null); // { type: 'dismiss'|'ban_user'|'delete_post', reportId: string, title: string, desc: string }
+  const [processing, setProcessing] = useState(false);
+
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/reports`, { headers: authHeader() });
+      const data = await res.json();
+      setReports(Array.isArray(data) ? data : []);
+    } catch {
+      showToast('error', t.cannotLoadReports);
+    } finally {
+      setLoading(false);
+    }
+  }, [t.cannotLoadReports, showToast]);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
+
+  const handleAction = async (reportId, action) => {
+    setProcessing(true);
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/action`, {
+        method: 'PUT',
+        headers: authHeader(),
+        body: JSON.stringify({ action })
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      showToast('success', data.message || t.reportProcessed);
+      fetchReports();
+    } catch {
+      showToast('error', 'Có lỗi xảy ra khi xử lý báo cáo.');
+    } finally {
+      setProcessing(false);
+      setConfirm(null);
+    }
+  };
+
+  const pendingReports = reports.filter(r => r.status === 'pending');
+  const resolvedReports = reports.filter(r => r.status !== 'pending');
+
+  return (
+    <div>
+      {confirm && (
+        <div className="fixed inset-0 bg-black/40 z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-amber-500" />
+              </div>
+              <h3 className="text-[15px] font-black text-gray-900">{confirm.title}</h3>
+            </div>
+            <p className="text-[13px] text-gray-600 font-medium mb-6 pl-[52px]">{confirm.desc}</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setConfirm(null)} 
+                disabled={processing}
+                className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                {t.cancel}
+              </button>
+              <button 
+                onClick={() => handleAction(confirm.reportId, confirm.type)} 
+                disabled={processing}
+                className="px-4 py-2 text-[13px] font-bold text-white bg-[#f44336] rounded-xl hover:bg-red-600 transition-colors flex items-center gap-2"
+              >
+                {processing && <RefreshCw size={12} className="animate-spin" />}
+                {t.confirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: 'Tổng số báo cáo', value: reports.length, color: 'text-gray-900' },
+          { label: 'Chưa xử lý', value: pendingReports.length, color: 'text-red-500 font-black' },
+          { label: 'Đã xử lý / Bỏ qua', value: resolvedReports.length, color: 'text-green-600' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">{s.label}</p>
+            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[15px] font-black text-gray-900">{t.manageReports}</h3>
+        <button onClick={fetchReports} className="flex items-center gap-2 text-[13px] font-bold text-gray-500 hover:text-gray-900 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors">
+          <RefreshCw size={14} /> {t.reload}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="animate-spin w-8 h-8 border-4 border-[#f44336] border-t-transparent rounded-full" />
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <AlertTriangle size={32} className="mx-auto mb-2 opacity-30" />
+            <p className="text-[13px] font-medium">{t.noReportsFound}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-gray-100 bg-[#fafafa]">
+                  <th className="text-left px-5 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.reporter}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.target}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.reason}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.status}</th>
+                  <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.action}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map(report => {
+                  const isPending = report.status === 'pending';
+                  const isPost = report.targetType === 'post';
+                  const targetObj = isPost ? report.targetPost : report.targetUser;
+                  
+                  let targetName = '—';
+                  let targetSub = '';
+                  if (targetObj) {
+                    if (isPost) {
+                      targetName = targetObj.title || 'Bài viết không tiêu đề';
+                      targetSub = `Bởi: ${targetObj.createdBy?.username || t.anonymous}`;
+                    } else {
+                      targetName = targetObj.username || 'Tài khoản ẩn danh';
+                      targetSub = targetObj.email || '';
+                    }
+                  } else {
+                    targetName = isPost ? 'Bài viết đã bị xóa trước đó' : 'Tài khoản đã bị xóa';
+                  }
+
+                  return (
+                    <tr key={report._id} className="border-b border-gray-50 hover:bg-[#fafafa] transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                            {report.reporter?.avatar ? (
+                              <img src={report.reporter.avatar} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] font-black text-gray-500">
+                                {report.reporter?.username?.[0]?.toUpperCase() || '?'}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900">{report.reporter?.username || '—'}</p>
+                            <p className="text-[10px] text-gray-400">{report.reporter?.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase mb-1
+                            ${isPost ? 'bg-blue-50 text-blue-500' : 'bg-purple-50 text-purple-500'}`}>
+                            {isPost ? t.targetPost : t.targetUser}
+                          </span>
+                          <p className="font-bold text-gray-800 line-clamp-1 max-w-[200px]">{targetName}</p>
+                          {targetSub && <p className="text-[10px] text-gray-400">{targetSub}</p>}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div>
+                          <p className="font-bold text-gray-900">{report.reason}</p>
+                          {report.details && (
+                            <p className="text-[11px] text-gray-400 line-clamp-2 max-w-[200px]" title={report.details}>
+                              {report.details}
+                            </p>
+                          )}
+                          <p className="text-[9px] text-gray-400 mt-1">
+                            {new Date(report.createdAt).toLocaleString(locale)}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black
+                          ${report.status === 'pending' ? 'bg-amber-50 text-amber-600' : 
+                            report.status === 'dismissed' ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-600'}`}>
+                          {report.status === 'pending' ? 'Đang chờ duyệt' : 
+                           report.status === 'dismissed' ? 'Đã bỏ qua' : 'Đã xử lý'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {isPending && targetObj ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setConfirm({
+                                type: 'dismiss',
+                                reportId: report._id,
+                                title: t.confirmDismissTitle,
+                                desc: t.confirmDismissDesc
+                              })}
+                              className="px-2.5 py-1 text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                              {t.dismiss}
+                            </button>
+
+                            {isPost && (
+                              <button
+                                onClick={() => setConfirm({
+                                  type: 'delete_post',
+                                  reportId: report._id,
+                                  title: 'Xóa bài viết vi phạm?',
+                                  desc: 'Bài viết này sẽ bị gỡ bỏ vĩnh viễn khỏi nền tảng.'
+                                })}
+                                className="px-2.5 py-1 text-[11px] font-bold text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                              >
+                                Xóa bài
+                              </button>
+                            )}
+
+                            {(() => {
+                              const targetUserObj = isPost ? report.targetPost?.createdBy : report.targetUser;
+                              const isTargetBanned = targetUserObj?.isBanned || false;
+                              const uName = targetUserObj?.username || 'tài khoản này';
+
+                              if (isTargetBanned) {
+                                return (
+                                  <button
+                                    onClick={() => setConfirm({
+                                      type: 'unban_user',
+                                      reportId: report._id,
+                                      title: 'Mở khóa tài khoản này?',
+                                      desc: `Mở khóa và khôi phục hoạt động cho tài khoản "${uName}"`
+                                    })}
+                                    className="px-2.5 py-1 text-[11px] font-bold text-white bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
+                                  >
+                                    Mở khóa
+                                  </button>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  onClick={() => setConfirm({
+                                    type: 'ban_user',
+                                    reportId: report._id,
+                                    title: t.confirmBanTitle,
+                                    desc: `Khóa vĩnh viễn tài khoản "${uName}". Người dùng này sẽ không thể đăng nhập nữa.`
+                                  })}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-white bg-[#f44336] hover:bg-[#e22d41] rounded-lg transition-colors"
+                                >
+                                  {t.banUser}
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 font-bold">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -832,6 +1187,7 @@ export default function AdminPanel() {
     { id: 'dashboard', icon: LayoutDashboard, label: t.dashboard },
     { id: 'posts', icon: FileText, label: t.postsNav },
     { id: 'users', icon: Users, label: t.usersNav },
+    { id: 'reports', icon: AlertTriangle, label: t.reportsNav },
   ];
 
   return (
@@ -862,18 +1218,6 @@ export default function AdminPanel() {
             </button>
           ))}
         </nav>
-
-        <div className="p-4 border-t border-gray-100">
-          <button onClick={() => setActiveTab('profile')} className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left">
-            <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
-              <img src={adminProfile.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"} alt={adminProfile.username || "Admin"} className="w-full h-full object-cover"/>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[12px] font-bold text-gray-900 truncate">{adminProfile.username || t.profileFallback}</p>
-              <p className="text-[10px] text-gray-400 truncate">{adminProfile.email || roleLabel[adminProfile.role] || t.profileFallback}</p>
-            </div>
-          </button>
-        </div>
       </aside>
 
       {/* MAIN */}
@@ -885,6 +1229,7 @@ export default function AdminPanel() {
               {activeTab === 'dashboard' && t.dashboard}
               {activeTab === 'posts' && t.managePosts}
               {activeTab === 'users' && t.manageUsers}
+              {activeTab === 'reports' && t.manageReports}
               {activeTab === 'profile' && t.adminProfile}
             </h2>
           </div>
@@ -944,6 +1289,7 @@ export default function AdminPanel() {
 
           {activeTab === 'posts' && <PostsTab showToast={showToast} t={t} locale={locale} />}
           {activeTab === 'users' && <UsersTab showToast={showToast} t={t} />}
+          {activeTab === 'reports' && <ReportsTab showToast={showToast} t={t} locale={locale} />}
           {activeTab === 'profile' && (
             <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">

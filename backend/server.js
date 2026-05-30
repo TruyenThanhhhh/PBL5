@@ -217,6 +217,7 @@ const chatRoutes         = require("./routes/chatRoutes");
 const messageRoutes      = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const communityRoutes    = require("./routes/communityRoutes");
+const reportRoutes       = require("./routes/reportRoutes");
 
 app.use("/api/posts",         postRoutes);
 app.use("/api/users",         userRoutes);
@@ -225,6 +226,7 @@ app.use("/api/chat",          chatRoutes);
 app.use("/api/messages",      messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/communities",   communityRoutes);
+app.use("/api/reports",       reportRoutes);
 
 // Global error JSON handler
 app.use((err, req, res, next) => {

@@ -83,6 +83,15 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: "Sai mật khẩu!" });
     }
 
+    // Kiểm tra tài khoản bị khóa
+    if (user.isBanned) {
+      return res.status(403).json({ 
+        message: "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.",
+        isBanned: true,
+        email: user.email
+      });
+    }
+
     // Tạo Token
     const normalizedRole = normalizeRole(user.role);
     const token = jwt.sign(
@@ -137,6 +146,13 @@ exports.googleLogin = async (req, res) => {
     const googleId = payload.sub;
 
     let user = await User.findOne({ email });
+    if (user && user.isBanned) {
+      return res.status(403).json({
+        message: "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.",
+        isBanned: true,
+        email: user.email
+      });
+    }
 
     if (!user) {
       const usernameBase = fullName
@@ -198,6 +214,33 @@ const createNotImplemented = (name) => async (_req, res) => {
 exports.requestPosterRole = createNotImplemented("requestPosterRole");
 exports.getPendingRequests = createNotImplemented("getPendingRequests");
 exports.approveRoleRequest = createNotImplemented("approveRoleRequest");
+
+// 👑 Admin toggle ban/unban người dùng
+exports.toggleBanUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Không cho phép tự khóa tài khoản của chính mình
+    if (String(id) === String(req.user.id)) {
+      return res.status(400).json({ message: "Bạn không thể tự khóa tài khoản của chính mình!" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng." });
+    }
+
+    user.isBanned = !user.isBanned;
+    await user.save();
+
+    res.json({
+      message: user.isBanned ? "Đã khóa tài khoản thành công." : "Đã mở khóa tài khoản thành công.",
+      isBanned: user.isBanned
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi hệ thống khi khóa/mở khóa tài khoản", error: error.message });
+  }
+};
 exports.sendFriendRequest = async (req, res) => {
   try {
     const targetId = req.params.id;
@@ -811,5 +854,53 @@ exports.getAllUsers = async (req, res) => {
     res.json(usersWithFollowerCount);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// 📢 Kháng nghị khi bị khóa tài khoản (Public Endpoint)
+exports.submitAppeal = async (req, res) => {
+  try {
+    const { email, appealReason } = req.body;
+    if (!email || !appealReason) {
+      return res.status(400).json({ message: "Vui lòng điền email và lý do kháng nghị!" });
+    }
+
+    const user = await User.findOne({ email: new RegExp(`^${email.trim()}$`, "i") });
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy tài khoản tương ứng với email này." });
+    }
+
+    if (!user.isBanned) {
+      return res.status(400).json({ message: "Tài khoản của bạn đang hoạt động bình thường, không cần kháng nghị!" });
+    }
+
+    const Report = require("../models/Report");
+    
+    // Kiểm tra xem đã có kháng nghị đang chờ duyệt chưa để tránh spam nhiều lần
+    const existingAppeal = await Report.findOne({
+      targetUser: user._id,
+      reason: "Kháng nghị khóa tài khoản",
+      status: "pending"
+    });
+
+    if (existingAppeal) {
+      return res.status(400).json({ message: "Yêu cầu kháng nghị của bạn đã được gửi trước đó và đang chờ duyệt." });
+    }
+
+    // Tạo báo cáo loại 'user' với lý do kháng nghị
+    const newReport = await Report.create({
+      reporter: user._id,
+      targetType: "user",
+      targetUser: user._id,
+      reason: "Kháng nghị khóa tài khoản",
+      details: appealReason,
+      status: "pending"
+    });
+
+    res.status(201).json({
+      message: "Kháng nghị của bạn đã được gửi thành công đến ban quản trị. Chúng tôi sẽ xem xét trong thời gian sớm nhất."
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi hệ thống khi gửi kháng nghị", error: error.message });
   }
 };

@@ -12,6 +12,7 @@ import {
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { accountNavMenu } from '../constants/accountNavMenu';
+import ReportModal from '../components/ReportModal';
 
 const dashboardCopy = {
   vi: {
@@ -355,6 +356,8 @@ function DashboardContent() {
   const [likingPosts, setLikingPosts] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, postId: null, commentId: null });
   const [openPostMenuId, setOpenPostMenuId] = useState(null);
+  const [reportPostId, setReportPostId] = useState(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [aiChatInput, setAiChatInput] = useState('');
@@ -1198,33 +1201,13 @@ function DashboardContent() {
     }
   };
 
-  const handleReportPost = async (postId) => {
+  const handleReportPost = (postId) => {
     const token = localStorage.getItem('token');
     if (!token) return showToast('error', 'Vui lòng đăng nhập.');
     
-    showToast('info', 'Đang kiểm duyệt và tố cáo bài viết...');
-    try {
-      const res = await fetch(`http://localhost:5000/api/posts/${postId}/report`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không thể gửi tố cáo bài viết');
-      }
-      const data = await res.json();
-      if (data.status === 'deleted') {
-        setPosts((prev) => prev.filter((p) => p._id !== postId));
-        setTrendingPosts((prev) => prev.filter((p) => p._id !== postId));
-        showToast('success', data.message);
-      } else {
-        showToast('success', data.message);
-      }
-    } catch (error) {
-      showToast('error', error.message || 'Lỗi khi gửi báo cáo bài viết.');
-    } finally {
-      setOpenPostMenuId(null);
-    }
+    setReportPostId(postId);
+    setIsReportModalOpen(true);
+    setOpenPostMenuId(null);
   };
 
   const handleHidePost = async (postId) => {
@@ -2646,6 +2629,19 @@ function DashboardContent() {
           </div>
         </div>
       ) : null}
+      
+      {/* Report Modal cho bài viết */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => {
+          setIsReportModalOpen(false);
+          setReportPostId(null);
+        }}
+        targetType="post"
+        targetId={reportPostId}
+        onSuccess={(msg) => showToast('success', msg)}
+        onError={(msg) => showToast('error', msg)}
+      />
     </div>
   );
 }

@@ -13,7 +13,7 @@ const normalizeRole = (role) => {
 };
 
 // 🔐 Xác thực token — bắt buộc đăng nhập
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Chưa đăng nhập" });
 
@@ -23,6 +23,13 @@ const protect = (req, res, next) => {
       ...decoded,
       id: decoded.id || decoded.userId || decoded.sub,
     };
+
+    // Kiểm tra tài khoản có bị khóa hay không
+    const user = await User.findById(req.user.id).select("isBanned");
+    if (user && user.isBanned) {
+      return res.status(403).json({ message: "Tài khoản của bạn đã bị khóa bởi Admin." });
+    }
+
     next();
   } catch {
     return res.status(401).json({ message: "Token không hợp lệ" });

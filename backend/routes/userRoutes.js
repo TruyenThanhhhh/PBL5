@@ -11,6 +11,7 @@ const { protect, requireAdmin } = require("../middleware/auth");
 router.post("/register", upload.single("avatar"), userController.registerUser);
 router.post("/login", userController.loginUser); 
 router.post("/google-login", userController.googleLogin); // Thêm route này cho Google Login
+router.post("/appeal", userController.submitAppeal); // Kháng nghị khóa tài khoản
 
 // ==========================================
 // 🛡️ ROUTES QUẢN LÝ QUYỀN POSTER 
@@ -18,6 +19,7 @@ router.post("/google-login", userController.googleLogin); // Thêm route này ch
 router.post("/request-poster", protect, userController.requestPosterRole);
 router.get("/admin/pending-requests", protect, requireAdmin, userController.getPendingRequests);
 router.post("/admin/approve-request", protect, requireAdmin, userController.approveRoleRequest);
+router.put("/admin/:id/toggle-ban", protect, requireAdmin, userController.toggleBanUser);
 
 // ==========================================
 // 🤝 ROUTES KẾT BẠN (FRIENDSHIP)

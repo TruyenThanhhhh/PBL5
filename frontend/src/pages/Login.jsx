@@ -72,6 +72,43 @@ export default function Login() {
 
   const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
+  
+  // Kháng nghị tài khoản bị khóa
+  const [banInfo, setBanInfo] = useState(null); // { email: string, message: string }
+  const [appealReason, setAppealReason] = useState('');
+  const [appealStatus, setAppealStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
+  const [appealMsg, setAppealMsg] = useState('');
+
+  const handleAppealSubmit = async (e) => {
+    e.preventDefault();
+    if (!appealReason.trim()) return;
+
+    setAppealStatus('submitting');
+    setAppealMsg('');
+
+    try {
+      const res = await fetch('http://localhost:5000/api/users/appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: banInfo.email,
+          appealReason: appealReason.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAppealStatus('success');
+        setAppealMsg(data.message);
+      } else {
+        setAppealStatus('error');
+        setAppealMsg(data.message || 'Lỗi hệ thống khi gửi kháng nghị.');
+      }
+    } catch (err) {
+      setAppealStatus('error');
+      setAppealMsg('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.');
+    }
+  };
 
   // Lấy Client ID từ biến môi trường
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID";
@@ -113,7 +150,11 @@ export default function Login() {
         }, 1000);
         
       } else {
-        setMessage({ type: 'error', text: data.message || t.loginError });
+        if (response.status === 403 && data.isBanned) {
+          setBanInfo({ email: data.email || identifier, message: data.message });
+        } else {
+          setMessage({ type: 'error', text: data.message || t.loginError });
+        }
       }
     } catch (error) {
       console.error("Lỗi Network:", error);
@@ -155,7 +196,11 @@ export default function Login() {
           else navigate('/dashboard');
         }, 1000);
       } else {
-        setMessage({ type: 'error', text: data.message || t.googleLoginFail });
+        if (res.status === 403 && data.isBanned) {
+          setBanInfo({ email: data.email, message: data.message });
+        } else {
+          setMessage({ type: 'error', text: data.message || t.googleLoginFail });
+        }
       }
 
     } catch (error) {
@@ -172,7 +217,83 @@ export default function Login() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <div className="flex min-h-screen bg-white font-sans w-full">
+      {banInfo ? (
+        <div className="flex min-h-screen bg-slate-50 font-sans items-center justify-center p-4 w-full">
+          <div className="w-full max-w-[500px] bg-white rounded-3xl border border-gray-100 shadow-2xl p-8 relative">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <Lock size={32} className="text-[#f44336]" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-900 mb-2">Tài khoản của bạn đã bị khóa</h2>
+              <p className="text-gray-500 text-[13px] font-medium leading-relaxed px-4">
+                {banInfo.message || "Tài khoản của bạn tạm thời đã bị đình chỉ do vi phạm các tiêu chuẩn cộng đồng của chúng tôi."}
+              </p>
+            </div>
+
+            <div className="bg-[#f8f9fa] rounded-2xl p-4 mb-6 border border-gray-100 text-[13px] text-gray-700 font-medium">
+              <p className="font-bold text-gray-900 mb-1 text-[11px] text-gray-400 uppercase tracking-wider">Tài khoản</p>
+              <p className="font-bold text-slate-800 break-all">{banInfo.email}</p>
+            </div>
+
+            {appealStatus === 'success' ? (
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-5 text-center mb-6">
+                <h3 className="text-green-800 font-bold text-[14px] mb-2">Đã gửi kháng nghị thành công</h3>
+                <p className="text-green-700 text-[12px] leading-relaxed">
+                  {appealMsg || "Yêu cầu kháng nghị của bạn đã được tiếp nhận. Chúng tôi sẽ tiến hành xem xét và thông báo qua email của bạn trong thời gian sớm nhất."}
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleAppealSubmit} className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                    Đơn kháng nghị / Lý do muốn khôi phục
+                  </label>
+                  <textarea
+                    value={appealReason}
+                    onChange={(e) => setAppealReason(e.target.value)}
+                    required
+                    placeholder="Hãy giải thích rõ lý do hoặc cung cấp thêm thông tin giúp ban quản trị xem xét khôi phục tài khoản cho bạn..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-[13px] font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#f44336]/20 focus:border-[#f44336] resize-none h-36 transition-all"
+                  />
+                </div>
+
+                {appealStatus === 'error' && (
+                  <p className="text-red-500 text-[12px] font-bold ml-1 mb-2">
+                    {appealMsg || "Lỗi khi gửi kháng nghị. Vui lòng thử lại sau."}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={appealStatus === 'submitting'}
+                  className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-2xl shadow-md text-sm font-bold text-white bg-[#f44336] hover:bg-[#e53935] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#f44336] transition-all disabled:opacity-75"
+                >
+                  {appealStatus === 'submitting' ? (
+                    <><Loader2 className="animate-spin mr-2" size={18} /> Đang gửi...</>
+                  ) : (
+                    "Gửi đơn kháng nghị"
+                  )}
+                </button>
+              </form>
+            )}
+
+            <div className="text-center pt-2">
+              <button
+                onClick={() => {
+                  setBanInfo(null);
+                  setAppealReason('');
+                  setAppealStatus('idle');
+                  setAppealMsg('');
+                }}
+                className="text-[13px] font-bold text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                Quay lại Đăng nhập
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-screen bg-white font-sans w-full">
         <div className="hidden lg:flex w-[45%] bg-gradient-to-br from-[#8a7a5e] to-[#544d3c] p-12 flex-col justify-between">
           <div>
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-widest">
@@ -330,7 +451,8 @@ export default function Login() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </GoogleOAuthProvider>
   );
 }
