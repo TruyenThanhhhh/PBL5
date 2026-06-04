@@ -16,11 +16,10 @@ const communitySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-communitySchema.pre("save", function (next) {
+communitySchema.pre("save", function () {
   if (this.name) {
     this.nameKey = normalizeCommunityKey(this.name);
   }
-  next();
 });
 
 module.exports =

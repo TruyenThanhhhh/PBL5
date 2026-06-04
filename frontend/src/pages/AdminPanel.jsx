@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, FileText, CheckCircle, XCircle,
   Eye, EyeOff, Trash2, Search, Bell, Settings, Plus,
@@ -7,6 +8,7 @@ import {
 } from 'lucide-react';
 import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
+
 
 const API = 'http://localhost:5000/api';
 const token = () => localStorage.getItem('token');
@@ -243,7 +245,7 @@ function PostsTab({ showToast, t, locale }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | hidden | visible
   const [confirm, setConfirm] = useState(null);
-  const [openMenu, setOpenMenu] = useState(null);
+  const [openMenu, setOpenMenu] = useState(null); // null or { id, title, isHidden, rect }
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -259,6 +261,13 @@ function PostsTab({ showToast, t, locale }) {
   }, []);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const handleScroll = () => setOpenMenu(null);
+    window.addEventListener('scroll', handleScroll, { capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+  }, [openMenu]);
 
   const handleToggleVisibility = async (postId, isHidden) => {
     try {
@@ -418,30 +427,27 @@ function PostsTab({ showToast, t, locale }) {
                     <td className="px-4 py-3.5">
                       <div className="relative">
                         <button
-                          onClick={() => setOpenMenu(openMenu === post._id ? null : post._id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (openMenu?.id === post._id) {
+                              setOpenMenu(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setOpenMenu({
+                                id: post._id,
+                                title: post.title,
+                                isHidden: post.isHidden,
+                                rect: {
+                                  top: rect.bottom,
+                                  left: rect.right
+                                }
+                              });
+                            }
+                          }}
                           className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                           <MoreVertical size={16} />
                         </button>
-                        {openMenu === post._id && (
-                          <div className="absolute right-0 top-8 z-30 w-44 bg-white rounded-xl border border-gray-100 shadow-xl p-1">
-                            <button
-                              onClick={() => handleToggleVisibility(post._id, post.isHidden)}
-                              className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-2"
-                            >
-                              {post.isHidden ? <><Eye size={14}/> {t.showPost}</> : <><EyeOff size={14}/> {t.hidePost}</>}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setOpenMenu(null);
-                                setConfirm({ id: post._id, title: t.deletePostTitle, desc: `"${post.title}" ${t.permanentDelete}` });
-                              }}
-                              className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-2"
-                            >
-                              <Trash2 size={14}/> {t.deletePost}
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -451,6 +457,39 @@ function PostsTab({ showToast, t, locale }) {
           </div>
         )}
       </div>
+
+      {openMenu && createPortal(
+        <>
+          <div 
+            className="fixed inset-0 z-[190] bg-transparent" 
+            onClick={() => setOpenMenu(null)}
+          />
+          <div 
+            className="fixed z-[200] w-44 bg-white rounded-xl border border-gray-100 shadow-xl p-1"
+            style={{
+              top: `${openMenu.rect.top + 4}px`,
+              left: `${openMenu.rect.left - 176}px`,
+            }}
+          >
+            <button
+              onClick={() => handleToggleVisibility(openMenu.id, openMenu.isHidden)}
+              className="w-full text-left px-3 py-2 text-[12px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-2"
+            >
+              {openMenu.isHidden ? <><Eye size={14}/> {t.showPost}</> : <><EyeOff size={14}/> {t.hidePost}</>}
+            </button>
+            <button
+              onClick={() => {
+                setOpenMenu(null);
+                setConfirm({ id: openMenu.id, title: t.deletePostTitle, desc: `"${openMenu.title}" ${t.permanentDelete}` });
+              }}
+              className="w-full text-left px-3 py-2 text-[12px] font-bold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-2"
+            >
+              <Trash2 size={14}/> {t.deletePost}
+            </button>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
@@ -619,7 +658,7 @@ function UsersTab({ showToast, t }) {
     setLoading(true);
     try {
       const [usersRes, postsRes] = await Promise.all([
-        fetch(`${API}/users/search`, { headers: authHeader() }),
+        fetch(`${API}/users/search?includeSelf=true`, { headers: authHeader() }),
         fetch(`${API}/posts`, { headers: authHeader() }),
       ]);
       const usersData = await usersRes.json();
@@ -736,9 +775,9 @@ function UsersTab({ showToast, t }) {
             <p className="text-[13px] font-medium">{t.noUsersFound}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
             <table className="w-full text-[13px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-[#fafafa] shadow-[0_1px_0_0_#e5e7eb]">
                 <tr className="border-b border-gray-100 bg-[#fafafa]">
                   <th className="text-left px-5 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider">{t.users}</th>
                   <th className="text-left px-4 py-3 font-black text-gray-400 text-[11px] uppercase tracking-wider hidden md:table-cell">{t.role}</th>
@@ -749,7 +788,7 @@ function UsersTab({ showToast, t }) {
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <tr key={user._id} className="border-b border-gray-55 hover:bg-[#fafafa] transition-colors">
+                  <tr key={user._id} className="border-b border-gray-100 hover:bg-[#fafafa] transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {user.avatar ? (
@@ -779,13 +818,19 @@ function UsersTab({ showToast, t }) {
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <button
-                        onClick={() => handleToggleBan(user._id)}
-                        className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors
-                          ${user.isBanned ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-[#f44336] hover:bg-red-100'}`}
-                      >
-                        {user.isBanned ? t.unbanUser : t.banUser}
-                      </button>
+                      {user._id === localStorage.getItem('userId') ? (
+                        <span className="inline-block px-3 py-1.5 text-[12px] font-bold text-gray-400 bg-gray-50 border border-gray-200 rounded-lg cursor-not-allowed">
+                          Chính bạn
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleBan(user._id)}
+                          className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors
+                            ${user.isBanned ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-[#f44336] hover:bg-red-100'}`}
+                        >
+                          {user.isBanned ? t.unbanUser : t.banUser}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1146,7 +1191,7 @@ export default function AdminPanel() {
       const [profileRes, postsRes, usersRes] = await Promise.all([
         fetch(`${API}/profile`, { headers: authHeader() }),
         fetch(`${API}/posts`, { headers: authHeader() }),
-        fetch(`${API}/users/search`, { headers: authHeader() }),
+        fetch(`${API}/users/search?includeSelf=true`, { headers: authHeader() }),
       ]);
 
       if (profileRes.ok) {

@@ -547,7 +547,12 @@ exports.searchUsers = async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 50);
-    const filter = { _id: { $ne: req.user.id } };
+    const includeSelf = req.query.includeSelf === "true";
+    const filter = {};
+
+    if (!includeSelf) {
+      filter._id = { $ne: req.user.id };
+    }
 
     if (q) {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

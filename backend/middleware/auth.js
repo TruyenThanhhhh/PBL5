@@ -61,6 +61,15 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// 👤 Chỉ user thường (không phải admin)
+const requireNonAdmin = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: "Chưa đăng nhập" });
+  const role = normalizeRole(req.user.role);
+  if (role === "admin")
+    return res.status(403).json({ message: "Admin không thể thực hiện chức năng này" });
+  next();
+};
+
 // 🔑 Chủ sở hữu hoặc admin (dùng cho sửa/xóa bài, xóa comment)
 const requireOwnerOrAdmin = (getOwnerId) => async (req, res, next) => {
   try {
@@ -77,4 +86,4 @@ const requireOwnerOrAdmin = (getOwnerId) => async (req, res, next) => {
   }
 };
 
-module.exports = { protect, optionalAuth, requireAdmin, requireOwnerOrAdmin };
+module.exports = { protect, optionalAuth, requireAdmin, requireOwnerOrAdmin, requireNonAdmin };

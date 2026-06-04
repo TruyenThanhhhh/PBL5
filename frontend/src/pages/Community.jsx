@@ -59,6 +59,7 @@ export default function Community() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const t = copy[language] || copy.vi;
+  const userRole = localStorage.getItem('role') || 'user';
 
   const [joined, setJoined] = useState([]);
   const [allCommunities, setAllCommunities] = useState([]);
@@ -238,13 +239,15 @@ export default function Community() {
                   <RefreshCw size={16} />
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#f44336] text-white text-[13px] font-bold hover:bg-[#e53935]"
-              >
-                <Plus size={16} /> {t.createCommunity}
-              </button>
+              {userRole !== 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreate(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#f44336] text-white text-[13px] font-bold hover:bg-[#e53935]"
+                >
+                  <Plus size={16} /> {t.createCommunity}
+                </button>
+              )}
             </div>
 
             {loading ? (
@@ -357,7 +360,7 @@ export default function Community() {
         )}
       </main>
 
-      {showCreate && (
+      {showCreate && userRole !== 'admin' && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 p-4">
           <form
             onSubmit={handleCreateCommunity}

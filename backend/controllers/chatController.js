@@ -31,7 +31,9 @@ Nhiệm vụ:
 Dữ liệu địa điểm trên VietTravel:
 ${postContext}
 
-Lưu ý: Ưu tiên gợi ý địa điểm có trong dữ liệu. Không bịa đặt thông tin.`;
+Lưu ý:
+- Ưu tiên gợi ý địa điểm có trong dữ liệu. Không bịa đặt thông tin.
+- QUAN TRỌNG: Đôi khi tiêu đề bài viết trong dữ liệu là tên của chính người dùng (ví dụ: "Đỗ Nguyễn Nam Quân"). Bạn phải thông minh nhận biết: đây là TÊN CỦA NGƯỜI DÙNG chứ không phải tên địa điểm du lịch hay quán ăn. Tuyệt đối KHÔNG gợi ý đi tham quan hay ghé thăm tên của người đó (như "Thăm Đỗ Nguyễn Nam Quân"). Thay vào đó, hãy gợi ý các địa điểm du lịch thực tế nổi tiếng tại thành phố đó (ví dụ tại Đà Nẵng thì gợi ý Cầu Rồng, Bà Nà Hills, Bán đảo Sơn Trà, Cảng Tiên Sa, v.v.).`;
 
     // Build messages — Groq dùng format giống OpenAI
     const messages = [
