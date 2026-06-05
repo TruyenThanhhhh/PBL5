@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Star, ArrowRight, Compass, Share2, Users, Globe, AtSign, Share, MapPin } from 'lucide-react';
+import { Star, ArrowRight, Compass, Share2, Users, Globe, AtSign, Share, MapPin } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const copy = {
@@ -115,18 +115,11 @@ export default function Home() {
           <Link to="/" className="text-[#ff4d4f] font-extrabold text-xl tracking-tight">
             The Wanderer
           </Link>
-          <nav className="hidden md:flex gap-6 text-[13px] font-semibold text-gray-500">
-            <Link to="/explore" className="text-[#ff4d4f] border-b-2 border-[#ff4d4f] pb-1">{t.exploreMap}</Link>
-            <Link to="/community" className="hover:text-gray-900 transition-colors">{t.community}</Link>
-            <Link to="/dashboard" className="hover:text-gray-900 transition-colors">{t.categories}</Link>
-          </nav>
+          {/* Đã xóa Menu Navigation ở đây */}
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="relative hidden lg:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input type="text" placeholder={t.search} className="pl-9 pr-4 py-2 bg-gray-100 border-transparent rounded-full text-[13px] w-72 focus:outline-none focus:ring-2 focus:ring-[#ff4d4f]/20 font-medium placeholder-gray-400" />
-          </div>
+          {/* Đã xóa thanh Search ở đây */}
 
           <div className="flex items-center gap-2 ml-4">
             <Link to="/login" className="text-[13px] font-bold text-gray-700 hover:text-[#ff4d4f] px-4 py-2 transition-colors">
@@ -148,10 +141,10 @@ export default function Home() {
             </h1>
             <p className="text-gray-500 text-lg leading-relaxed max-w-md font-medium">{t.heroText}</p>
             <div className="flex gap-4 pt-4">
-              <Link to="/explore" className="bg-[#ff4d4f] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-[#ff4d4f]/30 hover:bg-[#e04345] transition-all">
+              <Link to="/login" className="bg-[#ff4d4f] text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-[#ff4d4f]/30 hover:bg-[#e04345] transition-all">
                 {t.exploreMap}
               </Link>
-              <Link to="/community" className="bg-white text-gray-800 font-bold py-3.5 px-8 rounded-xl shadow-md border border-gray-100 hover:bg-gray-50 transition-all">
+              <Link to="/register" className="bg-white text-gray-800 font-bold py-3.5 px-8 rounded-xl shadow-md border border-gray-100 hover:bg-gray-50 transition-all">
                 {t.joinCommunity}
               </Link>
             </div>
@@ -187,7 +180,7 @@ export default function Home() {
                 <span className="bg-[#b2ebf2] text-[#00838f] text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full mb-3 inline-block">{t.trending}</span>
                 <h2 className="text-3xl font-black">{t.popularThisWeek}</h2>
               </div>
-              <Link to="/community" className="text-[#00897b] font-bold text-sm flex items-center gap-1 hover:underline">
+              <Link to="/login" className="text-[#00897b] font-bold text-sm flex items-center gap-1 hover:underline">
                 {t.viewAll} <ArrowRight size={16} />
               </Link>
             </div>
@@ -199,7 +192,7 @@ export default function Home() {
                 ['Tokyo, Japan', 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=800&q=80', `2.4k ${t.communityPins}`],
                 ['Lauterbrunnen', 'https://images.unsplash.com/photo-1527668752968-14dc70a27c95?auto=format&fit=crop&w=800&q=80', `850 ${t.hiddenGems}`],
               ].map(([title, image, meta]) => (
-                <div key={title} className="group relative rounded-2xl overflow-hidden h-[360px] cursor-pointer shadow-md">
+                <Link to="/login" key={title} className="group relative rounded-2xl overflow-hidden h-[360px] cursor-pointer shadow-md block">
                   <img src={image} alt={title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md text-white text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1">
@@ -209,7 +202,7 @@ export default function Home() {
                     <h3 className="text-xl font-bold">{title}</h3>
                     <p className="text-xs text-gray-300 font-medium">{meta}</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -224,11 +217,11 @@ export default function Home() {
               [t.hotels, 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=500&q=80'],
               [t.nightlife, 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=500&q=80'],
             ].map(([label, image]) => (
-              <div key={label} className="relative rounded-3xl overflow-hidden aspect-square cursor-pointer group shadow-sm">
+              <Link to="/login" key={label} className="relative rounded-3xl overflow-hidden aspect-square cursor-pointer group shadow-sm block">
                 <img src={image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={label} />
                 <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors" />
                 <span className="absolute inset-0 flex items-center justify-center text-white font-bold text-2xl tracking-wide">{label}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
@@ -262,7 +255,7 @@ export default function Home() {
               <Link to="/register" className="bg-white text-[#ef4444] font-bold py-3.5 px-8 rounded-xl hover:bg-gray-50 transition-colors">
                 {t.joinNow}
               </Link>
-              <Link to="/explore" className="bg-transparent border-2 border-white text-white font-bold py-3.5 px-8 rounded-xl hover:bg-white/10 transition-colors">
+              <Link to="/login" className="bg-transparent border-2 border-white text-white font-bold py-3.5 px-8 rounded-xl hover:bg-white/10 transition-colors">
                 {t.exploreNow}
               </Link>
             </div>
@@ -280,26 +273,26 @@ export default function Home() {
           <div>
             <h4 className="font-extrabold text-[11px] uppercase tracking-widest text-gray-900 mb-6">{t.platform}</h4>
             <ul className="space-y-4 text-xs font-semibold text-gray-500">
-              <li><Link to="/explore" className="hover:text-[#ff4d4f]">{t.exploreMap}</Link></li>
-              <li><Link to="/community" className="hover:text-[#ff4d4f]">{t.community}</Link></li>
-              <li><Link to="/dashboard" className="hover:text-[#ff4d4f]">{t.destinations}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.exploreMap}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.community}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.destinations}</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-extrabold text-[11px] uppercase tracking-widest text-gray-900 mb-6">{t.company}</h4>
             <ul className="space-y-4 text-xs font-semibold text-gray-500">
-              <li><a href="#" className="hover:text-[#ff4d4f]">{t.about}</a></li>
-              <li><a href="#" className="hover:text-[#ff4d4f]">{t.contact}</a></li>
-              <li><a href="#" className="hover:text-[#ff4d4f]">{t.careers}</a></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.about}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.contact}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.careers}</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-extrabold text-[11px] uppercase tracking-widest text-gray-900 mb-6">{t.legal}</h4>
             <ul className="space-y-4 text-xs font-semibold text-gray-500">
-              <li><a href="#" className="hover:text-[#ff4d4f]">{t.privacy}</a></li>
-              <li><a href="#" className="hover:text-[#ff4d4f]">{t.terms}</a></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.privacy}</Link></li>
+              <li><Link to="/login" className="hover:text-[#ff4d4f]">{t.terms}</Link></li>
             </ul>
           </div>
         </div>
