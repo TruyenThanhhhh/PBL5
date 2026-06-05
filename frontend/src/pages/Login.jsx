@@ -10,19 +10,15 @@ const copy = {
     heroTitle: "Khám phá & Chia sẻ những địa điểm tuyệt vời",
     heroSubtitle: "Tham gia cộng đồng khách du lịch toàn cầu và tìm kiếm điểm đến ít người biết trước bất kỳ ai.",
     copyright: "© 2026 The Wanderer",
-    terms: "Điều khoản",
-    privacy: "Quyền riêng tư",
     welcomeBack: "Chào mừng quay trở lại",
     signInDetails: "Vui lòng điền thông tin để đăng nhập",
     emailOrUsername: "Email hoặc Tên đăng nhập",
     emailOrUsernamePlaceholder: "Ví dụ: wanderer@travel.com hoặc username",
     password: "Mật khẩu",
     rememberMe: "Ghi nhớ đăng nhập",
-    forgotPassword: "Quên mật khẩu?",
     loginBtn: "Đăng nhập",
     loggingIn: "Đang đăng nhập...",
     or: "HOẶC",
-    continueWith: "Tiếp tục với",
     dontHaveAccount: "Chưa có tài khoản?",
     signUpLink: "Đăng ký",
     loginSuccess: "Đăng nhập thành công!",
@@ -37,19 +33,15 @@ const copy = {
     heroTitle: "Discover & Share Amazing Places",
     heroSubtitle: "Join a community of global travelers and find your next hidden gem before anyone else does.",
     copyright: "© 2026 The Wanderer",
-    terms: "Terms",
-    privacy: "Privacy",
     welcomeBack: "Welcome Back",
     signInDetails: "Please enter your details to sign in",
     emailOrUsername: "Email or Username",
     emailOrUsernamePlaceholder: "e.g. wanderer@travel.com or username",
     password: "Password",
     rememberMe: "Remember me",
-    forgotPassword: "Forgot password?",
     loginBtn: "Login",
     loggingIn: "Logging in...",
     or: "OR",
-    continueWith: "Continue with",
     dontHaveAccount: "Don't have an account?",
     signUpLink: "Sign up",
     loginSuccess: "Login successful!",
@@ -74,9 +66,9 @@ export default function Login() {
   const [password, setPassword] = useState('');
   
   // Kháng nghị tài khoản bị khóa
-  const [banInfo, setBanInfo] = useState(null); // { email: string, message: string }
+  const [banInfo, setBanInfo] = useState(null); 
   const [appealReason, setAppealReason] = useState('');
-  const [appealStatus, setAppealStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
+  const [appealStatus, setAppealStatus] = useState('idle'); 
   const [appealMsg, setAppealMsg] = useState('');
 
   const handleAppealSubmit = async (e) => {
@@ -410,35 +402,18 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="w-full flex justify-center overflow-hidden rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleFailure}
-                  useOneTap
-                  theme="outline"
-                  size="large"
-                  text="continue_with"
-                  shape="rectangular"
-                  width="380"
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <button className="w-1/2 flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl bg-white text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                  <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                  </svg>
-                  Facebook
-                </button>
-                <button className="w-1/2 flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl bg-white text-[13px] font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M16.365 21.444c-1.346.602-2.772.822-4.148.822-4.606 0-8.217-3.668-8.217-8.266 0-4.597 3.61-8.265 8.217-8.265 1.488 0 2.943.342 4.22.954l-1.458 2.502c-.89-.413-1.836-.62-2.762-.62-3.15 0-5.717 2.597-5.717 5.764 0 3.166 2.567 5.764 5.717 5.764.926 0 1.872-.207 2.762-.62l1.458 2.502c-.024.015-.048.028-.072.043z" />
-                    <path d="M12.217 0c.348 0 .695.035 1.036.104l-.568 2.846c-.152-.032-.308-.049-.468-.049-1.944 0-3.52 1.594-3.52 3.56v.382h-3v-3.56c0-3.55 2.87-6.435 6.41-6.435l.11-.001V0z" />
-                  </svg>
-                  Apple
-                </button>
-              </div>
+            <div className="w-full flex justify-center">
+              {/* Đã sửa text="continue_with" thành text="signin_with" để hiển thị "Đăng nhập bằng Google" */}
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleFailure}
+                useOneTap
+                theme="outline"
+                size="large"
+                text="signin_with" 
+                shape="rectangular"
+                width="380"
+              />
             </div>
 
             <div className="mt-8 text-center space-y-4">
