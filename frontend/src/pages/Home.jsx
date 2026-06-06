@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, ArrowRight, Compass, Share2, Users, Globe, AtSign, Share, MapPin } from 'lucide-react';
+import { Star, ArrowRight, Compass, Share2, Users, Globe, AtSign, Share, MapPin, Lock, X, Loader2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const copy = {
@@ -107,6 +107,55 @@ const copy = {
 export default function Home() {
   const { language } = useLanguage();
   const t = copy[language];
+
+  const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
+  const [appealEmail, setAppealEmail] = useState('');
+  const [appealReason, setAppealReason] = useState('');
+  const [appealStatus, setAppealStatus] = useState('idle');
+  const [appealMsg, setAppealMsg] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('banned') === 'true') {
+      const emailParam = params.get('email') || '';
+      setAppealEmail(emailParam);
+      setIsAppealModalOpen(true);
+      
+      // Clear URL params to keep browser bar clean
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  const handleAppealSubmit = async (e) => {
+    e.preventDefault();
+    if (!appealReason.trim()) return;
+
+    setAppealStatus('submitting');
+    setAppealMsg('');
+
+    try {
+      const res = await fetch('http://localhost:5000/api/users/appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: appealEmail,
+          appealReason: appealReason.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAppealStatus('success');
+        setAppealMsg(data.message);
+      } else {
+        setAppealStatus('error');
+        setAppealMsg(data.message || 'Lỗi hệ thống khi gửi kiến nghị.');
+      }
+    } catch (err) {
+      setAppealStatus('error');
+      setAppealMsg('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900">
@@ -306,6 +355,102 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* APPEAL MODAL OVERLAY */}
+      {isAppealModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-[500px] bg-white rounded-3xl border border-gray-100 shadow-2xl p-8 relative animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => {
+                setIsAppealModalOpen(false);
+                setAppealReason('');
+                setAppealStatus('idle');
+                setAppealMsg('');
+              }}
+              className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <Lock size={26} className="text-[#ff4d4f]" />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2">Gửi kiến nghị khôi phục tài khoản</h3>
+              <p className="text-gray-500 text-[12px] font-medium leading-relaxed px-4">
+                Tài khoản của bạn ({appealEmail}) đang bị khóa. Bạn có thể gửi kiến nghị bên dưới để ban quản trị xem xét.
+              </p>
+            </div>
+
+            {appealStatus === 'success' ? (
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-5 text-center mb-4">
+                <h4 className="text-green-800 font-bold text-[14px] mb-2">Đã gửi kiến nghị thành công</h4>
+                <p className="text-green-700 text-[12px] leading-relaxed">
+                  {appealMsg || "Yêu cầu kiến nghị của bạn đã được tiếp nhận. Chúng tôi sẽ tiến hành xem xét và phản hồi sớm nhất."}
+                </p>
+                <button
+                  onClick={() => {
+                    setIsAppealModalOpen(false);
+                    setAppealReason('');
+                    setAppealStatus('idle');
+                    setAppealMsg('');
+                  }}
+                  className="mt-4 px-6 py-2 rounded-xl bg-green-600 hover:bg-green-750 text-white text-[12px] font-bold transition-all cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleAppealSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2 ml-1">
+                    Nội dung kiến nghị / Lý do muốn khôi phục
+                  </label>
+                  <textarea
+                    value={appealReason}
+                    onChange={(e) => setAppealReason(e.target.value)}
+                    required
+                    placeholder="Hãy giải thích rõ lý do hoặc cung cấp thêm thông tin giúp ban quản trị xem xét mở khóa tài khoản cho bạn..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-[13px] font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#ff4d4f]/20 focus:border-[#ff4d4f] resize-none h-32 transition-all"
+                  />
+                </div>
+
+                {appealStatus === 'error' && (
+                  <p className="text-red-500 text-[12px] font-bold ml-1">
+                    {appealMsg || "Lỗi khi gửi kiến nghị. Vui lòng thử lại sau."}
+                  </p>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAppealModalOpen(false);
+                      setAppealReason('');
+                      setAppealStatus('idle');
+                      setAppealMsg('');
+                    }}
+                    className="flex-1 py-3 px-4 rounded-2xl border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 transition-all cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={appealStatus === 'submitting'}
+                    className="flex-1 flex justify-center items-center py-3 px-4 border border-transparent rounded-2xl shadow-md text-sm font-bold text-white bg-[#ff4d4f] hover:bg-[#e04345] focus:outline-none focus:ring-2 focus:ring-[#ff4d4f] transition-all disabled:opacity-75 cursor-pointer"
+                  >
+                    {appealStatus === 'submitting' ? (
+                      <><Loader2 className="animate-spin mr-2" size={18} /> Đang gửi...</>
+                    ) : (
+                      "Gửi kiến nghị"
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

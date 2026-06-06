@@ -665,7 +665,7 @@ export default function GlobalChatNotification() {
       localStorage.removeItem('avatar');
       
       alert(data.message || "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.");
-      window.location.href = '/login?banned=true&email=' + encodeURIComponent(data.email || '');
+      window.location.href = '/?banned=true&email=' + encodeURIComponent(data.email || '');
     });
 
     socket.on(`notification_${myId}`, (newNotif) => {
