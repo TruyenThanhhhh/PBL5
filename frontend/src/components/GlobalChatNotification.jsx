@@ -656,6 +656,18 @@ export default function GlobalChatNotification() {
       setTypingInfo(null);
     });
 
+    socket.on('user_banned', (data) => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      localStorage.removeItem('role');
+      localStorage.removeItem('roleRequestStatus');
+      localStorage.removeItem('avatar');
+      
+      alert(data.message || "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.");
+      window.location.href = '/login?banned=true&email=' + encodeURIComponent(data.email || '');
+    });
+
     socket.on(`notification_${myId}`, (newNotif) => {
       setNotifications((prev) => [newNotif, ...prev]);
       if (newNotif.type === 'message') {

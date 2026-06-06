@@ -128,6 +128,14 @@ exports.handleReportAction = async (req, res) => {
       targetUser.isBanned = true;
       await targetUser.save();
 
+      const io = req.app.get("io");
+      if (io) {
+        io.to(String(targetUser._id)).emit("user_banned", {
+          message: "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.",
+          email: targetUser.email
+        });
+      }
+
       // Giải quyết tất cả báo cáo liên quan trực tiếp đến tài khoản này
       await Report.updateMany({ targetUser: userId }, { status: "resolved" });
       

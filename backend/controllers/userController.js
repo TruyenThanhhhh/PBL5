@@ -233,6 +233,16 @@ exports.toggleBanUser = async (req, res) => {
     user.isBanned = !user.isBanned;
     await user.save();
 
+    if (user.isBanned) {
+      const io = req.app.get("io");
+      if (io) {
+        io.to(String(user._id)).emit("user_banned", {
+          message: "Tài khoản của bạn đã bị khóa bởi Admin do vi phạm tiêu chuẩn cộng đồng.",
+          email: user.email
+        });
+      }
+    }
+
     res.json({
       message: user.isBanned ? "Đã khóa tài khoản thành công." : "Đã mở khóa tài khoản thành công.",
       isBanned: user.isBanned

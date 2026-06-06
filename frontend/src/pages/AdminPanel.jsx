@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, FileText, CheckCircle, XCircle,
@@ -537,46 +537,30 @@ function PostsTab({ showToast, t, locale, isDarkMode }) {
 // ════════════════════════════════════════════════════════════════
 // TAB: QUẢN LÝ NGƯỜI DÙNG
 // ════════════════════════════════════════════════════════════════
-function UsersTab({ showToast, t, isDarkMode }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+function UsersTab({ users: parentUsers, posts: parentPosts, loading, fetchDashboardData, showToast, t, isDarkMode }) {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [usersRes, postsRes] = await Promise.all([
-        fetch(`${API}/users/search?includeSelf=true`, { headers: authHeader() }),
-        fetch(`${API}/posts`, { headers: authHeader() }),
-      ]);
-      const usersData = await usersRes.json();
-      const postsData = await postsRes.json();
-
-      const postCountByUser = {};
-      if (Array.isArray(postsData)) {
-        postsData.forEach((post) => {
-          const userId = post.createdBy?._id;
-          if (userId) postCountByUser[userId] = (postCountByUser[userId] || 0) + 1;
-        });
-      }
-
-      setUsers(Array.isArray(usersData)
-        ? usersData.map((user) => ({
-            ...user,
-            role: normalizeRole(user.role),
-            postCount: postCountByUser[user._id] || user.postCount || 0,
-          }))
-        : []
-      );
-    } catch {
-      showToast('error', t.cannotLoadUsers);
-    } finally {
-      setLoading(false);
+  const postCountByUser = useMemo(() => {
+    const counts = {};
+    if (Array.isArray(parentPosts)) {
+      parentPosts.forEach((post) => {
+        const userId = post.createdBy?._id;
+        if (userId) counts[userId] = (counts[userId] || 0) + 1;
+      });
     }
-  }, [showToast, t.cannotLoadUsers]);
+    return counts;
+  }, [parentPosts]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const users = useMemo(() => {
+    return Array.isArray(parentUsers)
+      ? parentUsers.map((user) => ({
+          ...user,
+          role: normalizeRole(user.role),
+          postCount: postCountByUser[user._id] || user.postCount || 0,
+        }))
+      : [];
+  }, [parentUsers, postCountByUser]);
 
   const handleToggleBan = async (userId) => {
     try {
@@ -590,7 +574,7 @@ function UsersTab({ showToast, t, isDarkMode }) {
       }
       const data = await res.json();
       showToast('success', data.message);
-      setUsers(prev => prev.map(u => u._id === userId ? { ...u, isBanned: data.isBanned } : u));
+      await fetchDashboardData();
     } catch (error) {
       showToast('error', error.message);
     }
@@ -749,7 +733,7 @@ function UsersTab({ showToast, t, isDarkMode }) {
 // ════════════════════════════════════════════════════════════════
 // TAB: QUẢN LÝ BÁO CÁO VI PHẠM
 // ════════════════════════════════════════════════════════════════
-function ReportsTab({ reports, loading, fetchReports, showToast, t, locale, isDarkMode }) {
+function ReportsTab({ reports, loading, fetchReports, fetchDashboardData, showToast, t, locale, isDarkMode }) {
   const [confirm, setConfirm] = useState(null); // { type: 'dismiss'|'ban_user'|'delete_post', reportId: string, title: string, desc: string }
   const [processing, setProcessing] = useState(false);
 
@@ -765,6 +749,7 @@ function ReportsTab({ reports, loading, fetchReports, showToast, t, locale, isDa
       const data = await res.json();
       showToast('success', data.message || t.reportProcessed);
       fetchReports();
+      if (fetchDashboardData) fetchDashboardData();
     } catch {
       showToast('error', 'Có lỗi xảy ra khi xử lý báo cáo.');
     } finally {
@@ -1751,12 +1736,23 @@ export default function AdminPanel() {
           )}
 
           {activeTab === 'posts' && <PostsTab showToast={showToast} t={t} locale={locale} isDarkMode={isDarkMode} />}
-          {activeTab === 'users' && <UsersTab showToast={showToast} t={t} isDarkMode={isDarkMode} />}
+          {activeTab === 'users' && (
+            <UsersTab 
+              users={users} 
+              posts={posts} 
+              loading={dashboardLoading} 
+              fetchDashboardData={fetchDashboardData} 
+              showToast={showToast} 
+              t={t} 
+              isDarkMode={isDarkMode} 
+            />
+          )}
           {activeTab === 'reports' && (
             <ReportsTab 
               reports={reports} 
               loading={reportsLoading} 
               fetchReports={fetchReports} 
+              fetchDashboardData={fetchDashboardData}
               showToast={showToast} 
               t={t} 
               locale={locale} 
