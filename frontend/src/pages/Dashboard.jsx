@@ -2529,7 +2529,7 @@ function DashboardContent() {
         </div>
 
         {}
-        <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px]">
+        <aside className="w-[320px] hidden lg:block flex-shrink-0 space-y-6 sticky top-[104px] max-h-[calc(100vh-130px)] overflow-y-auto custom-scrollbar pr-2">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest mb-4"><MapPin size={14} className="inline mr-1 text-[#f44336]" />{t.hotPlaces}</h3>
             <div className="space-y-4">

@@ -1,4 +1,5 @@
 const cloudinary = require("cloudinary").v2;
+const cloudinaryBase = require("cloudinary");
 
 const multerCloudinary = require("multer-storage-cloudinary");
 const CloudinaryStorage = multerCloudinary.CloudinaryStorage || multerCloudinary;
@@ -14,7 +15,7 @@ cloudinary.config({
 });
 
 const storage = new CloudinaryStorage({
-  cloudinary,
+  cloudinary: cloudinaryBase,
   params: {
     folder: "travel-app/posts",       
     allowed_formats: ["jpg", "jpeg", "png", "webp"],

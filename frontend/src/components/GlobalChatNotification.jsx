@@ -101,6 +101,7 @@ export default function GlobalChatNotification() {
 
   const getToken = () => localStorage.getItem('token');
   const getMyId = () => localStorage.getItem('userId');
+  const myId = getMyId();
 
   const currentKey =
     currentConversationId ||
@@ -121,7 +122,7 @@ export default function GlobalChatNotification() {
     } catch (_) {
       setNotifications([]);
     }
-  }, []);
+  }, [myId]);
 
   const fetchFriends = useCallback(async () => {
     const token = getToken();
@@ -135,7 +136,7 @@ export default function GlobalChatNotification() {
         setFriends((user.friends || []).filter((u) => u && (u._id || u)));
       }
     } catch (_) {}
-  }, []);
+  }, [myId]);
 
   const fetchConversations = useCallback(async () => {
     const token = getToken();
@@ -146,7 +147,7 @@ export default function GlobalChatNotification() {
       });
       if (res.ok) setConversationsList(await res.json());
     } catch (_) {}
-  }, []);
+  }, [myId]);
 
   const markAsSeen = useCallback(async (convId) => {
     if (!convId) return;
@@ -159,15 +160,14 @@ export default function GlobalChatNotification() {
       });
       socketRef.current?.emit('mark_as_seen', {
         conversationId: convId,
-        userId: getMyId(),
+        userId: myId,
       });
     } catch (_) {}
-  }, []);
+  }, [myId]);
 
   const loadConversationMessages = useCallback(
     async (convId) => {
       const token = getToken();
-      const myId = getMyId();
       if (!token || !convId) return;
       setIsChatLoading(true);
       try {
@@ -189,13 +189,12 @@ export default function GlobalChatNotification() {
         setIsChatLoading(false);
       }
     },
-    [markAsSeen]
+    [markAsSeen, myId]
   );
 
   const fetchChatHistory = useCallback(
     async (targetUserId, groupId = null) => {
       const token = getToken();
-      const myId = getMyId();
       if (!token || (!targetUserId && !groupId)) return;
 
       setIsChatLoading(true);
@@ -236,7 +235,7 @@ export default function GlobalChatNotification() {
         setIsChatLoading(false);
       }
     },
-    [markAsSeen]
+    [markAsSeen, myId]
   );
 
   const sendPostToConversation = useCallback(
@@ -444,6 +443,13 @@ export default function GlobalChatNotification() {
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
           imageUrl = uploadData.url;
+        } else {
+          const errData = await uploadRes.json().catch(() => null);
+          alert(errData?.message || 'Tải ảnh thất bại. Chỉ chấp nhận ảnh JPG, PNG, WEBP dưới 5MB.');
+          setChatImageFile(null);
+          setIsUploadingImage(false);
+          setUserMessageInput(text); // Khôi phục tin nhắn text
+          return;
         }
         setChatImageFile(null);
         setIsUploadingImage(false);
@@ -463,11 +469,19 @@ export default function GlobalChatNotification() {
           convId = conversation._id;
           setCurrentConversationId(convId);
           socketRef.current?.emit('join_room', convId);
+        } else {
+          const errData = await convRes.json().catch(() => null);
+          alert(errData?.message || 'Không thể tạo cuộc trò chuyện.');
+          setUserMessageInput(text);
+          return;
         }
       }
 
       if (!convId && selectedGroup) convId = selectedGroup._id;
-      if (!convId) return;
+      if (!convId) {
+        setUserMessageInput(text);
+        return;
+      }
 
       const res = await fetch(`${API}/api/messages`, {
         method: 'POST',
@@ -508,9 +522,14 @@ export default function GlobalChatNotification() {
           };
         });
         fetchConversations();
+      } else {
+        const errData = await res.json().catch(() => null);
+        alert(errData?.message || 'Không thể gửi tin nhắn.');
+        setUserMessageInput(text); // Khôi phục tin nhắn text
       }
     } catch (_) {
       setIsUploadingImage(false);
+      setUserMessageInput(text); // Khôi phục tin nhắn text
     }
   };
 
@@ -639,10 +658,13 @@ export default function GlobalChatNotification() {
 
     socket.on(`notification_${myId}`, (newNotif) => {
       setNotifications((prev) => [newNotif, ...prev]);
+      if (newNotif.type === 'message') {
+        fetchConversations();
+      }
     });
 
     return socket;
-  }, [fetchConversations, markAsSeen]);
+  }, [fetchConversations, markAsSeen, myId]);
 
   useEffect(() => {
     const socket = initSocket();
@@ -652,7 +674,7 @@ export default function GlobalChatNotification() {
         socketRef.current = null;
       }
     };
-  }, [initSocket, isUserChatOpen]);
+  }, [initSocket]);
 
   useEffect(() => {
     currentConversationIdRef.current = currentConversationId;
@@ -684,12 +706,53 @@ export default function GlobalChatNotification() {
   }, [userMessages, chatView, isUserChatOpen, typingInfo]);
 
   useEffect(() => {
-    if (getMyId()) {
+    if (myId) {
       fetchNotifications();
       fetchConversations();
       fetchFriends();
     }
-  }, [fetchNotifications, fetchConversations, fetchFriends]);
+  }, [fetchNotifications, fetchConversations, fetchFriends, myId]);
+
+  useEffect(() => {
+    const unreadNotifications = notifications.filter(n => !n.isRead).length;
+    const unreadMessages = conversationsList.filter(c => c.unreadCount > 0).length;
+
+    // Bell / notification badge injection
+    const bellIcon = document.querySelector('.lucide-bell');
+    const notificationButton = bellIcon ? bellIcon.closest('button') : null;
+
+    if (notificationButton) {
+      let badge = notificationButton.querySelector('.custom-notification-badge');
+      if (unreadNotifications > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'custom-notification-badge absolute top-1 right-1 bg-[#f44336] text-white text-[9px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center';
+          notificationButton.appendChild(badge);
+        }
+        badge.innerText = unreadNotifications;
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+
+    // MessageSquare / chat badge injection
+    const messageIcon = document.querySelector('.lucide-message-square');
+    const chatButton = messageIcon ? messageIcon.closest('button') : null;
+
+    if (chatButton) {
+      let badge = chatButton.querySelector('.custom-chat-badge');
+      if (unreadMessages > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'custom-chat-badge absolute top-1 right-1 bg-[#f44336] text-white text-[9px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center';
+          chatButton.appendChild(badge);
+        }
+        badge.innerText = unreadMessages;
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+  }, [notifications, conversationsList, location.pathname]);
 
   useEffect(() => {
     const handleOpenChat = async (e) => {
@@ -753,7 +816,6 @@ export default function GlobalChatNotification() {
     }
   }, [isUserChatOpen, chatView, selectedChatUser, selectedGroup, currentConversationId, fetchChatHistory]);
 
-  const myId = getMyId();
   if (!myId) return null;
 
   const panelBg = isDarkMode ? 'bg-[#1e293b] border-gray-700' : 'bg-white border-gray-200';
@@ -894,6 +956,7 @@ export default function GlobalChatNotification() {
                             : null;
                           const name = isGroup ? conv.groupName : other?.username || 'Người dùng';
                           const avatar = isGroup ? null : other?.avatar;
+                          const hasUnread = conv.unreadCount > 0;
                           return (
                             <div
                               key={conv._id}
@@ -908,7 +971,9 @@ export default function GlobalChatNotification() {
                                 setChatView('conversation');
                                 loadConversationMessages(conv._id);
                               }}
-                              className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer"
+                              className={`flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl cursor-pointer ${
+                                 hasUnread ? 'bg-red-50/20' : ''
+                               }`}
                             >
                               <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
                                 {avatar ? (
@@ -918,11 +983,16 @@ export default function GlobalChatNotification() {
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[12px] truncate">{name}</p>
-                                <p className="text-[11px] text-gray-400 truncate">
-                                  {conv.lastMessage?.text || 'Bắt đầu trò chuyện'}
+                                <p className={`text-[12px] truncate ${hasUnread ? 'font-black text-gray-900' : 'font-bold'}`}>{name}</p>
+                                <p className={`text-[11px] truncate ${hasUnread ? 'font-bold text-gray-800' : 'text-gray-400'}`}>
+                                  {conv.lastMessage?.text || conv.lastMessage || 'Bắt đầu trò chuyện'}
                                 </p>
                               </div>
+                              {hasUnread && (
+                                <div className="bg-[#f44336] text-white text-[9px] font-black h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center shrink-0 animate-pulse">
+                                  {conv.unreadCount}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

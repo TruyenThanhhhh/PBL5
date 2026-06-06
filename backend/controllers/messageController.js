@@ -22,17 +22,23 @@ const emitReceiveMessage = async (req, messageDoc) => {
   const populated = await Message.findById(messageDoc._id).populate(messagePopulate).lean();
   if (!populated) return;
 
-  io.to(String(populated.conversationId)).emit("receive_message", {
-    _id: populated._id,
-    conversationId: String(populated.conversationId),
-    text: populated.text,
-    image: populated.image,
-    messageType: populated.messageType,
-    sharedPost: populated.sharedPost || null,
-    readBy: populated.readBy || [],
-    sender: populated.sender,
-    createdAt: populated.createdAt,
-  });
+  const conv = await Conversation.findById(populated.conversationId);
+  if (conv) {
+    const messageData = {
+      _id: populated._id,
+      conversationId: String(populated.conversationId),
+      text: populated.text,
+      image: populated.image,
+      messageType: populated.messageType,
+      sharedPost: populated.sharedPost || null,
+      readBy: populated.readBy || [],
+      sender: populated.sender,
+      createdAt: populated.createdAt,
+    };
+    conv.participants.forEach((p) => {
+      io.to(String(p)).emit("receive_message", messageData);
+    });
+  }
 };
 
 // Helper to convert to ObjectId
@@ -71,7 +77,18 @@ exports.getConversations = async (req, res) => {
       }
     }
 
-    res.status(200).json(uniqueConversations);
+    const populatedConversations = [];
+    for (const conv of uniqueConversations) {
+      const unreadCount = await Message.countDocuments({
+        conversationId: conv._id,
+        readBy: { $ne: currentUserId }
+      });
+      const convObj = conv.toObject();
+      convObj.unreadCount = unreadCount;
+      populatedConversations.push(convObj);
+    }
+
+    res.status(200).json(populatedConversations);
   } catch (error) {
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
@@ -205,14 +222,22 @@ exports.sendMessage = async (req, res) => {
     if (conversation.isGroup) {
       // Gửi thông báo cho tất cả mọi người trong nhóm trừ sender
       const receivers = conversation.participants.filter(p => p.toString() !== senderId);
+      const io = req.app.get('io');
+      const me = await User.findById(senderId).select("username avatar");
       for (const recId of receivers) {
-        await Notification.create({
+        const notif = await Notification.create({
           receiver: recId,
           sender: senderId,
           type: "message",
           content: `đã gửi tin nhắn vào nhóm ${conversation.groupName}.`,
           link: `/dashboard`
         });
+        if (io) {
+          io.emit(`notification_${recId}`, {
+            ...notif.toObject(),
+            sender: { _id: me._id, username: me.username, avatar: me.avatar }
+          });
+        }
       }
     } else if (receiverId) {
       const notif = await Notification.create({

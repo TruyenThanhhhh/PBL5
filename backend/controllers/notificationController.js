@@ -2,7 +2,7 @@ const Notification = require("../models/Notification");
 
 exports.getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ receiver: req.user._id })
+    const notifications = await Notification.find({ receiver: req.user.id })
       .sort({ createdAt: -1 })
       .populate("sender", "username avatar")
       .limit(20);
@@ -24,7 +24,7 @@ exports.markAsRead = async (req, res) => {
 
 exports.markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany({ receiver: req.user._id, isRead: false }, { isRead: true });
+    await Notification.updateMany({ receiver: req.user.id, isRead: false }, { isRead: true });
     res.status(200).json({ message: "Đã đánh dấu tất cả đã đọc" });
   } catch (error) {
     res.status(500).json({ message: "Lỗi server", error: error.message });

@@ -38,6 +38,7 @@ io.on("connection", (socket) => {
   socket.on("user_online", (userId) => {
     if (userId) {
       onlineUsers.set(String(userId), socket.id);
+      socket.join(String(userId));
       console.log(`✅ User ${userId} online (socket: ${socket.id})`);
     }
   });
@@ -109,21 +110,27 @@ io.on("connection", (socket) => {
 
       if (!populated) populated = message.toObject();
 
-      io.to(String(conversationId)).emit("receive_message", {
-        _id: populated._id,
-        conversationId: String(conversationId),
-        text: populated.text,
-        image: populated.image,
-        messageType: populated.messageType,
-        sharedPost: populated.sharedPost || null,
-        readBy: populated.readBy || [],
-        sender: populated.sender || {
-          _id: senderId,
-          username: senderName,
-          avatar: senderAvatar,
-        },
-        createdAt: populated.createdAt,
-      });
+      const conv = await Conversation.findById(conversationId);
+      if (conv) {
+        const messageData = {
+          _id: populated._id,
+          conversationId: String(conversationId),
+          text: populated.text,
+          image: populated.image,
+          messageType: populated.messageType,
+          sharedPost: populated.sharedPost || null,
+          readBy: populated.readBy || [],
+          sender: populated.sender || {
+            _id: senderId,
+            username: senderName,
+            avatar: senderAvatar,
+          },
+          createdAt: populated.createdAt,
+        };
+        conv.participants.forEach((p) => {
+          io.to(String(p)).emit("receive_message", messageData);
+        });
+      }
     } catch (error) {
       console.error("❌ Socket send_message error:", error.message);
       socket.emit("message_error", { error: error.message });

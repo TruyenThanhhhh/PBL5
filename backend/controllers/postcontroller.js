@@ -18,7 +18,7 @@ exports.uploadImages = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Không có file nào được tải lên" });
     }
-    const urls = req.files.map((file) => file.path);
+    const urls = req.files.map((file) => file.path || file.secure_url || file.url);
     res.json({ urls });
   } catch (error) {
     res.status(500).json({ message: error.message });

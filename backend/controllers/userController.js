@@ -600,11 +600,13 @@ exports.updateProfile = async (req, res) => {
     const files = req.files || {};
     if (files.avatar?.[0]) {
       const f = files.avatar[0];
-      user.avatar = f.path && String(f.path).startsWith("http") ? f.path : `${host}/uploads/${f.filename}`;
+      const filePath = f.path || f.secure_url || f.url;
+      user.avatar = filePath && String(filePath).startsWith("http") ? filePath : `${host}/uploads/${f.filename}`;
     }
     if (files.cover?.[0]) {
       const f = files.cover[0];
-      user.cover = f.path && String(f.path).startsWith("http") ? f.path : `${host}/uploads/${f.filename}`;
+      const filePath = f.path || f.secure_url || f.url;
+      user.cover = filePath && String(filePath).startsWith("http") ? filePath : `${host}/uploads/${f.filename}`;
     }
 
     await user.save();
@@ -839,7 +841,7 @@ exports.getUserProfile = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     // Lấy các user và sort theo số followers (tương ứng với độ dài của mảng followers)
-    const users = await User.find({ _id: { $ne: req.user._id } })
+    const users = await User.find({ _id: { $ne: req.user.id } })
       .select("username displayName avatar email role followers")
       .populate("followers", "")
       .sort({ "followers": -1 })

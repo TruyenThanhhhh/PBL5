@@ -13,7 +13,7 @@ router.delete("/:conversationId", protect, messageController.deleteConversation)
 router.put("/:conversationId/seen", protect, messageController.markAsSeen);
 router.post("/upload", protect, upload.single("image"), (req, res) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-  res.status(200).json({ url: req.file.path });
+  res.status(200).json({ url: req.file.path || req.file.secure_url || req.file.url });
 });
 
 module.exports = router;
