@@ -42,6 +42,9 @@ router.post("/create-with-media", protect, (req, res) => {
 // 📄 Xem бай — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);
 
+// 🗺️ Khám phá địa điểm trên bản đồ
+router.get("/explore", optionalAuth, postController.getPosts);
+
 // 🔥 Bài viết thịnh hành (theo lượt thích) — đặt trước các route /trending/* và /:id
 router.get("/trending", optionalAuth, postController.getTrendingPosts);
 

@@ -31,6 +31,7 @@ const exploreCopy = {
     backendError: 'Không kết nối được Backend',
     locationNotFound: (keyword) => `Không tìm thấy vị trí: ${keyword}`,
     mapError: 'Lỗi kết nối đến máy chủ bản đồ.',
+    viewPost: 'Xem bài viết',
   },
   en: {
     home: 'Home',
@@ -59,6 +60,7 @@ const exploreCopy = {
     backendError: 'Unable to connect to the backend',
     locationNotFound: (keyword) => `Location not found: ${keyword}`,
     mapError: 'Could not connect to the map server.',
+    viewPost: 'View post',
   },
 };
 
@@ -161,15 +163,18 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
         
         // Popup HTML khi click vào ghim
         marker.bindPopup(`
-          <div style="min-width: 180px; font-family: sans-serif;">
+          <div style="min-width: 200px; font-family: sans-serif; padding: 2px;">
             <span style="font-size: 10px; font-weight: bold; background: ${isAdmin ? '#fee2e2' : '#e0f2fe'}; color: ${isAdmin ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
               ${post.category || t.place}
             </span>
-            <h4 style="margin: 8px 0 4px 0; font-size: 15px; font-weight: 900; color: #111827;">${post.title || post.location}</h4>
-            <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4;">${post.description}</p>
-            <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding-top: 6px;">
+            <h4 style="margin: 8px 0 4px 0; font-size: 14px; font-weight: 900; color: #111827; line-height: 1.3;">${post.title || post.location}</h4>
+            <p style="margin: 0 0 10px 0; font-size: 12px; color: #4b5563; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">${post.description}</p>
+            <div style="font-size: 11px; font-weight: bold; color: ${userColor}; border-top: 1px solid #f3f4f6; padding: 6px 0 8px 0;">
               ${t.by}: ${username}
             </div>
+            <a href="/post-detail?postId=${post._id}" style="display: block; text-align: center; background: #f44336; color: #fff; padding: 7px 12px; border-radius: 8px; text-decoration: none; font-size: 11px; font-weight: bold; transition: background 0.2s;" onmouseover="this.style.background='#e53935'" onmouseout="this.style.background='#f44336'">
+              ${t.viewPost}
+            </a>
           </div>
         `);
 
@@ -409,7 +414,7 @@ function ExploreContent() {
                         <img src={post.createdBy?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.createdBy?.username || 'U')}&background=f44336&color=fff`} className="w-5 h-5 rounded-full object-cover" alt="User" />
                         <span className="text-[11px] font-bold text-gray-700">{post.createdBy?.username || t.anonymous}</span>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); post.lat && post.lng && setFlyToLocation({ lat: post.lat, lng: post.lng, postId: post._id }); }} className="text-[11px] font-bold text-[#f44336] bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); navigate(`/post-detail?postId=${post._id}`); }} className="text-[11px] font-bold text-[#f44336] bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                         {t.details}
                       </button>
                     </div>
