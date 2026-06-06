@@ -8,6 +8,7 @@ const Community = require("../models/Community");
 const Comment = require("../models/Comment");
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
+const Report = require("../models/Report");
 
 // Sample Unsplash images for travel and avatars
 const AVATARS = [
@@ -16,6 +17,9 @@ const AVATARS = [
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80", // Woman 2
   "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80", // Man 2
   "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80", // Woman 3
+  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80", // Man 3
+  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80", // Woman 4
+  "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80", // Man 4
 ];
 
 const COVERS = [
@@ -33,6 +37,11 @@ const POST_IMAGES = {
   dalat: ["https://images.unsplash.com/photo-1508739773434-c26b3d09e071?auto=format&fit=crop&w=800&q=80"],
   nhatrang: ["https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=800&q=80"],
   hcmc: ["https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=800&q=80"],
+  hagiang: ["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80"],
+  phuquoc: ["https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80"],
+  hue: ["https://images.unsplash.com/photo-1590001155093-a3c66ab0c3ff?auto=format&fit=crop&w=800&q=80"],
+  muine: ["https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80"],
+  caobang: ["https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80"],
 };
 
 async function seed() {
@@ -45,6 +54,18 @@ async function seed() {
     console.log("Cleaning up previous demo data...");
     const demoUsers = await User.find({ email: /@wanderer\.vn$/ });
     const demoUserIds = demoUsers.map(u => u._id);
+
+    const demoPosts = await Post.find({ createdBy: { $in: demoUserIds } });
+    const demoPostIds = demoPosts.map(p => p._id);
+
+    // Clean up reports targeting or made by demo accounts
+    await Report.deleteMany({
+      $or: [
+        { reporter: { $in: demoUserIds } },
+        { targetUser: { $in: demoUserIds } },
+        { targetPost: { $in: demoPostIds } }
+      ]
+    });
 
     await Post.deleteMany({ createdBy: { $in: demoUserIds } });
     await Community.deleteMany({ createdBy: { $in: demoUserIds } });
@@ -110,6 +131,36 @@ async function seed() {
         cover: COVERS[1],
         bio: "Tìm kiếm những trải nghiệm yên bình tại các phố cổ và vùng cao.",
         role: "viewer",
+      },
+      {
+        username: "demo_hoangquan",
+        displayName: "Nguyễn Hoàng Quân",
+        email: "demo.hoangquan@wanderer.vn",
+        password: passwordHash,
+        avatar: AVATARS[5],
+        cover: COVERS[2],
+        bio: "Nhiếp ảnh gia đường phố Sài Gòn, kẻ săn lùng hoàng hôn rực rỡ.",
+        role: "poster",
+      },
+      {
+        username: "demo_maiphuong",
+        displayName: "Lê Mai Phương",
+        email: "demo.maiphuong@wanderer.vn",
+        password: passwordHash,
+        avatar: AVATARS[6],
+        cover: COVERS[0],
+        bio: "Thích cắm trại tự túc, chèo thuyền kayak và trekking xuyên rừng.",
+        role: "poster",
+      },
+      {
+        username: "demo_quanglinh",
+        displayName: "Phạm Quang Linh",
+        email: "demo.quanglinh@wanderer.vn",
+        password: passwordHash,
+        avatar: AVATARS[7],
+        cover: COVERS[1],
+        bio: "Thích du lịch bụi xuyên biên giới. Chia sẻ văn hóa và trải nghiệm ẩm thực bốn phương.",
+        role: "poster",
       }
     ];
 
@@ -262,6 +313,7 @@ async function seed() {
         totalReviews: 1,
         community: communities[2]._id,
         publishedToProfile: true,
+        isHidden: true, // Seed as hidden post!
       },
       {
         title: "Lặn biển ngắm san hô tại rạn san hô Đảo Hòn Mun Nha Trang",
@@ -293,6 +345,87 @@ async function seed() {
         averageRating: 4.9,
         totalReviews: 6,
         community: communities[2]._id,
+        publishedToProfile: true,
+        isHidden: true, // Seed as hidden post!
+      },
+      {
+        title: "Chinh phục đỉnh đèo Mã Pí Lèng - Hà Giang hùng vĩ",
+        description: "Đèo Mã Pí Lèng là một trong tứ đại đỉnh đèo của Việt Nam. Chạy xe máy dọc theo con đường Hạnh Phúc, ngắm nhìn dòng sông Nho Quế màu xanh lục bảo uốn lượn dưới hẻm vực Tu Sản sâu thẳm. Cảnh sắc hoang sơ, kỳ vĩ tột cùng khiến ai cũng phải trầm trồ.",
+        location: "Đèo Mã Pí Lèng, Mèo Vạc, Hà Giang",
+        category: "Núi rừng",
+        price: 200000,
+        images: POST_IMAGES.hagiang,
+        createdBy: users[5]._id, // Nguyễn Hoàng Quân
+        lat: 23.2505,
+        lng: 104.9126,
+        likes: [users[0]._id, users[2]._id, users[6]._id],
+        averageRating: 4.9,
+        totalReviews: 3,
+        community: communities[2]._id,
+        publishedToProfile: true,
+      },
+      {
+        title: "Ngắm hoàng hôn lãng mạn tại bãi Ông Lang Phú Quốc",
+        description: "Bãi Ông Lang mang vẻ đẹp yên bình, nước biển xanh ngắt và những ghềnh đá hoang sơ. Hoàng hôn ở đây đẹp đến ngạt thở khi mặt trời đỏ rực chìm dần xuống biển khơi. Thưởng thức một ly cocktail mát lạnh tại quán bar sát biển là trải nghiệm tuyệt vời.",
+        location: "Bãi Ông Lang, Phú Quốc, Kiên Giang",
+        category: "Biển đảo",
+        price: 150000,
+        images: POST_IMAGES.phuquoc,
+        createdBy: users[6]._id, // Lê Mai Phương
+        lat: 10.2764,
+        lng: 103.9458,
+        likes: [users[1]._id, users[4]._id, users[7]._id],
+        averageRating: 4.8,
+        totalReviews: 3,
+        community: communities[0]._id,
+        publishedToProfile: true,
+      },
+      {
+        title: "Khám phá vẻ đẹp di sản Đại Nội Huế trầm mặc",
+        description: "Ghé thăm cố đô Huế cổ kính với Hoàng Thành và Tử Cấm Thành uy nghiêm. Nơi lưu giữ những dấu ấn lịch sử triều Nguyễn với kiến trúc chạm trổ tinh xảo, những bức tường rêu phong cổ kính. Nên thuê trang phục cổ trang chụp ảnh để có những bức hình kỷ niệm đậm chất cung đình.",
+        location: "Đại Nội Huế, Phú Hậu, TP. Huế",
+        category: "Văn hóa / Kiến trúc",
+        price: 200000,
+        images: POST_IMAGES.hue,
+        createdBy: users[7]._id, // Phạm Quang Linh
+        lat: 16.4691,
+        lng: 107.5779,
+        likes: [users[2]._id, users[3]._id, users[5]._id],
+        averageRating: 4.7,
+        totalReviews: 3,
+        community: communities[1]._id,
+        publishedToProfile: true,
+      },
+      {
+        title: "Đồi cát bay Mũi Né - Tiểu sa mạc lộng gió miền Trung",
+        description: "Trải nghiệm trượt cát bằng ván nhựa cực vui tại đồi cát bay Mũi Né. Những triền cát mênh mông liên tục thay đổi hình dáng do hướng gió tạo nên những đường cong tuyệt mỹ. Buổi sáng sớm hoặc chiều tà là thời điểm lý tưởng nhất vì cát không bị nóng.",
+        location: "Đồi cát bay Mũi Né, Phan Thiết, Bình Thuận",
+        category: "Đời thường",
+        price: 50000,
+        images: POST_IMAGES.muine,
+        createdBy: users[5]._id, // Nguyễn Hoàng Quân
+        lat: 10.9416,
+        lng: 108.2882,
+        likes: [users[0]._id, users[6]._id],
+        averageRating: 4.5,
+        totalReviews: 2,
+        community: communities[2]._id,
+        publishedToProfile: true,
+      },
+      {
+        title: "Thác Bản Giốc Cao Bằng - Bản hùng ca thác nước vùng biên",
+        description: "Thác Bản Giốc là thác nước tự nhiên lớn nhất Đông Nam Á, nằm giữa biên giới Việt - Trung. Thác đổ xuống nhiều tầng tung bọt trắng xóa giữa núi rừng Trùng Khánh trùng điệp. Có thể thuê bè mảng để đi sát chân thác, cảm nhận hơi nước mát rượi phả vào mặt.",
+        location: "Thác Bản Giốc, Đàm Thủy, Trùng Khánh, Cao Bằng",
+        category: "Núi rừng",
+        price: 45000,
+        images: POST_IMAGES.caobang,
+        createdBy: users[6]._id, // Lê Mai Phương
+        lat: 22.8575,
+        lng: 106.7214,
+        likes: [users[0]._id, users[1]._id, users[7]._id],
+        averageRating: 4.9,
+        totalReviews: 3,
+        community: communities[0]._id,
         publishedToProfile: true,
       }
     ];
@@ -337,6 +470,21 @@ async function seed() {
         content: "Bao gồm trọn gói 4 bữa ăn tiêu chuẩn 5 sao trên tàu rồi nhé bạn!",
         post: posts[4]._id,
         author: users[2]._id,
+      },
+      {
+        content: "Đèo Mã Pí Lèng chạy xe máy phê thật sự, nhưng khúc cua nguy hiểm nên đi cẩn thận.",
+        post: posts[8]._id,
+        author: users[0]._id,
+      },
+      {
+        content: "Phú Quốc ngắm hoàng hôn thì bãi Ông Lang là chuẩn bài nhất, ít xô bồ.",
+        post: posts[9]._id,
+        author: users[4]._id,
+      },
+      {
+        content: "Cảm giác bình yên ở Đại Nội Huế thật sự khó tả, rất đáng để trải nghiệm.",
+        post: posts[10]._id,
+        author: users[5]._id,
       }
     ];
 
@@ -373,7 +521,6 @@ async function seed() {
       }
     ]);
 
-    // Update last message preview for conversation 1
     await Conversation.findByIdAndUpdate(conv1._id, {
       lastMessage: "Ok ngon lành luôn, tháng sau mình có lịch đi Đà Nẵng rồi, sẽ hú B liền!"
     });
@@ -404,6 +551,55 @@ async function seed() {
     });
 
     console.log("Seeded chat conversations and messages successfully.");
+
+    // 9. Seed Violation Reports
+    console.log("Seeding violation reports...");
+    const reportsData = [
+      {
+        reporter: users[1]._id, // Trần Thị B
+        targetType: "post",
+        targetPost: posts[0]._id, // Phượt đêm Hà Nội
+        reason: "Nội dung quảng cáo quá nhiều",
+        details: "Bài viết chứa nhiều đường link bán hàng cháo sườn sụn cá nhân trái quy định.",
+        status: "pending",
+      },
+      {
+        reporter: users[4]._id, // Đỗ Thị E
+        targetType: "user",
+        targetUser: users[2]._id, // Lê Hoàng C
+        reason: "Tài khoản giả mạo",
+        details: "Tài khoản này dùng ảnh đại diện của một nhiếp ảnh gia nổi tiếng nước ngoài và mạo danh họ để lấy uy tín.",
+        status: "pending",
+      },
+      {
+        reporter: users[3]._id, // Phạm Minh D
+        targetType: "post",
+        targetPost: posts[3]._id, // Ăn sập chợ Cồn Đà Nẵng
+        reason: "Thông tin sai lệch",
+        details: "Mức giá các món bánh bèo, bánh lọc tại chợ Cồn hiện đã tăng từ lâu, thông tin 100k ăn sập là sai sự thật.",
+        status: "resolved",
+      },
+      {
+        reporter: users[6]._id, // Lê Mai Phương
+        targetType: "user",
+        targetUser: users[5]._id, // Nguyễn Hoàng Quân
+        reason: "Spam tin nhắn quảng cáo",
+        details: "Gửi hàng loạt tin nhắn mời mua tour du lịch và máy quay phim cũ trong phần chat riêng tư.",
+        status: "dismissed",
+      },
+      {
+        reporter: users[7]._id, // Phạm Quang Linh
+        targetType: "post",
+        targetPost: posts[8]._id, // Chinh phục đèo Mã Pí Lèng
+        reason: "Thông tin nguy hiểm",
+        details: "Kêu gọi mọi người tắt đèn pha chạy xe máy ban đêm vượt đèo hiểm trở để cảm nhận độ phiêu. Điều này cực kỳ nguy hiểm cho phượt thủ.",
+        status: "pending",
+      }
+    ];
+
+    const reports = await Report.insertMany(reportsData);
+    console.log(`Successfully seeded ${reports.length} violation reports.`);
+
     console.log("\n====== ALL DEMO DATA SEEDED PERFECTLY IN VIETNAM! ======");
     console.log("Login accounts for testing (all passwords are: password123):");
     users.forEach(u => {
