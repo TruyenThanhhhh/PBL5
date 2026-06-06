@@ -571,7 +571,7 @@ exports.searchUsers = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("username displayName avatar email role followers friends friendRequests")
+      .select("username displayName avatar email role followers friends friendRequests isBanned")
       .sort({ username: 1 })
       .limit(limit)
       .lean();
@@ -586,6 +586,7 @@ exports.searchUsers = async (req, res) => {
       followersCount: user.followers ? user.followers.length : 0,
       friends: user.friends || [],
       friendRequests: user.friendRequests || [],
+      isBanned: user.isBanned || false,
     })));
   } catch (error) {
     res.status(500).json({ message: error.message });
