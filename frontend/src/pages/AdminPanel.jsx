@@ -636,7 +636,7 @@ function UsersTab({ users: parentUsers, posts: parentPosts, loading, fetchDashbo
             <option value="user">{t.user}</option>
           </select>
         </div>
-        <button onClick={fetchData} className={`flex items-center gap-2 text-[13px] font-bold px-3 py-2 rounded-xl transition-colors cursor-pointer
+        <button onClick={fetchDashboardData} className={`flex items-center gap-2 text-[13px] font-bold px-3 py-2 rounded-xl transition-colors cursor-pointer
           ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-[#1a1b30]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}>
           <RefreshCw size={14}/> {t.reload}
         </button>
