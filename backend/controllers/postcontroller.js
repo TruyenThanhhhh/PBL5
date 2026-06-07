@@ -219,13 +219,17 @@ exports.createPost = async (req, res) => {
     const { title, description, location, category, images, price, lat, lng, postType, communityId, publishedToProfile } = req.body;
 
     // --- KIỂM DUYỆT AI: Dành cho Bài đăng không kèm Media (Text Only) ---
+    // (Nếu không qua middleware, controller vẫn tự động gọi checkTextModeration làm lớp bảo vệ dự phòng)
     const textToCheck = `${title || ''} ${description || ''}`.trim();
-    if (textToCheck) {
+    if (textToCheck && !req.moderation) {
       const isSafe = await checkTextModeration(textToCheck);
       if (!isSafe) {
         return res.status(400).json({ message: "Nội dung bài viết chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
       }
     }
+
+    // Đọc trạng thái được kiểm duyệt từ middleware nếu có
+    const isFlagged = req.moderation?.status === "flagged";
 
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     let finalPostType = "regular";
@@ -247,6 +251,7 @@ exports.createPost = async (req, res) => {
       postType: finalPostType,
       createdBy: req.user?.id || null,
       publishedToProfile: true, 
+      isHidden: isFlagged // Tự động ẩn bài viết nếu AI gắn cờ chờ duyệt
     });
 
     if (communityId && String(communityId).trim()) {
@@ -263,11 +268,17 @@ exports.createPost = async (req, res) => {
 
     await newPost.save();
 
-    if (newPost.lat && newPost.lng && req.user?.id) {
+    if (newPost.lat && newPost.lng && req.user?.id && !isFlagged) {
       await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
     }
 
-    res.status(201).json({ message: "Post created successfully", post: newPost });
+    res.status(201).json({ 
+      message: isFlagged 
+        ? "Bài đăng của bạn đang chờ quản trị viên phê duyệt do chứa nội dung nhạy cảm." 
+        : "Post created successfully", 
+      post: newPost,
+      flagged: isFlagged
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -287,13 +298,17 @@ exports.createPostWithMedia = async (req, res) => {
     }
 
     // --- KIỂM DUYỆT AI: Dành cho Bài đăng có kèm Media ---
+    // (Nếu không qua middleware, controller vẫn tự động gọi checkTextModeration làm lớp bảo vệ dự phòng)
     const textToCheck = `${title || ''} ${finalDescription || ''}`.trim();
-    if (textToCheck) {
+    if (textToCheck && !req.moderation) {
       const isSafe = await checkTextModeration(textToCheck);
       if (!isSafe) {
         return res.status(400).json({ message: "Nội dung bài viết chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
       }
     }
+
+    // Đọc trạng thái được kiểm duyệt từ middleware nếu có
+    const isFlagged = req.moderation?.status === "flagged";
 
     const normalizedPrice = Number.isFinite(Number(price)) && Number(price) >= 0 ? Number(price) : null;
     const parsedLat = lat !== undefined && lat !== '' && Number.isFinite(Number(lat)) ? Number(lat) : null;
@@ -345,6 +360,7 @@ exports.createPostWithMedia = async (req, res) => {
       postType: finalPostType,
       createdBy: req.user?.id || null,
       publishedToProfile: true, 
+      isHidden: isFlagged // Tự động ẩn bài viết nếu AI gắn cờ chờ duyệt
     });
 
     if (communityId && String(communityId).trim()) {
@@ -361,11 +377,17 @@ exports.createPostWithMedia = async (req, res) => {
 
     await newPost.save();
 
-    if (newPost.lat && newPost.lng && req.user?.id) {
+    if (newPost.lat && newPost.lng && req.user?.id && !isFlagged) {
       await notifyFriendsAboutLocation(req.user.id, newPost.title, newPost.location);
     }
 
-    res.status(201).json({ message: "Post created successfully", post: newPost });
+    res.status(201).json({ 
+      message: isFlagged 
+        ? "Bài đăng của bạn đang chờ quản trị viên phê duyệt do chứa nội dung nhạy cảm." 
+        : "Post created successfully", 
+      post: newPost,
+      flagged: isFlagged
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

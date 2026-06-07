@@ -6,6 +6,7 @@ const uploadLocal = require("../middleware/uploadLocal");
 const { protect, optionalAuth, requireAdmin, requireOwnerOrAdmin } = require("../middleware/auth");
 const Post    = require("../models/Post");
 const commentRoutes = require("./commentRoutes");
+const { contentModerator } = require("../utils/contentModerator");
 
 // 🖼️ Upload ảnh cloudinary — trả lỗi JSON rõ ràng
 router.post("/upload-images", protect, (req, res) => {
@@ -31,13 +32,13 @@ router.post("/upload-images-local", protect, (req, res) => {
 router.delete("/image", protect, postController.deleteImage);
 
 // 📝 Tạo bài — TẤT CẢ user đã đăng nhập đều được đăng bài
-router.post("/", protect, postController.createPost);
-router.post("/create-with-media", protect, (req, res) => {
+router.post("/", protect, contentModerator, postController.createPost);
+router.post("/create-with-media", protect, (req, res, next) => {
   uploadLocal.array("images", 5)(req, res, (err) => {
     if (err) return res.status(400).json({ message: err.message || "Tải ảnh thất bại" });
-    return postController.createPostWithMedia(req, res);
+    return contentModerator(req, res, next);
   });
-});
+}, postController.createPostWithMedia);
 
 // 📄 Xem бай — ai cũng xem được, nếu login thì biết user là ai
 router.get("/", optionalAuth, postController.getPosts);
