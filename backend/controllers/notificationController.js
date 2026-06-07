@@ -30,3 +30,43 @@ exports.markAllAsRead = async (req, res) => {
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
+
+exports.createAndEmitNotification = async (io, connectedUsers, data) => {
+  try {
+    const { recipient, sender, type, post, comment, content } = data;
+    
+    // Validate recipient
+    if (!recipient) {
+      console.warn("createAndEmitNotification: Recipient is missing, skipping.");
+      return;
+    }
+
+    // Don't create notification if recipient is the sender
+    if (String(recipient) === String(sender)) {
+      return;
+    }
+
+    const newNotif = await Notification.create({
+      receiver: recipient,
+      sender,
+      type,
+      post: post || undefined,
+      comment: comment || undefined,
+      content,
+      link: post ? `/post-detail` : undefined
+    });
+
+    const populatedNotif = await Notification.findById(newNotif._id)
+      .populate("sender", "username avatar")
+      .lean();
+
+    const activeIo = io || global.io;
+    if (activeIo) {
+      activeIo.to(String(recipient)).emit(`notification_${recipient}`, populatedNotif);
+    }
+    
+    return populatedNotif;
+  } catch (err) {
+    console.error("Error creating and emitting notification:", err.message);
+  }
+};

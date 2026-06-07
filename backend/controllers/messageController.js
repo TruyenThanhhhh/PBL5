@@ -85,6 +85,25 @@ exports.getConversations = async (req, res) => {
       });
       const convObj = conv.toObject();
       convObj.unreadCount = unreadCount;
+
+      // Query the last message details for this conversation
+      const lastMsgDoc = await Message.findOne({ conversationId: conv._id })
+        .sort({ createdAt: -1 })
+        .populate("sender", "username displayName avatar");
+
+      if (lastMsgDoc) {
+        convObj.lastMessageDetails = {
+          text: lastMsgDoc.text,
+          sender: lastMsgDoc.sender ? {
+            _id: lastMsgDoc.sender._id,
+            username: lastMsgDoc.sender.username,
+            displayName: lastMsgDoc.sender.displayName
+          } : null,
+          messageType: lastMsgDoc.messageType,
+          image: lastMsgDoc.image
+        };
+      }
+
       populatedConversations.push(convObj);
     }
 

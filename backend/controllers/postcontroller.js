@@ -456,7 +456,7 @@ exports.likePost = async (req, res) => {
     // Gửi thông báo Like real-time
     try {
       const { createAndEmitNotification } = require('./notificationController');
-      await createAndEmitNotification(req.io, req.connectedUsers, {
+      await createAndEmitNotification(req.app.get('io'), req.connectedUsers, {
         recipient: post.createdBy,
         sender: req.user.id,
         type: 'like',
@@ -564,7 +564,7 @@ exports.sharePostToProfile = async (req, res) => {
     try {
       const { createAndEmitNotification } = require("./notificationController");
       if (String(originalPost.createdBy?._id || originalPost.createdBy) !== String(userId)) {
-        await createAndEmitNotification(req.io, req.connectedUsers, {
+        await createAndEmitNotification(req.app.get('io'), req.connectedUsers, {
           recipient: originalPost.createdBy?._id || originalPost.createdBy,
           sender: userId,
           type: "share",

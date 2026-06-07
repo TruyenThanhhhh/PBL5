@@ -40,21 +40,18 @@ exports.addComment = async (req, res) => {
 
     // Gửi thông báo cho chủ bài viết (nếu không phải tự comment bài mình)
     if (post.createdBy && post.createdBy.toString() !== req.user.id) {
-      const notif = await Notification.create({
-        receiver: post.createdBy,
-        sender: req.user.id,
-        type: "system",
-        content: `đã bình luận về bài viết của bạn.`,
-        link: `/post/${post._id}`
-      });
-
-      // Emit realtime
-      const io = req.app.get('io');
-      if (io) {
-        io.emit(`notification_${post.createdBy}`, {
-          ...notif.toObject(),
-          sender: { _id: populated.author._id, username: populated.author.username, avatar: populated.author.avatar }
+      try {
+        const { createAndEmitNotification } = require('./notificationController');
+        await createAndEmitNotification(req.app.get('io'), null, {
+          recipient: post.createdBy,
+          sender: req.user.id,
+          type: 'comment',
+          post: post._id,
+          comment: comment._id,
+          content: 'đã bình luận về bài viết của bạn.'
         });
+      } catch (notifErr) {
+        console.error('Notification error:', notifErr.message);
       }
     }
 

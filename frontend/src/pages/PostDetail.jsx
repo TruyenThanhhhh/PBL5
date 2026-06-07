@@ -86,6 +86,7 @@ export default function PostDetail() {
   const location = useLocation();
   const navigate = useNavigate();
   const postId = searchParams.get('postId') || location.state?.postId;
+  const commentId = searchParams.get('commentId') || location.state?.commentId;
 
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,6 +176,21 @@ export default function PostDetail() {
 
     fetchPostAndComments();
   }, [postId]);
+
+  useEffect(() => {
+    if (commentId && comments.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`comment-${commentId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('animate-pulse', 'bg-red-50', 'dark:bg-red-950/20', 'p-3', 'rounded-2xl');
+          setTimeout(() => {
+            element.classList.remove('animate-pulse', 'bg-red-50', 'dark:bg-red-950/20', 'p-3', 'rounded-2xl');
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [comments, commentId]);
 
   const handleLikePost = async () => {
     const token = localStorage.getItem('token');
@@ -565,7 +581,7 @@ export default function PostDetail() {
                <div className="text-center text-gray-400 dark:text-slate-500 text-[13px] font-bold py-10 bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-gray-100 dark:border-slate-800">Chưa có bình luận nào. Hãy là người đầu tiên!</div>
             ) : (
                comments.map(comment => (
-                 <div key={comment._id} className="flex gap-4">
+                 <div key={comment._id} id={`comment-${comment._id}`} className="flex gap-4 transition-all duration-500">
                   <div className="flex flex-col items-center text-gray-400 dark:text-slate-500 w-8">
                     <button className="hover:text-[#f44336]"><ArrowUp size={20} /></button>
                     <span className="text-[12px] font-bold text-gray-700 dark:text-slate-300 my-1">0</span>

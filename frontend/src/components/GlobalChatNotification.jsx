@@ -27,6 +27,32 @@ const formatMessage = (msg, myId) => {
   };
 };
 
+const formatTimeAgo = (dateInput) => {
+  if (!dateInput) return '';
+  const date = new Date(dateInput);
+  const now = new Date();
+  const diffMs = now - date;
+  
+  if (diffMs < 0) return 'Vừa xong';
+  
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) {
+    return 'Vừa xong';
+  } else if (diffMin < 60) {
+    return `${diffMin} phút trước`;
+  } else if (diffHr < 24) {
+    return `${diffHr} giờ trước`;
+  } else if (diffDay < 7) {
+    return `${diffDay} ngày trước`;
+  } else {
+    return date.toLocaleDateString('vi-VN');
+  }
+};
+
 const PostShareCard = ({ post, isMe, onOpen }) => {
   if (!post) return null;
   const thumb = post.images?.[0];
@@ -110,18 +136,23 @@ export default function GlobalChatNotification() {
 
   const fetchNotifications = useCallback(async () => {
     const token = getToken();
-    if (!token) return;
+    if (!token) return [];
     try {
       const res = await fetch(`${API}/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setNotifications(Array.isArray(data) ? data : []);
+        const filtered = (Array.isArray(data) ? data : []).filter(
+          (notif) => notif.type !== 'message'
+        );
+        setNotifications(filtered);
+        return filtered;
       }
     } catch (_) {
       setNotifications([]);
     }
+    return [];
   }, [myId]);
 
   const fetchFriends = useCallback(async () => {
@@ -375,7 +406,7 @@ export default function GlobalChatNotification() {
     return { _id: userId, username: 'Người dùng' };
   }, []);
 
-  const handleMarkAllAsRead = async () => {
+  const handleMarkAllAsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     const token = getToken();
     if (!token) return;
@@ -385,7 +416,7 @@ export default function GlobalChatNotification() {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (_) {}
-  };
+  }, []);
 
   const handleReadNotification = async (notif) => {
     setNotifications((prev) =>
@@ -669,8 +700,9 @@ export default function GlobalChatNotification() {
     });
 
     socket.on(`notification_${myId}`, (newNotif) => {
-      setNotifications((prev) => [newNotif, ...prev]);
-      if (newNotif.type === 'message') {
+      if (newNotif.type !== 'message') {
+        setNotifications((prev) => [newNotif, ...prev]);
+      } else {
         fetchConversations();
       }
     });
@@ -735,7 +767,7 @@ export default function GlobalChatNotification() {
 
     if (notificationButton) {
       let badge = notificationButton.querySelector('.custom-notification-badge');
-      if (unreadNotifications > 0) {
+      if (unreadNotifications > 0 && !isNotificationOpen) {
         if (!badge) {
           badge = document.createElement('span');
           badge.className = 'custom-notification-badge absolute top-1 right-1 bg-[#f44336] text-white text-[9px] font-black h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center';
@@ -764,7 +796,7 @@ export default function GlobalChatNotification() {
         badge.remove();
       }
     }
-  }, [notifications, conversationsList, location.pathname]);
+  }, [notifications, conversationsList, location.pathname, isNotificationOpen]);
 
   useEffect(() => {
     const handleOpenChat = async (e) => {
@@ -791,13 +823,17 @@ export default function GlobalChatNotification() {
       setIsNotificationOpen(false);
     };
 
-    const handleOpenNotifications = () => {
-      setIsNotificationOpen((open) => {
-        if (open) return false;
-        fetchNotifications();
-        return true;
-      });
-      setIsUserChatOpen(false);
+    const handleOpenNotifications = async () => {
+      if (!isNotificationOpen) {
+        setIsNotificationOpen(true);
+        setIsUserChatOpen(false);
+        const fetched = await fetchNotifications();
+        if (fetched && fetched.some(n => !n.isRead)) {
+          await handleMarkAllAsRead();
+        }
+      } else {
+        setIsNotificationOpen(false);
+      }
     };
 
     const handleSharePost = (e) => {
@@ -816,7 +852,7 @@ export default function GlobalChatNotification() {
       window.removeEventListener('openNotifications', handleOpenNotifications);
       window.removeEventListener('sharePost', handleSharePost);
     };
-  }, [fetchNotifications, openConversationWithUser, fetchUserById, fetchConversations, fetchFriends]);
+  }, [fetchNotifications, openConversationWithUser, fetchUserById, fetchConversations, fetchFriends, isNotificationOpen, handleMarkAllAsRead]);
 
   useEffect(() => {
     if (isUserChatOpen && chatView === 'conversation') {
@@ -879,7 +915,9 @@ export default function GlobalChatNotification() {
                         </span>
                         {notif.content}
                       </p>
-                      <p className="text-[11px] text-[#f44336] font-medium mt-1">Vừa xong</p>
+                      <p className="text-[11px] text-[#f44336] font-medium mt-1">
+                        {formatTimeAgo(notif.createdAt)}
+                      </p>
                     </div>
                     {!notif.isRead && <div className="w-2.5 h-2.5 bg-[#f44336] rounded-full shrink-0 mt-1.5" />}
                   </div>
@@ -997,7 +1035,23 @@ export default function GlobalChatNotification() {
                               <div className="flex-1 min-w-0">
                                 <p className={`text-[12px] truncate ${hasUnread ? 'font-black text-gray-900' : 'font-bold'}`}>{name}</p>
                                 <p className={`text-[11px] truncate ${hasUnread ? 'font-bold text-gray-800' : 'text-gray-400'}`}>
-                                  {conv.lastMessage?.text || conv.lastMessage || 'Bắt đầu trò chuyện'}
+                                  {(() => {
+                                    if (conv.lastMessageDetails) {
+                                      const details = conv.lastMessageDetails;
+                                      const isMe = String(details.sender?._id) === String(myId);
+                                      const senderPrefix = isMe
+                                        ? 'Bạn'
+                                        : (details.sender?.displayName || details.sender?.username || 'Người dùng');
+                                      let contentText = details.text;
+                                      if (details.messageType === 'image') {
+                                        contentText = 'Đã gửi ảnh';
+                                      } else if (details.messageType === 'post') {
+                                        contentText = 'Đã chia sẻ bài viết';
+                                      }
+                                      return `${senderPrefix}: ${contentText || ''}`;
+                                    }
+                                    return conv.lastMessage || 'Bắt đầu trò chuyện';
+                                  })()}
                                 </p>
                               </div>
                               {hasUnread && (

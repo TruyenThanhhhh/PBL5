@@ -9,6 +9,7 @@ const Comment = require("../models/Comment");
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Report = require("../models/Report");
+const Notification = require("../models/Notification");
 
 // Sample Unsplash images for travel and avatars
 const AVATARS = [
@@ -73,6 +74,7 @@ async function seed() {
     await Conversation.deleteMany({ participants: { $in: demoUserIds } });
     await Message.deleteMany({ sender: { $in: demoUserIds } });
     await User.deleteMany({ _id: { $in: demoUserIds } });
+    await Notification.deleteMany({});
 
     console.log("Previous demo data cleaned successfully.");
 

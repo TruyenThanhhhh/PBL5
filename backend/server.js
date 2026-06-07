@@ -174,6 +174,7 @@ io.on("connection", (socket) => {
 });
 
 app.set('io', io);
+global.io = io;
 
 // ─── Express Middlewares ───────────────────────────────────
 const normalizeRole = (role) => {

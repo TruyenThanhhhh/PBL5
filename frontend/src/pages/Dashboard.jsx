@@ -1268,6 +1268,26 @@ function DashboardContent() {
     setAiChatInput('');
     setIsAiChatLoading(true);
 
+    let userLocation = null;
+    if (navigator.geolocation) {
+      try {
+        userLocation = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            (err) => {
+              console.warn("🌐 [GPS Debug] Geolocation failed in Chat:", {
+                code: err.code,
+                message: err.message,
+                reason: err.code === 1 ? "Permission denied" : err.code === 2 ? "Position unavailable (No GPS hardware/WiFi signals)" : "Timeout"
+              });
+              resolve(null);
+            },
+            { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+          );
+        });
+      } catch (_) {}
+    }
+
     try {
       const history = nextMessages.slice(0, -1).map((m) => ({
         role: m.role === 'ai' ? 'assistant' : 'user',
@@ -1277,7 +1297,7 @@ function DashboardContent() {
       const res = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history })
+        body: JSON.stringify({ message: text, history, userLocation })
       });
 
       if (!res.ok) throw new Error('Không gọi ược trợ lý AI');
@@ -2599,11 +2619,40 @@ function DashboardContent() {
             </button>
           </div>
           <div className="h-[320px] overflow-y-auto px-3 py-3 space-y-3 bg-[#fafafa]">
-            {aiChatMessages.map((msg, index) => (
-              <div key={index} className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'ml-auto bg-[#f44336] text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'}`}>
-                {msg.content}
-              </div>
-            ))}
+            {aiChatMessages.map((msg, index) => {
+              const isAi = msg.role === 'ai';
+              const hasItinerary = isAi && msg.content.includes('[ITINERARY:');
+              let cleanContent = msg.content;
+              let itineraryIds = [];
+
+              if (hasItinerary) {
+                const match = msg.content.match(/\[ITINERARY:([^\]]+)\]/);
+                if (match) {
+                  itineraryIds = match[1].split(',').map(id => id.trim()).filter(Boolean);
+                  cleanContent = msg.content.replace(/\[ITINERARY:[^\]]+\]/, '').trim();
+                }
+              }
+
+              return (
+                <div key={index} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-[13px] font-medium whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[#f44336] text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'}`}>
+                    {cleanContent}
+                  </div>
+                  {hasItinerary && itineraryIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('itinerary_ids', JSON.stringify(itineraryIds));
+                        navigate('/explore', { state: { itineraryIds } });
+                      }}
+                      className="mt-1 flex items-center gap-1.5 px-3 py-2 bg-[#1e3a8a] text-white text-[11px] font-extrabold rounded-xl hover:bg-[#172554] shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] select-none"
+                    >
+                      <MapPin size={12} /> Xem lộ trình trên bản đồ
+                    </button>
+                  )}
+                </div>
+              );
+            })}
             {isAiChatLoading ? (
               <div className="bg-white text-gray-500 border border-gray-100 rounded-2xl rounded-bl-md px-3 py-2 text-[13px] font-medium inline-block">
                 {t.aiThinking}

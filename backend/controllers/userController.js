@@ -717,7 +717,7 @@ exports.toggleFollow = async (req, res) => {
     if (!isFollowing) {
       try {
         const { createAndEmitNotification } = require('./notificationController');
-        await createAndEmitNotification(req.io, req.connectedUsers, {
+        await createAndEmitNotification(req.app.get('io'), req.connectedUsers, {
           recipient: targetId,
           sender: myId,
           type: 'follow',

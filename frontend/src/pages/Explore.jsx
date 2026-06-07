@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useInRouterContext } from 'react-router-dom';
-import { Compass, Search, Bell, ArrowLeft, ShieldAlert, CheckCircle, X } from 'lucide-react';
+import { Link, useNavigate, useInRouterContext, useLocation } from 'react-router-dom';
+import { Compass, Search, Bell, ArrowLeft, ShieldAlert, CheckCircle, X, MapPin } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const exploreCopy = {
@@ -32,6 +32,7 @@ const exploreCopy = {
     locationNotFound: (keyword) => `Không tìm thấy vị trí: ${keyword}`,
     mapError: 'Lỗi kết nối đến máy chủ bản đồ.',
     viewPost: 'Xem bài viết',
+    viewDistance: 'Xem khoảng cách',
   },
   en: {
     home: 'Home',
@@ -61,6 +62,7 @@ const exploreCopy = {
     locationNotFound: (keyword) => `Location not found: ${keyword}`,
     mapError: 'Could not connect to the map server.',
     viewPost: 'View post',
+    viewDistance: 'View distance',
   },
 };
 
@@ -74,10 +76,314 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
-function RealLeafletMap({ posts, flyToLocation, t }) {
+function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
+  const routeLayerRef = useRef(null);
+  const startMarkerRef = useRef(null);
+  const routePopupRef = useRef(null);
+
+  const drawRoute = async (startLat, startLng, endLat, endLng, endTitle, usingGPS) => {
+    if (!mapInstance.current || !window.L) return;
+    const L = window.L;
+    const map = mapInstance.current;
+
+    // 1. Dọn dẹp đường cũ, ghim bắt đầu cũ và popup thông tin đường đi cũ
+    if (routeLayerRef.current) {
+      map.removeLayer(routeLayerRef.current);
+      routeLayerRef.current = null;
+    }
+    if (startMarkerRef.current) {
+      map.removeLayer(startMarkerRef.current);
+      startMarkerRef.current = null;
+    }
+    if (routePopupRef.current) {
+      map.closePopup(routePopupRef.current);
+      routePopupRef.current = null;
+    }
+
+    // 2. Thêm ghim bắt đầu (vị trí người dùng)
+    const startIcon = L.divIcon({
+      className: 'start-pin',
+      html: `<div style="background-color: #10b981; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    startMarkerRef.current = L.marker([startLat, startLng], { icon: startIcon }).addTo(map);
+    startMarkerRef.current.bindTooltip(usingGPS ? "Vị trí của bạn" : "Vị trí giả lập (Đà Nẵng)", { permanent: true, direction: 'top', offset: [0, -10] });
+
+    try {
+      // 3. Gọi OSRM Routing API để lấy hình học đường đi thực tế
+      const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`);
+      if (!response.ok) throw new Error("Không thể tính toán đường đi");
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const distanceKm = (route.distance / 1000).toFixed(1);
+        const durationMin = Math.round(route.duration / 60);
+
+        // 4. Vẽ đường đi bằng GeoJSON
+        const geojsonFeature = {
+          type: "Feature",
+          properties: {},
+          geometry: route.geometry
+        };
+
+        routeLayerRef.current = L.geoJSON(geojsonFeature, {
+          style: {
+            color: "#3b82f6",
+            weight: 5,
+            opacity: 0.85,
+            lineCap: "round",
+            lineJoin: "round"
+          }
+        }).addTo(map);
+
+        // 5. Căn chỉnh map để hiển thị trọn vẹn lộ trình
+        const bounds = L.latLngBounds([
+          [startLat, startLng],
+          [endLat, endLng]
+        ]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+
+        // 6. Hiển thị popup thông tin khoảng cách & thời gian ở giữa lộ trình
+        const hours = Math.floor(durationMin / 60);
+        const mins = durationMin % 60;
+        const timeStr = hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+
+        const popupContent = `
+          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 4px; text-align: center;">
+            <h5 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 800; color: #1e3a8a;">Thông tin đường đi</h5>
+            <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #374151;">Khoảng cách: <span style="color: #ef4444; font-size: 13px;">${distanceKm} km</span></p>
+            <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Thời gian di chuyển: ${timeStr}</p>
+          </div>
+        `;
+        
+        routePopupRef.current = L.popup()
+          .setLatLng([(startLat + endLat) / 2, (startLng + endLng) / 2])
+          .setContent(popupContent)
+          .openOn(map);
+      }
+    } catch (err) {
+      console.error("OSRM Route Error:", err);
+      // Fallback: Vẽ đường thẳng nét đứt nếu OSRM lỗi
+      const latlngs = [
+        [startLat, startLng],
+        [endLat, endLng]
+      ];
+      routeLayerRef.current = L.polyline(latlngs, {
+        color: '#ef4444',
+        weight: 3,
+        dashArray: '5, 10',
+        opacity: 0.8
+      }).addTo(map);
+      map.fitBounds(routeLayerRef.current.getBounds(), { padding: [50, 50] });
+    }
+  };
+
+  useEffect(() => {
+    window.showRouteToPost = async (postId) => {
+      const post = posts.find(p => p._id === postId);
+      if (!post || !post.lat || !post.lng) return;
+
+      // Mặc định vị trí xuất phát giả lập là Đà Nẵng (nếu trình duyệt không có GPS)
+      let userLat = 16.0682;
+      let userLng = 108.2147;
+      let usingGPS = false;
+
+      if (navigator.geolocation) {
+        try {
+          const coords = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              (err) => {
+                console.warn("🌐 [GPS Debug] Geolocation failed in Explore Map:", {
+                  code: err.code,
+                  message: err.message,
+                  reason: err.code === 1 ? "Permission denied" : err.code === 2 ? "Position unavailable (No GPS hardware/WiFi signals)" : "Timeout"
+                });
+                reject(err);
+              },
+              { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+            );
+          });
+          userLat = coords.lat;
+          userLng = coords.lng;
+          usingGPS = true;
+        } catch (err) {
+          console.warn("GPS failed, using default fallback (Da Nang)");
+        }
+      }
+
+      await drawRoute(userLat, userLng, post.lat, post.lng, post.title, usingGPS);
+    };
+
+    return () => {
+      delete window.showRouteToPost;
+    };
+  }, [posts]);
+
+  const drawMultiPointRoute = async (startLat, startLng, routePosts, usingGPS) => {
+    if (!mapInstance.current || !window.L) return;
+    const L = window.L;
+    const map = mapInstance.current;
+
+    // 1. Dọn dẹp đường cũ, ghim bắt đầu cũ và popup thông tin đường đi cũ
+    if (routeLayerRef.current) {
+      map.removeLayer(routeLayerRef.current);
+      routeLayerRef.current = null;
+    }
+    if (startMarkerRef.current) {
+      map.removeLayer(startMarkerRef.current);
+      startMarkerRef.current = null;
+    }
+    if (routePopupRef.current) {
+      map.closePopup(routePopupRef.current);
+      routePopupRef.current = null;
+    }
+
+    // 2. Thêm ghim bắt đầu (vị trí người dùng)
+    const startIcon = L.divIcon({
+      className: 'start-pin',
+      html: `<div style="background-color: #10b981; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    startMarkerRef.current = L.marker([startLat, startLng], { icon: startIcon }).addTo(map);
+    startMarkerRef.current.bindTooltip(usingGPS ? "Vị trí của bạn" : "Vị trí giả lập (Đà Nẵng)", { permanent: true, direction: 'top', offset: [0, -10] });
+
+    try {
+      // 3. Xây dựng chuỗi tọa độ cho OSRM (Lng,Lat)
+      const coordinates = [
+        [startLng, startLat],
+        ...routePosts.map(p => [p.lng, p.lat])
+      ];
+      const coordString = coordinates.map(c => c.join(',')).join(';');
+      
+      const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`);
+      if (!response.ok) throw new Error("Không thể tính toán lộ trình");
+      const data = await response.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const distanceKm = (route.distance / 1000).toFixed(1);
+        const durationMin = Math.round(route.duration / 60);
+
+        // 4. Tạo nhóm FeatureGroup để lưu các lớp của lộ trình
+        routeLayerRef.current = L.featureGroup().addTo(map);
+
+        // Vẽ đường đi bằng GeoJSON
+        const geojsonFeature = {
+          type: "Feature",
+          properties: {},
+          geometry: route.geometry
+        };
+
+        const polylineLayer = L.geoJSON(geojsonFeature, {
+          style: {
+            color: "#3b82f6",
+            weight: 6,
+            opacity: 0.85,
+            lineCap: "round",
+            lineJoin: "round"
+          }
+        });
+        routeLayerRef.current.addLayer(polylineLayer);
+
+        // 5. Thêm các ghim số thứ tự 1, 2, 3... tại các điểm dừng
+        routePosts.forEach((post, idx) => {
+          const stopIcon = L.divIcon({
+            className: 'stop-pin',
+            html: `<div style="background-color: #1e3a8a; color: #fff; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 950; font-family: system-ui, sans-serif;">${idx + 1}</div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+          });
+          const marker = L.marker([post.lat, post.lng], { icon: stopIcon });
+          marker.bindTooltip(`Chặng ${idx + 1}: ${post.title}`, { permanent: true, direction: 'top', offset: [0, -12] });
+          routeLayerRef.current.addLayer(marker);
+        });
+
+        // 6. Căn chỉnh map để hiển thị trọn vẹn lộ trình
+        const bounds = L.latLngBounds([
+          [startLat, startLng],
+          ...routePosts.map(p => [p.lat, p.lng])
+        ]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+
+        // 7. Hiển thị popup thông tin ở điểm dừng đầu tiên
+        const hours = Math.floor(durationMin / 60);
+        const mins = durationMin % 60;
+        const timeStr = hours > 0 ? `${hours} giờ ${mins} phút` : `${mins} phút`;
+
+        const popupContent = `
+          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 4px; text-align: center; min-width: 165px;">
+            <h5 style="margin: 0 0 4px 0; font-size: 13px; font-weight: 800; color: #1e3a8a;">Lịch trình gợi ý</h5>
+            <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #374151;">Số điểm dừng: <span style="color: #3b82f6;">${routePosts.length}</span></p>
+            <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #374151;">Tổng quãng đường: <span style="color: #ef4444; font-size: 13px;">${distanceKm} km</span></p>
+            <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Thời gian lái xe: ~${timeStr}</p>
+          </div>
+        `;
+        
+        routePopupRef.current = L.popup()
+          .setLatLng([routePosts[0].lat, routePosts[0].lng])
+          .setContent(popupContent)
+          .openOn(map);
+      }
+    } catch (err) {
+      console.error("OSRM Multi Route Error:", err);
+      // Fallback: Vẽ đường thẳng nét đứt nối các điểm
+      const latlngs = [
+        [startLat, startLng],
+        ...routePosts.map(p => [p.lat, p.lng])
+      ];
+      routeLayerRef.current = L.polyline(latlngs, {
+        color: '#ef4444',
+        weight: 3,
+        dashArray: '5, 10',
+        opacity: 0.8
+      }).addTo(map);
+      map.fitBounds(routeLayerRef.current.getBounds(), { padding: [50, 50] });
+    }
+  };
+
+  useEffect(() => {
+    if (!mapInstance.current || !window.L || !posts.length || !itineraryIds || !itineraryIds.length) return;
+    
+    const triggerItineraryRoute = async () => {
+      const routePosts = itineraryIds
+        .map(id => posts.find(p => String(p._id) === String(id)))
+        .filter(p => p && p.lat && p.lng);
+
+      if (routePosts.length === 0) return;
+
+      let userLat = 16.0682;
+      let userLng = 108.2147;
+      let usingGPS = false;
+
+      if (navigator.geolocation) {
+        try {
+          const coords = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              (err) => reject(err),
+              { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+            );
+          });
+          userLat = coords.lat;
+          userLng = coords.lng;
+          usingGPS = true;
+        } catch (err) {
+          console.warn("Itinerary GPS failed, using default Da Nang");
+        }
+      }
+
+      await drawMultiPointRoute(userLat, userLng, routePosts, usingGPS);
+    };
+
+    triggerItineraryRoute();
+  }, [posts, itineraryIds]);
 
   useEffect(() => {
     let isMounted = true;
@@ -90,6 +396,7 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
         link.rel = 'stylesheet';
         link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
         document.head.appendChild(link);
+        await new Promise(resolve => { link.onload = resolve; });
       }
 
       // 2. Nhúng JS của Leaflet trực tiếp
@@ -99,6 +406,13 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
         document.head.appendChild(script);
         await new Promise(resolve => { script.onload = resolve; });
+      }
+
+      // Đợi cho window.L thực sự tồn tại (đề phòng race condition)
+      let attempts = 0;
+      while (!window.L && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
       }
 
       // 3. Khởi tạo bản đồ khi thư viện đã sẵn sàng
@@ -112,6 +426,13 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
         }).addTo(map);
 
         mapInstance.current = map;
+
+        // Ép Leaflet tính toán lại kích cỡ khung chứa để tránh ô màu xám (invalidateSize)
+        setTimeout(() => {
+          if (isMounted && map) {
+            map.invalidateSize();
+          }
+        }, 300);
       }
     };
 
@@ -163,7 +484,7 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
         
         // Popup HTML khi click vào ghim
         marker.bindPopup(`
-          <div style="min-width: 200px; font-family: sans-serif; padding: 2px;">
+          <div style="min-width: 200px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 2px;">
             <span style="font-size: 10px; font-weight: bold; background: ${isAdmin ? '#fee2e2' : '#e0f2fe'}; color: ${isAdmin ? '#ef4444' : '#0ea5e9'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
               ${post.category || t.place}
             </span>
@@ -175,6 +496,9 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
             <a href="/post-detail?postId=${post._id}" style="display: block; text-align: center; background: #f44336; color: #fff; padding: 7px 12px; border-radius: 8px; text-decoration: none; font-size: 11px; font-weight: bold; transition: background 0.2s;" onmouseover="this.style.background='#e53935'" onmouseout="this.style.background='#f44336'">
               ${t.viewPost}
             </a>
+            <button onclick="if(window.showRouteToPost) window.showRouteToPost('${post._id}')" style="display: block; width: 100%; text-align: center; background: #1e3a8a; color: #fff; padding: 7px 12px; border-radius: 8px; border: none; font-size: 11px; font-weight: bold; margin-top: 6px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#172554'" onmouseout="this.style.background='#1e3a8a'">
+              ${t.viewDistance || 'Xem khoảng cách'}
+            </button>
           </div>
         `);
 
@@ -220,9 +544,26 @@ function RealLeafletMap({ posts, flyToLocation, t }) {
 
 function ExploreContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { language } = useLanguage();
   const t = exploreCopy[language] || exploreCopy.vi;
   const [posts, setPosts] = useState([]);
+  const [itineraryIds, setItineraryIds] = useState(() => {
+    const stateIds = location.state?.itineraryIds;
+    if (stateIds && Array.isArray(stateIds)) return stateIds;
+    const localIdsStr = localStorage.getItem('itinerary_ids');
+    if (localIdsStr) {
+      try {
+        return JSON.parse(localIdsStr);
+      } catch (_) {}
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    // Xóa bộ nhớ tạm để tránh tự động vẽ lại khi F5 trang Explore lần sau
+    localStorage.removeItem('itinerary_ids');
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tất cả');
   const [isLoading, setIsLoading] = useState(true);
@@ -432,7 +773,7 @@ function ExploreContent() {
               <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
             </div>
           ) : (
-            <RealLeafletMap posts={posts} flyToLocation={flyToLocation} t={t} />
+            <RealLeafletMap posts={posts} flyToLocation={flyToLocation} itineraryIds={itineraryIds} t={t} />
           )}
         </div>
       </div>

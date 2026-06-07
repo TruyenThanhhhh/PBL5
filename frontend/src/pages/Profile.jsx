@@ -155,7 +155,7 @@ function ProfileMap({ posts, username }) {
             
             const marker = L.marker([post.lat, post.lng], { icon: customIcon }).addTo(map);
             marker.bindPopup(`
-              <div style="min-width: 180px; font-family: sans-serif;">
+              <div style="min-width: 180px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                 <span style="font-size: 10px; font-weight: bold; background: #f3f4f6; color: ${userColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
                   ${post.category || 'Địa điểm'}
                 </span>
