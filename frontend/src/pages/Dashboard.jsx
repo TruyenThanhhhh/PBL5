@@ -1293,7 +1293,7 @@ function DashboardContent() {
               });
               resolve(null);
             },
-            { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+            { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
           );
         });
       } catch (_) {}
@@ -2633,14 +2633,31 @@ function DashboardContent() {
             {aiChatMessages.map((msg, index) => {
               const isAi = msg.role === 'ai';
               const hasItinerary = isAi && msg.content.includes('[ITINERARY:');
+              const hasOsmItinerary = isAi && msg.content.includes('[OSM_ITINERARY:');
               let cleanContent = msg.content;
               let itineraryIds = [];
+              let osmItinerary = [];
 
               if (hasItinerary) {
                 const match = msg.content.match(/\[ITINERARY:([^\]]+)\]/);
                 if (match) {
                   itineraryIds = match[1].split(',').map(id => id.trim()).filter(Boolean);
                   cleanContent = msg.content.replace(/\[ITINERARY:[^\]]+\]/, '').trim();
+                }
+              } else if (hasOsmItinerary) {
+                const match = msg.content.match(/\[OSM_ITINERARY:([^\]]+)\]/);
+                if (match) {
+                  const parts = match[1].split(';');
+                  osmItinerary = parts.map(p => {
+                    const [name, latStr, lngStr] = p.split('|');
+                    const lat = parseFloat(latStr);
+                    const lng = parseFloat(lngStr);
+                    if (name && !isNaN(lat) && !isNaN(lng)) {
+                      return { name: name.trim(), lat, lng };
+                    }
+                    return null;
+                  }).filter(Boolean);
+                  cleanContent = msg.content.replace(/\[OSM_ITINERARY:[^\]]+\]/, '').trim();
                 }
               }
 
@@ -2659,6 +2676,18 @@ function DashboardContent() {
                       className="mt-1 flex items-center gap-1.5 px-3 py-2 bg-[#1e3a8a] text-white text-[11px] font-extrabold rounded-xl hover:bg-[#172554] shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] select-none"
                     >
                       <MapPin size={12} /> Xem lộ trình trên bản đồ
+                    </button>
+                  )}
+                  {hasOsmItinerary && osmItinerary.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('osm_itinerary', JSON.stringify(osmItinerary));
+                        navigate('/explore', { state: { osmItinerary } });
+                      }}
+                      className="mt-1 flex items-center gap-1.5 px-3 py-2 bg-[#f97316] text-white text-[11px] font-extrabold rounded-xl hover:bg-[#ea580c] shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] select-none"
+                    >
+                      <MapPin size={12} /> Tạo lộ trình trên map
                     </button>
                   )}
                 </div>

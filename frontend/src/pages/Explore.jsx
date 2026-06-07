@@ -76,7 +76,8 @@ const stringToColor = (str) => {
   return `hsl(${h}, 75%, 50%)`;
 };
 
-function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
+function RealLeafletMap({ posts, flyToLocation, itineraryIds, osmItinerary, t }) {
+  const [isMapReady, setIsMapReady] = useState(false);
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
@@ -206,7 +207,7 @@ function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
                 });
                 reject(err);
               },
-              { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+              { timeout: 10000, enableHighAccuracy: true, maximumAge: 0 }
             );
           });
           userLat = coords.lat;
@@ -301,7 +302,7 @@ function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
             iconAnchor: [11, 11]
           });
           const marker = L.marker([post.lat, post.lng], { icon: stopIcon });
-          marker.bindTooltip(`Chặng ${idx + 1}: ${post.title}`, { permanent: true, direction: 'top', offset: [0, -12] });
+          marker.bindTooltip(`Chặng ${idx + 1}: ${post.title || post.name}`, { permanent: true, direction: 'top', offset: [0, -12] });
           routeLayerRef.current.addLayer(marker);
         });
 
@@ -368,7 +369,7 @@ function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
             navigator.geolocation.getCurrentPosition(
               (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
               (err) => reject(err),
-              { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+              { timeout: 10000, enableHighAccuracy: true, maximumAge: 0 }
             );
           });
           userLat = coords.lat;
@@ -383,7 +384,38 @@ function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
     };
 
     triggerItineraryRoute();
-  }, [posts, itineraryIds]);
+  }, [posts, itineraryIds, isMapReady]);
+
+  useEffect(() => {
+    if (!mapInstance.current || !window.L || !osmItinerary || !osmItinerary.length) return;
+    
+    const triggerOsmItineraryRoute = async () => {
+      let userLat = 16.0682;
+      let userLng = 108.2147;
+      let usingGPS = false;
+
+      if (navigator.geolocation) {
+        try {
+          const coords = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              (err) => reject(err),
+              { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
+            );
+          });
+          userLat = coords.lat;
+          userLng = coords.lng;
+          usingGPS = true;
+        } catch (err) {
+          console.warn("OSM Itinerary GPS failed, using default Da Nang");
+        }
+      }
+
+      await drawMultiPointRoute(userLat, userLng, osmItinerary, usingGPS);
+    };
+
+    triggerOsmItineraryRoute();
+  }, [osmItinerary, isMapReady]);
 
   useEffect(() => {
     let isMounted = true;
@@ -426,6 +458,7 @@ function RealLeafletMap({ posts, flyToLocation, itineraryIds, t }) {
         }).addTo(map);
 
         mapInstance.current = map;
+        setIsMapReady(true);
 
         // Ép Leaflet tính toán lại kích cỡ khung chứa để tránh ô màu xám (invalidateSize)
         setTimeout(() => {
@@ -560,9 +593,22 @@ function ExploreContent() {
     return null;
   });
 
+  const [osmItinerary, setOsmItinerary] = useState(() => {
+    const stateOsm = location.state?.osmItinerary;
+    if (stateOsm && Array.isArray(stateOsm)) return stateOsm;
+    const localOsmStr = localStorage.getItem('osm_itinerary');
+    if (localOsmStr) {
+      try {
+        return JSON.parse(localOsmStr);
+      } catch (_) {}
+    }
+    return null;
+  });
+
   useEffect(() => {
     // Xóa bộ nhớ tạm để tránh tự động vẽ lại khi F5 trang Explore lần sau
     localStorage.removeItem('itinerary_ids');
+    localStorage.removeItem('osm_itinerary');
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Tất cả');
@@ -773,7 +819,7 @@ function ExploreContent() {
               <div className="animate-spin w-10 h-10 border-4 border-[#f44336] border-t-transparent rounded-full"></div>
             </div>
           ) : (
-            <RealLeafletMap posts={posts} flyToLocation={flyToLocation} itineraryIds={itineraryIds} t={t} />
+            <RealLeafletMap posts={posts} flyToLocation={flyToLocation} itineraryIds={itineraryIds} osmItinerary={osmItinerary} t={t} />
           )}
         </div>
       </div>

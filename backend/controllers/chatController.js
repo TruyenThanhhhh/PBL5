@@ -42,7 +42,7 @@ const searchOSMPlaces = async (city_or_location) => {
         node["tourism"~"attraction|museum|viewpoint|hotel"](around:10000,${lat},${lon});
         node["amenity"~"restaurant|cafe"](around:10000,${lat},${lon});
       );
-      out tags 25;
+      out 25;
     `;
 
     const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
@@ -62,10 +62,10 @@ const searchOSMPlaces = async (city_or_location) => {
     }
 
     const places = overpassData.elements
-      .filter(el => el.tags && el.tags.name)
+      .filter(el => el.tags && el.tags.name && el.lat && el.lon)
       .map(el => {
         const type = el.tags.tourism || el.tags.amenity || "place";
-        return `- ${el.tags.name} (Loại: ${type})`;
+        return `- ${el.tags.name} (Loại: ${type}) [Tọa độ: ${el.lat}, ${el.lon}]`;
       })
       .slice(0, 20);
 
@@ -136,11 +136,12 @@ Thông tin vị trí:
 ${postContext}
 
 Lưu ý quan trọng:
-- NẾU hệ thống KHÔNG CÓ thông tin về thành phố/nơi người dùng muốn đến (ví dụ: Đà Lạt, Sapa, Phú Quốc hoặc bất kỳ địa danh nào không có trong danh sách Dữ liệu địa điểm), bạn BẮT BUỘC PHẢI GỌI CÔNG CỤ (Tool) \`search_osm_places\` để lấy dữ liệu thực tế từ OpenStreetMap. Bạn TUYỆT ĐỐI KHÔNG ĐƯỢC tự bịa ra các địa điểm bằng kiến thức chung của bạn nếu chưa gọi công cụ này.
+- Nếu địa danh người dùng hỏi KHÔNG CÓ trong "Dữ liệu địa điểm trên VietTravel" (ví dụ: Sapa, Đà Lạt, Phú Quốc...), bạn PHẢI kích hoạt function call \`search_osm_places\` để lấy dữ liệu thực tế. TUYỆT ĐỐI không từ chối trả lời nếu chưa gọi tool này. CHỈ kích hoạt tool qua API, KHÔNG viết thẻ <function> vào trong nội dung chữ.
 - Khi người dùng bảo gợi ý lịch trình hoặc đường đi qua nhiều địa điểm khác nhau, bạn PHẢI so sánh khoảng cách (số km) của tất cả các địa điểm đó so với điểm xuất phát ngầm định. Bạn PHẢI thiết lập lộ trình đi qua các địa điểm gần trước rồi mới đi tiếp đến các địa điểm xa hơn (sắp xếp tăng dần theo khoảng cách km).
 - TUYỆT ĐỐI KHÔNG được sử dụng các từ hoặc cụm từ như "vị trí hiện tại", "vị trí hiện tại của bạn", "tọa độ", "GPS", "định vị", "vị trí của bạn" hay "lấy vị trí hiện tại" trong nội dung câu trả lời. 
 - Đôi khi tiêu đề bài viết trong dữ liệu là tên của chính người dùng (ví dụ: "Đỗ Nguyễn Nam Quân"). Hãy khéo léo phân biệt tên người và tên địa điểm.
-- Khi gợi ý một lịch trình chứa các địa điểm TỪ DỮ LIỆU CỦA HỆ THỐNG, ở DÒNG CUỐI CÙNG của câu trả lời, bạn PHẢI in ra một thẻ ẩn chứa danh sách các ID của những bài viết địa điểm đó: [ITINERARY:id_1,id_2,id_3]. Chỉ lấy ID trong trường "[ID: ...]". TUYỆT ĐỐI KHÔNG đưa ID ảo. Nếu địa điểm lấy từ OpenStreetMap, bạn CHỈ NÊU TÊN địa điểm đó và KHÔNG CHO VÀO THẺ [ITINERARY].`;
+- Khi gợi ý một lịch trình chứa các địa điểm TỪ DỮ LIỆU CỦA HỆ THỐNG, ở DÒNG CUỐI CÙNG của câu trả lời, bạn PHẢI in ra một thẻ ẩn chứa danh sách các ID của những bài viết địa điểm đó: [ITINERARY:id_1,id_2,id_3]. Chỉ lấy ID trong trường "[ID: ...]". TUYỆT ĐỐI KHÔNG đưa ID ảo.
+- NẾU địa điểm lấy từ OpenStreetMap (không có ID trong hệ thống), bạn KHÔNG ĐƯỢC dùng thẻ [ITINERARY]. Thay vào đó, ở DÒNG CUỐI CÙNG của câu trả lời, bạn PHẢI in ra một thẻ ẩn chứa danh sách các điểm OSM mà bạn gợi ý theo định dạng: [OSM_ITINERARY:Tên 1|lat1|lon1;Tên 2|lat2|lon2]. Ví dụ: [OSM_ITINERARY:Thác Bạc|22.361|103.779;Đỉnh Fansipan|22.304|103.771]. Lấy vĩ độ, kinh độ chính xác từ dữ liệu tool trả về.`;
 
     // Build messages
     const messages = [
