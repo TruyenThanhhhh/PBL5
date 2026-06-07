@@ -1017,27 +1017,73 @@ function DashboardTab({
 }) {
   const totalPosts = stats.totalPosts || 0;
 
-  // Extract counts for location-based horizontal bars (Top 4 cities in Vietnam)
-  const getCityCounts = () => {
-    const locations = {};
-    posts.forEach(p => {
-      let city = 'Khác';
-      const locStr = p.location || '';
-      if (locStr.includes('Hà Nội')) city = 'Hà Nội';
-      else if (locStr.includes('Đà Nẵng')) city = 'Đà Nẵng';
-      else if (locStr.includes('Hồ Chí Minh') || locStr.includes('Sài Gòn')) city = 'TP. Hồ Chí Minh';
-      else if (locStr.includes('Sa Pa') || locStr.includes('Lào Cai')) city = 'Sa Pa';
-      else if (locStr.includes('Nha Trang') || locStr.includes('Khánh Hòa')) city = 'Nha Trang';
-      else if (locStr.includes('Đà Lạt') || locStr.includes('Lâm Đồng')) city = 'Đà Lạt';
-      else if (locStr.includes('Vịnh Hạ Long') || locStr.includes('Quảng Ninh')) city = 'Hạ Long';
-      else if (locStr.includes('Hội An')) city = 'Hội An';
-      
-      locations[city] = (locations[city] || 0) + 1;
-    });
-    return Object.entries(locations).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  };
+  // Extract counts for location-based horizontal bars (Top 5 dynamic cities with OSM Geocoding)
+  const [cityData, setCityData] = React.useState([]);
+  const [isCityLoading, setIsCityLoading] = React.useState(true);
 
-  const cityData = getCityCounts();
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchCityData = async () => {
+      setIsCityLoading(true);
+      const locations = {};
+      const coordToFetch = {}; 
+
+      posts.forEach(p => {
+        const locStr = p.location;
+        if (!locStr) {
+          locations['Chưa xác định'] = (locations['Chưa xác định'] || 0) + 1;
+          return;
+        }
+
+        // Match coordinates like [lat, lng] or lat, lng
+        const match = locStr.match(/\[?([+-]?\d+\.\d+),\s*([+-]?\d+\.\d+)\]?/);
+        if (match) {
+          const lat = parseFloat(match[1]).toFixed(4);
+          const lon = parseFloat(match[2]).toFixed(4);
+          const key = `${lat},${lon}`;
+          coordToFetch[key] = (coordToFetch[key] || 0) + 1;
+        } else {
+          const parts = locStr.split(',');
+          let city = parts[parts.length - 1].trim();
+          if (city.toLowerCase() === 'việt nam' || city.toLowerCase() === 'vietnam') {
+            if (parts.length > 1) {
+              city = parts[parts.length - 2].trim();
+            } else {
+              city = 'Khác';
+            }
+          }
+          if (city) {
+            locations[city] = (locations[city] || 0) + 1;
+          }
+        }
+      });
+
+      const uniqueCoords = Object.keys(coordToFetch);
+      for (const coord of uniqueCoords) {
+        if (!isMounted) return;
+        const [lat, lon] = coord.split(',');
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`);
+          const data = await res.json();
+          let cityName = data.address?.city || data.address?.state || data.address?.province || data.address?.county || `Tọa độ (${lat}, ${lon})`;
+          locations[cityName] = (locations[cityName] || 0) + coordToFetch[coord];
+        } catch (e) {
+          locations[`Tọa độ (${lat}, ${lon})`] = (locations[`Tọa độ (${lat}, ${lon})`] || 0) + coordToFetch[coord];
+        }
+        await new Promise(r => setTimeout(r, 600)); // Respect OSM rate limit
+      }
+
+      if (isMounted) {
+        const sortedData = Object.entries(locations).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        setCityData(sortedData);
+        setIsCityLoading(false);
+      }
+    };
+
+    fetchCityData();
+    return () => { isMounted = false; };
+  }, [posts]);
+
   const maxCityCount = cityData.length > 0 ? Math.max(...cityData.map(c => c[1])) : 1;
 
   // Category counts max value for vertical scaling
@@ -1046,7 +1092,6 @@ function DashboardTab({
   // AI Trend predictions
   const trendingDestinations = posts
     .map(p => {
-      // Simple custom score based on interaction
       const score = (p.likes?.length || 0) * 12 + (p.totalReviews || 0) * 8 + (p.averageRating || 0) * 15;
       const roundedScore = Math.min(100, Math.round(score));
       let riskLabel = 'TIỀM NĂNG';
@@ -1081,9 +1126,55 @@ function DashboardTab({
   // Pending approval list
   const pendingReportsList = reports.filter(r => r.status === 'pending').slice(0, 3);
 
-  // Hidden percent for doughnut conic gradient
-  const hiddenPercent = totalPosts > 0 ? Math.round((stats.hiddenPosts / totalPosts) * 100) : 0;
-  const visiblePercent = 100 - hiddenPercent;
+  // Reports by Reason for Doughnut chart
+  const getReportReasonCounts = () => {
+    const reasons = {};
+    reports.forEach(r => {
+      const reason = r.reason || 'Khác';
+      reasons[reason] = (reasons[reason] || 0) + 1;
+    });
+    return Object.entries(reasons).sort((a, b) => b[1] - a[1]);
+  };
+  const reportReasonData = getReportReasonCounts();
+  const totalReportsChart = reportReasonData.reduce((acc, curr) => acc + curr[1], 0);
+
+  // Line Chart: 30-day growth (Posts)
+  const get30DayGrowth = () => {
+    const last30Days = [...Array(30)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (29 - i));
+      return d.toISOString().split('T')[0]; // YYYY-MM-DD
+    });
+
+    const postCountsByDate = {};
+    posts.forEach(p => {
+      if (p.createdAt) {
+        const dateStr = new Date(p.createdAt).toISOString().split('T')[0];
+        postCountsByDate[dateStr] = (postCountsByDate[dateStr] || 0) + 1;
+      }
+    });
+
+    let cumulativePosts = 0;
+    
+    return last30Days.map(date => {
+      const newPosts = postCountsByDate[date] || 0;
+      cumulativePosts += newPosts;
+      
+      const dayLabel = date.split('-').slice(1).join('/'); // MM/DD
+      return { date: dayLabel, posts: cumulativePosts };
+    });
+  };
+  const growthData = get30DayGrowth();
+  const maxGrowthVal = Math.max(...growthData.map(d => d.posts), 1);
+
+  // Top Interactions (Real Data)
+  const topInteractions = [...posts]
+    .sort((a, b) => {
+      const aScore = (a.likes?.length || 0) + (a.totalReviews || 0);
+      const bScore = (b.likes?.length || 0) + (b.totalReviews || 0);
+      return bScore - aScore;
+    })
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -1232,46 +1323,58 @@ function DashboardTab({
 
       {/* CHARTS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ROW 1 LEFT: DOUGHNUT CHART */}
+        {/* ROW 1 LEFT: DOUGHNUT CHART (REPORTS BY REASON) */}
         <div className={`border rounded-2xl p-6 flex flex-col justify-between min-h-[300px] shadow-sm
           ${isDarkMode ? 'bg-[#131526] border-[#22253f]' : 'bg-white border-gray-150'}`}>
-          <h3 className={`text-[14px] font-black uppercase tracking-wider mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Bài đăng theo Tình trạng</h3>
-          <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
-            {/* SVG/Conic Doughnut */}
-            <div 
-              className={`relative w-36 h-36 rounded-full flex items-center justify-center shadow-lg border
-                ${isDarkMode ? 'border-[#2b2e4f]/35' : 'border-gray-250/50'}`}
-              style={{
-                background: totalPosts > 0
-                  ? `conic-gradient(#ef4444 0% ${hiddenPercent}%, #10b981 ${hiddenPercent}% 100%)`
-                  : '#1d1f38'
-              }}
-            >
-              <div className={`absolute w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-inner
-                ${isDarkMode ? 'bg-[#131526]' : 'bg-white'}`}>
-                <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{totalPosts}</span>
-                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{t.post}</span>
+          <h3 className={`text-[14px] font-black uppercase tracking-wider mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Tỷ lệ Báo cáo theo Lý do</h3>
+          {totalReportsChart === 0 ? (
+            <p className="text-[12px] text-gray-500 text-center py-12">Không có dữ liệu báo cáo</p>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+              {/* SVG/Conic Doughnut */}
+              <div 
+                className={`relative w-36 h-36 rounded-full flex items-center justify-center shadow-lg border flex-shrink-0
+                  ${isDarkMode ? 'border-[#2b2e4f]/35' : 'border-gray-250/50'}`}
+                style={{
+                  background: (() => {
+                    const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#64748b'];
+                    let gradientParts = [];
+                    let currentPercent = 0;
+                    reportReasonData.forEach((item, idx) => {
+                      const pct = (item[1] / totalReportsChart) * 100;
+                      const color = colors[idx % colors.length];
+                      gradientParts.push(`${color} ${currentPercent}% ${currentPercent + pct}%`);
+                      currentPercent += pct;
+                    });
+                    return `conic-gradient(${gradientParts.join(', ')})`;
+                  })()
+                }}
+              >
+                <div className={`absolute w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-inner
+                  ${isDarkMode ? 'bg-[#131526]' : 'bg-white'}`}>
+                  <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{totalReportsChart}</span>
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Reports</span>
+                </div>
               </div>
-            </div>
 
-            {/* Legend info */}
-            <div className="space-y-4 w-full sm:w-auto">
-              <div className="flex items-center gap-3">
-                <span className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
-                <div>
-                  <p className={`text-[12px] font-bold ${isDarkMode ? 'text-white' : 'text-gray-950'}`}>Bài viết bị ẩn</p>
-                  <p className="text-[11px] text-gray-500 font-bold">{stats.hiddenPosts} bài viết ({hiddenPercent}%)</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="w-3.5 h-3.5 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
-                <div>
-                  <p className={`text-[12px] font-bold ${isDarkMode ? 'text-white' : 'text-gray-955'}`}>Bài viết hoạt động</p>
-                  <p className="text-[11px] text-gray-500 font-bold">{stats.visiblePosts} bài viết ({visiblePercent}%)</p>
-                </div>
+              {/* Legend info */}
+              <div className="space-y-3 w-full sm:w-auto max-h-[150px] overflow-y-auto custom-scrollbar pr-2">
+                {reportReasonData.map((item, idx) => {
+                  const colors = ['bg-red-500 shadow-[0_0_8px_#ef4444]', 'bg-amber-500 shadow-[0_0_8px_#f59e0b]', 'bg-blue-500 shadow-[0_0_8px_#3b82f6]', 'bg-purple-500 shadow-[0_0_8px_#8b5cf6]', 'bg-emerald-500 shadow-[0_0_8px_#10b981]', 'bg-slate-500 shadow-[0_0_8px_#64748b]'];
+                  const pct = Math.round((item[1] / totalReportsChart) * 100);
+                  return (
+                    <div key={item[0]} className="flex items-center gap-3">
+                      <span className={`w-3 h-3 rounded-full flex-shrink-0 ${colors[idx % colors.length]}`} />
+                      <div className="min-w-0">
+                        <p className={`text-[11px] font-bold truncate max-w-[120px] ${isDarkMode ? 'text-white' : 'text-gray-950'}`} title={item[0]}>{item[0]}</p>
+                        <p className="text-[10px] text-gray-500 font-bold">{item[1]} vụ ({pct}%)</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ROW 1 RIGHT: VERTICAL BAR CHART */}
@@ -1314,8 +1417,8 @@ function DashboardTab({
           )}
         </div>
 
-        {/* ROW 2 LEFT: HORIZONTAL BAR CHART */}
-        <div className={`border rounded-2xl p-6 min-h-[300px] flex flex-col justify-between shadow-sm
+        {/* ROW 2: HORIZONTAL BAR CHART (SPAN 2 COLS) */}
+        <div className={`lg:col-span-2 border rounded-2xl p-6 min-h-[300px] flex flex-col justify-between shadow-sm
           ${isDarkMode ? 'bg-[#131526] border-[#22253f]' : 'bg-white border-gray-150'}`}>
           <h3 className={`text-[14px] font-black uppercase tracking-wider mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Bài viết theo Khu vực (Tỉnh thành)</h3>
           {cityData.length === 0 ? (
@@ -1343,44 +1446,67 @@ function DashboardTab({
             </div>
           )}
         </div>
+      </div>
+      {/* ROW 3: LINE CHART (GROWTH) & TOP SEARCHES */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ROW 3 LEFT: LINE CHART (SPAN 2 COLS) */}
+        <div className={`lg:col-span-2 border rounded-2xl p-6 min-h-[300px] flex flex-col justify-between shadow-sm
+          ${isDarkMode ? 'bg-[#131526] border-[#22253f]' : 'bg-white border-gray-150'}`}>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className={`text-[14px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Tăng trưởng 30 Ngày qua</h3>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-[10px] text-gray-500 font-bold uppercase">Bài viết</span></div>
+            </div>
+          </div>
+          <div className="relative w-full h-48 flex items-end justify-between border-b border-l border-gray-200 dark:border-[#22253f] pb-1 pt-4">
+            {/* SVG Lines */}
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {/* Posts Line */}
+              <polyline 
+                fill="none" 
+                stroke="#3b82f6" 
+                strokeWidth="2" 
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+                points={growthData.map((d, i) => `${(i / (growthData.length - 1)) * 100},${100 - (d.posts / maxGrowthVal) * 100}`).join(' ')} 
+              />
+            </svg>
+            {/* X Axis Labels (show every 5th day to avoid clutter) */}
+            <div className="absolute -bottom-6 w-full flex justify-between px-1">
+              {growthData.map((d, i) => (i % 6 === 0 || i === growthData.length - 1) ? (
+                <span key={i} className="text-[9px] text-gray-400 font-bold">{d.date}</span>
+              ) : null)}
+            </div>
+          </div>
+        </div>
 
-        {/* ROW 2 RIGHT: ACCOUNTS NEEDING ATTENTION */}
+        {/* ROW 3 RIGHT: TOP INTERACTIONS */}
         <div className={`border rounded-2xl p-6 min-h-[300px] flex flex-col justify-between shadow-sm
           ${isDarkMode ? 'bg-[#131526] border-[#22253f]' : 'bg-white border-gray-150'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className={`text-[14px] font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Cần Ưu Tiên Xử Lý / Giao Việc</h3>
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-955 text-red-400 border border-red-900/30">
-              {pendingReportsCount} điểm nóng
-            </span>
-          </div>
-
-          <div className="space-y-3 flex-1 flex flex-col justify-center">
-            {pendingReportsList.map((rep, idx) => {
-              const isPost = rep.targetType === 'post';
-              const targetObj = isPost ? rep.targetPost : rep.targetUser;
-              let name = isPost ? (targetObj?.title || 'Bài viết bị tố cáo') : rep.targetType === 'message' ? `Tin nhắn của ${targetObj?.username}` : rep.targetType === 'comment' ? `Bình luận của ${targetObj?.username}` : (targetObj?.username || 'Người dùng bị tố cáo');
-              let sub = isPost ? `Mã: REP-${rep._id.slice(-5).toUpperCase()}` : `Mã: ${rep.targetType.toUpperCase()}-${rep._id.slice(-5).toUpperCase()}`;
-
-              return (
-                <div key={rep._id} className={`flex items-center justify-between p-3 rounded-xl border
+          <h3 className={`text-[14px] font-black uppercase tracking-wider mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Top Tương Tác</h3>
+          {topInteractions.length === 0 ? (
+            <p className="text-[12px] text-gray-500 text-center py-12">Chưa có bài viết nào</p>
+          ) : (
+            <div className="space-y-3 flex-1 flex flex-col justify-center overflow-hidden">
+              {topInteractions.map((post, idx) => (
+                <div key={post._id || idx} className={`flex items-center justify-between p-3 rounded-xl border
                   ${isDarkMode ? 'bg-[#181b30] border-[#2a2d4e]' : 'bg-gray-50 border-gray-200'}`}>
-                  <div className="min-w-0">
-                    <p className={`text-[12px] font-black truncate max-w-[150px] sm:max-w-[200px] ${isDarkMode ? 'text-white' : 'text-gray-900'}`} title={name}>{name}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{sub}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-[10px] font-black
+                      ${idx === 0 ? 'bg-amber-500 text-white shadow-[0_0_8px_#f59e0b]' : idx === 1 ? 'bg-slate-300 text-slate-700' : idx === 2 ? 'bg-amber-700/50 text-amber-100' : isDarkMode ? 'bg-[#121324] text-gray-500' : 'bg-white text-gray-400 border border-gray-200'}`}>
+                      #{idx + 1}
+                    </div>
+                    <span className={`text-[12px] font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`} title={post.title}>{post.title || 'Không có tiêu đề'}</span>
                   </div>
-                  <button 
-                    onClick={() => onOpenTab('reports')}
-                    className="px-3 py-1.5 text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-md shadow-purple-900/20"
-                  >
-                    Giao việc
-                  </button>
+                  <div className="text-right shrink-0 ml-2">
+                    <p className="text-[11px] font-black text-blue-500">{post.likes?.length || 0} Likes</p>
+                    <p className="text-[9px] font-bold text-emerald-500">{post.totalReviews || 0} Đánh giá</p>
+                  </div>
                 </div>
-              );
-            })}
-            {pendingReportsList.length === 0 && (
-              <p className="text-[12px] text-gray-500 text-center py-8">Chưa có sự cố nghiêm trọng nào cần giải quyết gấp.</p>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
