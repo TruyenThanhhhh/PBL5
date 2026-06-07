@@ -405,11 +405,19 @@ exports.deleteImage = async (req, res) => {
 
 exports.getPosts = async (req, res) => {
   try {
-    const { location, category } = req.query;
+    const { location, category, hasLocation } = req.query;
     let filter = {};
 
     if (location) filter.location = location;
     if (category) filter.category = category;
+    
+    // Nếu có query param hasLocation=true (ví dụ: trang Explore) thì chỉ lấy bài có lat, lng
+    // Đồng thời không hiển thị bài viết được chia sẻ (shared posts) trong danh sách khám phá
+    if (hasLocation === 'true') {
+      filter.lat = { $ne: null };
+      filter.lng = { $ne: null };
+      filter.sharedPost = null;
+    }
     
     const isAdmin = normalizeRole(req.user?.role) === "admin";
     if (!isAdmin) {
@@ -726,6 +734,9 @@ exports.getTrendingPosts = async (req, res) => {
         filter._id = { $nin: user.hiddenPosts };
       }
     }
+
+    // Không đưa các bài viết chia sẻ (shared) vào phần thịnh hành
+    filter.sharedPost = null;
 
     const posts = await Post.find(filter)
       .populate("createdBy", "username displayName email avatar role")

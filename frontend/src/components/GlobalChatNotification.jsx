@@ -23,6 +23,8 @@ const formatMessage = (msg, myId) => {
     messageType: msg.messageType || (msg.sharedPost ? 'post' : msg.image ? 'image' : 'text'),
     sharedPost: msg.sharedPost || null,
     readBy: (msg.readBy || []).map((u) => (typeof u === 'object' ? u._id : u)),
+    isRevoked: msg.isRevoked || false,
+    isSensitive: msg.isSensitive || false,
     createdAt: msg.createdAt,
   };
 };
@@ -628,6 +630,8 @@ export default function GlobalChatNotification() {
           messageType: data.messageType,
           sharedPost: data.sharedPost,
           readBy: data.readBy,
+          isRevoked: data.isRevoked,
+          isSensitive: data.isSensitive,
           createdAt: data.createdAt,
         },
         currentUserId
@@ -685,6 +689,30 @@ export default function GlobalChatNotification() {
       if (String(userId) === String(getMyId())) return;
       if (String(conversationId) !== String(currentConversationIdRef.current)) return;
       setTypingInfo(null);
+    });
+
+    socket.on('revoke_message', ({ messageId, newText }) => {
+      setUserMessages((prev) => {
+        const next = { ...prev };
+        for (const convId of Object.keys(next)) {
+          next[convId] = next[convId].map(msg => 
+            String(msg._id) === String(messageId) ? { ...msg, isRevoked: true, text: newText || "Tin nhắn đã bị thu hồi" } : msg
+          );
+        }
+        return next;
+      });
+    });
+
+    socket.on('mark_image_sensitive', ({ messageId, isSensitive }) => {
+      setUserMessages((prev) => {
+        const next = { ...prev };
+        for (const convId of Object.keys(next)) {
+          next[convId] = next[convId].map(msg => 
+            String(msg._id) === String(messageId) ? { ...msg, isSensitive } : msg
+          );
+        }
+        return next;
+      });
     });
 
     socket.on('user_banned', (data) => {
@@ -1176,15 +1204,22 @@ export default function GlobalChatNotification() {
                             isMe
                               ? 'bg-[#f44336] text-white rounded-br-md'
                               : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md shadow-sm'
-                          }`}
+                          } ${msg.isRevoked ? 'opacity-70 italic' : ''}`}
                         >
                           {msg.image && (
-                            <img
-                              src={msg.image}
-                              className="max-w-full rounded-xl mb-1 cursor-pointer"
-                              alt=""
-                              onClick={() => window.open(msg.image, '_blank')}
-                            />
+                            <div className="relative inline-block w-full">
+                              <img
+                                src={msg.image}
+                                className={`max-w-full rounded-xl mb-1 cursor-pointer transition-all duration-300 ${msg.isSensitive ? 'blur-xl hover:blur-none' : ''}`}
+                                alt=""
+                                onClick={() => window.open(msg.image, '_blank')}
+                              />
+                              {msg.isSensitive && (
+                                <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md pointer-events-none flex items-center gap-1 shadow-sm">
+                                  <span>⚠️</span> Ảnh nhạy cảm
+                                </div>
+                              )}
+                            </div>
                           )}
                           {isPost ? (
                             <>

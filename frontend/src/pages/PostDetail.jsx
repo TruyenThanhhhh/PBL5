@@ -601,8 +601,18 @@ export default function PostDetail() {
                       )}
                       <span className="text-[11px] font-medium text-gray-400 dark:text-slate-500">{new Date(comment.createdAt).toLocaleDateString('vi-VN')}</span>
                     </div>
-                    <p className="text-[13px] text-gray-700 dark:text-slate-300 font-medium leading-relaxed mb-3 whitespace-pre-wrap bg-[#f4f4f5] dark:bg-slate-800 px-4 py-3 rounded-2xl rounded-tl-none inline-block border border-transparent dark:border-slate-700">
-                      {comment.content}
+                    <p className={`text-[13px] font-medium leading-relaxed mb-3 whitespace-pre-wrap px-4 py-3 rounded-2xl rounded-tl-none inline-block border ${
+                      comment.isRevoked 
+                        ? 'bg-red-50 dark:bg-red-900/20 text-[#f44336] dark:text-red-400 border-red-200 dark:border-red-800/50 italic'
+                        : 'bg-[#f4f4f5] dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-transparent dark:border-slate-700'
+                    }`}>
+                      {comment.isRevoked ? (
+                        <span className="flex items-center gap-2">
+                          <ShieldAlert size={16} /> {comment.content}
+                        </span>
+                      ) : (
+                        comment.content
+                      )}
                     </p>
                   </div>
                 </div>

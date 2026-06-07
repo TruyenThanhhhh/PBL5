@@ -871,14 +871,14 @@ function ReportsTab({ reports, loading, fetchReports, fetchDashboardData, showTo
                             {report.reporter?.avatar ? (
                               <img src={report.reporter.avatar} className="w-full h-full object-cover" alt="" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-[9px] font-black text-gray-400">
-                                {report.reporter?.username?.[0]?.toUpperCase() || '?'}
+                              <div className="w-full h-full flex items-center justify-center text-[9px] font-black text-gray-400 bg-blue-900/20 text-blue-400">
+                                {report.reporter?.username?.[0]?.toUpperCase() || 'AI'}
                               </div>
                             )}
                           </div>
                           <div>
-                            <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{report.reporter?.username || '—'}</p>
-                            <p className="text-[10px] text-gray-500">{report.reporter?.email}</p>
+                            <p className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{report.reporter?.username || 'Hệ thống AI'}</p>
+                            <p className="text-[10px] text-gray-500">{report.reporter?.email || 'Tự động quét'}</p>
                           </div>
                         </div>
                       </td>
@@ -886,10 +886,12 @@ function ReportsTab({ reports, loading, fetchReports, fetchDashboardData, showTo
                       <td className="px-4 py-3.5">
                         <div>
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase mb-1 border
-                            ${isPost 
+                            ${report.targetType === 'post' 
                               ? (isDarkMode ? 'bg-blue-955/40 text-blue-400 border-blue-900/30' : 'bg-blue-50 text-blue-600 border-blue-100')
+                              : report.targetType === 'message' || report.targetType === 'comment'
+                              ? (isDarkMode ? 'bg-orange-955/40 text-orange-400 border-orange-900/30' : 'bg-orange-50 text-orange-600 border-orange-100')
                               : (isDarkMode ? 'bg-purple-955/40 text-purple-400 border-purple-900/30' : 'bg-purple-50 text-purple-600 border-purple-100')}`}>
-                            {isPost ? t.targetPost : t.targetUser}
+                            {report.targetType === 'post' ? t.targetPost : report.targetType === 'message' ? 'Tin nhắn' : report.targetType === 'comment' ? 'Bình luận' : t.targetUser}
                           </span>
                           <p className={`font-bold line-clamp-1 max-w-[200px] ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{targetName}</p>
                           {targetSub && <p className="text-[10px] text-gray-500">{targetSub}</p>}
@@ -1184,9 +1186,9 @@ function DashboardTab({
             {pendingReportsList.map((rep) => {
               const isPost = rep.targetType === 'post';
               const targetObj = isPost ? rep.targetPost : rep.targetUser;
-              let titleText = isPost ? (targetObj?.title || 'Bài đăng vi phạm') : (targetObj?.username || 'Tài khoản vi phạm');
+              let titleText = isPost ? (targetObj?.title || 'Bài đăng vi phạm') : rep.targetType === 'message' ? `Tin nhắn của ${targetObj?.username}` : rep.targetType === 'comment' ? `Bình luận của ${targetObj?.username}` : (targetObj?.username || 'Tài khoản vi phạm');
               let subText = isPost ? `Mã: POST-${rep.targetPost?._id.slice(-5).toUpperCase()} | Tác giả: ${targetObj?.createdBy?.username || t.anonymous}` 
-                                   : `Mã: USER-${rep.targetUser?._id.slice(-5).toUpperCase()} | Email: ${targetObj?.email || '—'}`;
+                                   : `Mã: ${rep.targetType.toUpperCase()}-${(rep.targetUser?._id || rep._id).slice(-5).toUpperCase()} | Email: ${targetObj?.email || '—'}`;
               return (
                 <div key={rep._id} className={`border rounded-xl p-4 min-w-[280px] md:min-w-[340px] flex-shrink-0 flex flex-col justify-between hover:border-amber-500/30 transition-colors
                   ${isDarkMode ? 'bg-[#181b30] border-[#2a2d4e]' : 'bg-gray-50 border-gray-200'}`}>
@@ -1356,8 +1358,8 @@ function DashboardTab({
             {pendingReportsList.map((rep, idx) => {
               const isPost = rep.targetType === 'post';
               const targetObj = isPost ? rep.targetPost : rep.targetUser;
-              let name = isPost ? (targetObj?.title || 'Bài viết bị tố cáo') : (targetObj?.username || 'Người dùng bị tố cáo');
-              let sub = isPost ? `Mã: REP-${rep._id.slice(-5).toUpperCase()}` : `Mã: USER-${rep._id.slice(-5).toUpperCase()}`;
+              let name = isPost ? (targetObj?.title || 'Bài viết bị tố cáo') : rep.targetType === 'message' ? `Tin nhắn của ${targetObj?.username}` : rep.targetType === 'comment' ? `Bình luận của ${targetObj?.username}` : (targetObj?.username || 'Người dùng bị tố cáo');
+              let sub = isPost ? `Mã: REP-${rep._id.slice(-5).toUpperCase()}` : `Mã: ${rep.targetType.toUpperCase()}-${rep._id.slice(-5).toUpperCase()}`;
 
               return (
                 <div key={rep._id} className={`flex items-center justify-between p-3 rounded-xl border

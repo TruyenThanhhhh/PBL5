@@ -96,7 +96,7 @@ QUY TẮC PHẢN HỒI: Chỉ trả về đúng duy nhất 1 số thập phân c
 
       console.log(`📊 [AI Moderation] Điểm độc hại từ Groq AI: ${score.toFixed(2)}`);
       
-      if (score > 0.8) return { action: "block", score, source: "groq" };
+      if (score > 0.75) return { action: "block", score, source: "groq" };
       if (score >= 0.5) return { action: "flagged", score, source: "groq" };
       return { action: "pass", score, source: "groq" };
     } catch (err) {

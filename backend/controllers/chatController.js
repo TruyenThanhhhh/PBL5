@@ -17,6 +17,67 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return d;
 };
 
+// Hàm lấy dữ liệu OSM qua Nominatim và Overpass API
+const searchOSMPlaces = async (city_or_location) => {
+  try {
+    console.log(`🌍 [OSM Tool] Đang tìm kiếm tọa độ cho: ${city_or_location}`);
+    // 1. Tìm tọa độ của thành phố bằng Photon API (dựa trên OSM, ổn định hơn Nominatim)
+    const photonRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(city_or_location + ' Vietnam')}&limit=1`);
+    const geoData = await photonRes.json();
+    
+    if (!geoData || !geoData.features || geoData.features.length === 0) {
+      return `Không tìm thấy tọa độ cho ${city_or_location} trên bản đồ.`;
+    }
+    
+    // Photon trả về coordinates: [lon, lat]
+    const coords = geoData.features[0].geometry.coordinates;
+    const lon = coords[0];
+    const lat = coords[1];
+    console.log(`🌍 [OSM Tool] Tọa độ của ${city_or_location}: lat=${lat}, lon=${lon}. Đang truy vấn Overpass API...`);
+
+    // 2. Lấy POIs xung quanh bán kính 10km bằng Overpass API
+    const overpassQuery = `
+      [out:json][timeout:15];
+      (
+        node["tourism"~"attraction|museum|viewpoint|hotel"](around:10000,${lat},${lon});
+        node["amenity"~"restaurant|cafe"](around:10000,${lat},${lon});
+      );
+      out tags 25;
+    `;
+
+    const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: overpassQuery,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    });
+    
+    if (!overpassRes.ok) {
+      return `Lỗi khi gọi Overpass API: ${overpassRes.statusText}`;
+    }
+
+    const overpassData = await overpassRes.json();
+    
+    if (!overpassData.elements || overpassData.elements.length === 0) {
+      return `Đã tìm thấy ${city_or_location} nhưng không có điểm du lịch hoặc nhà hàng nổi bật nào trong dữ liệu OSM tại đây.`;
+    }
+
+    const places = overpassData.elements
+      .filter(el => el.tags && el.tags.name)
+      .map(el => {
+        const type = el.tags.tourism || el.tags.amenity || "place";
+        return `- ${el.tags.name} (Loại: ${type})`;
+      })
+      .slice(0, 20);
+
+    console.log(`🌍 [OSM Tool] Đã tìm thấy ${places.length} địa điểm tại ${city_or_location}.`);
+    
+    return `Thông tin từ OpenStreetMap cho khu vực ${city_or_location}:\n${places.join("\n")}`;
+  } catch (error) {
+    console.error("OSM Tool Error:", error.message);
+    return `Đã xảy ra lỗi khi tìm kiếm dữ liệu OSM: ${error.message}`;
+  }
+};
+
 exports.chat = async (req, res) => {
   try {
     const { message, history = [], userLocation } = req.body;
@@ -75,12 +136,11 @@ Thông tin vị trí:
 ${postContext}
 
 Lưu ý quan trọng:
-- Khi người dùng bảo gợi ý lịch trình hoặc đường đi qua nhiều địa điểm khác nhau, bạn PHẢI so sánh khoảng cách (số km) của tất cả các địa điểm đó so với điểm xuất phát ngầm định. Bạn PHẢI thiết lập lộ trình đi qua các địa điểm gần trước rồi mới đi tiếp đến các địa điểm xa hơn (sắp xếp tăng dần theo khoảng cách km) để tránh việc đi ngược đường hoặc di chuyển không hợp lý (ví dụ: nếu xuất phát từ Đà Nẵng, khoảng cách đến Huế (~100km) gần hơn nhiều so với Hà Nội (~750km), do đó bắt buộc phải gợi ý hành trình đi Huế trước rồi mới đi Hà Nội, tuyệt đối không gợi ý đi Hà Nội trước rồi quay về Huế).
+- NẾU hệ thống KHÔNG CÓ thông tin về thành phố/nơi người dùng muốn đến (ví dụ: Đà Lạt, Sapa, Phú Quốc hoặc bất kỳ địa danh nào không có trong danh sách Dữ liệu địa điểm), bạn BẮT BUỘC PHẢI GỌI CÔNG CỤ (Tool) \`search_osm_places\` để lấy dữ liệu thực tế từ OpenStreetMap. Bạn TUYỆT ĐỐI KHÔNG ĐƯỢC tự bịa ra các địa điểm bằng kiến thức chung của bạn nếu chưa gọi công cụ này.
+- Khi người dùng bảo gợi ý lịch trình hoặc đường đi qua nhiều địa điểm khác nhau, bạn PHẢI so sánh khoảng cách (số km) của tất cả các địa điểm đó so với điểm xuất phát ngầm định. Bạn PHẢI thiết lập lộ trình đi qua các địa điểm gần trước rồi mới đi tiếp đến các địa điểm xa hơn (sắp xếp tăng dần theo khoảng cách km).
 - TUYỆT ĐỐI KHÔNG được sử dụng các từ hoặc cụm từ như "vị trí hiện tại", "vị trí hiện tại của bạn", "tọa độ", "GPS", "định vị", "vị trí của bạn" hay "lấy vị trí hiện tại" trong nội dung câu trả lời. 
-- Hãy gợi ý lịch trình và hướng dẫn đường đi một cách tự nhiên trực tiếp như thể bạn đã biết vị trí xuất phát của họ (ví dụ: Thay vì nói "Vì vị trí hiện tại của bạn là ở địa điểm X...", hãy nói thẳng "Bạn có thể bắt đầu hành trình bằng việc ghé thăm địa điểm X (cách khoảng Y km), sau đó đi tiếp đến địa điểm Z..."). Tuyệt đối tránh các câu thông báo máy móc, rườm rà về việc xác định vị trí.
-- Ưu tiên gợi ý địa điểm có trong dữ liệu. Không bịa đặt thông tin.
-- Đôi khi tiêu đề bài viết trong dữ liệu là tên của chính người dùng (ví dụ: "Đỗ Nguyễn Nam Quân"). Bạn phải thông minh nhận biết: đây là TÊN CỦA NGƯỜI DÙNG chứ không phải tên địa điểm du lịch hay quán ăn. Tuyệt đối KHÔNG gợi ý đi tham quan hay ghé thăm tên của người đó (như "Thăm Đỗ Nguyễn Nam Quân"). Thay vào đó, hãy gợi ý các địa điểm du lịch thực tế nổi tiếng tại thành phố đó (ví dụ tại Đà Nẵng thì gợi ý Cầu Rồng, Bà Nà Hills, Bán đảo Sơn Trà, Cảng Tiên Sa, v.v.).
-- Khi gợi ý một lịch trình đi chơi hoặc danh sách địa điểm cụ thể để người dùng ghé thăm, ở DÒNG CUỐI CÙNG của câu trả lời, bạn PHẢI in ra một thẻ ẩn chứa danh sách các ID của những bài viết địa điểm đó theo đúng thứ tự chặng hành trình bạn gợi ý. Định dạng của dòng cuối này bắt buộc phải là: [ITINERARY:id_1,id_2,id_3] (ví dụ: [ITINERARY:6665796df3f48a12c42ab789,6665798ef3f48a12c42ab790]). Chỉ lấy các ID thực tế nằm trong trường "[ID: ...]" được cung cấp ở trên, tuyệt đối không tự bịa ra ID giả. Nếu không gợi ý địa điểm nào cụ thể từ dữ liệu của hệ thống, tuyệt đối không in ra thẻ này.`;
+- Đôi khi tiêu đề bài viết trong dữ liệu là tên của chính người dùng (ví dụ: "Đỗ Nguyễn Nam Quân"). Hãy khéo léo phân biệt tên người và tên địa điểm.
+- Khi gợi ý một lịch trình chứa các địa điểm TỪ DỮ LIỆU CỦA HỆ THỐNG, ở DÒNG CUỐI CÙNG của câu trả lời, bạn PHẢI in ra một thẻ ẩn chứa danh sách các ID của những bài viết địa điểm đó: [ITINERARY:id_1,id_2,id_3]. Chỉ lấy ID trong trường "[ID: ...]". TUYỆT ĐỐI KHÔNG đưa ID ảo. Nếu địa điểm lấy từ OpenStreetMap, bạn CHỈ NÊU TÊN địa điểm đó và KHÔNG CHO VÀO THẺ [ITINERARY].`;
 
     // Build messages
     const messages = [
@@ -92,14 +152,71 @@ Lưu ý quan trọng:
       { role: "user", content: message },
     ];
 
-    const completion = await groq.chat.completions.create({
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "search_osm_places",
+          description: "Sử dụng công cụ này ĐỂ LẤY thông tin địa điểm (khách sạn, nhà hàng, điểm du lịch) từ bản đồ OpenStreetMap. BẠN PHẢI GỌI CÔNG CỤ NÀY nếu địa điểm mà người dùng hỏi không có sẵn trong phần Dữ liệu địa điểm trên VietTravel ở trên.",
+          parameters: {
+            type: "object",
+            properties: {
+              city_or_location: {
+                type: "string",
+                description: "Tên thành phố hoặc khu vực muốn tìm (ví dụ: 'Đà Lạt', 'Nha Trang', 'Hà Nội', 'Sapa')."
+              }
+            },
+            required: ["city_or_location"]
+          }
+        }
+      }
+    ];
+
+    let completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages,
+      tools,
+      tool_choice: "auto",
       max_tokens: 1024,
       temperature: 0.7,
     });
 
-    const reply = completion.choices[0].message.content;
+    let responseMessage = completion.choices[0].message;
+
+    // Kiểm tra xem AI có gọi tool không
+    if (responseMessage.tool_calls) {
+      console.log("🤖 [AI Chat Debug] AI decided to call tools:", responseMessage.tool_calls.map(t => t.function.name));
+      
+      // Thêm tin nhắn assistant gọi tool vào messages
+      messages.push(responseMessage);
+
+      // Thực thi từng tool call
+      for (const toolCall of responseMessage.tool_calls) {
+        if (toolCall.function.name === "search_osm_places") {
+          const args = JSON.parse(toolCall.function.arguments);
+          const toolResult = await searchOSMPlaces(args.city_or_location);
+          
+          messages.push({
+            tool_call_id: toolCall.id,
+            role: "tool",
+            name: "search_osm_places",
+            content: toolResult,
+          });
+        }
+      }
+
+      // Gọi lại Groq với kết quả từ tool
+      completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        max_tokens: 1024,
+        temperature: 0.7,
+      });
+      
+      responseMessage = completion.choices[0].message;
+    }
+
+    const reply = responseMessage.content;
     res.json({ reply });
 
   } catch (error) {

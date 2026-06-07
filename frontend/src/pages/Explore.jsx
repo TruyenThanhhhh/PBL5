@@ -595,9 +595,9 @@ function ExploreContent() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error(t.loginRequired);
 
-      let url = 'http://localhost:5000/api/posts/explore';
+      let url = 'http://localhost:5000/api/posts/explore?hasLocation=true';
       if (selectedCategory !== 'Tất cả') {
-        url += `?category=${encodeURIComponent(selectedCategory)}`;
+        url += `&category=${encodeURIComponent(selectedCategory)}`;
       }
 
       const res = await fetch(url, {

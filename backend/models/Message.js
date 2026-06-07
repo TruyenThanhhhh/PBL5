@@ -13,6 +13,8 @@ const messageSchema = new mongoose.Schema(
     image: { type: String, default: null },
     sharedPost: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null },
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    isRevoked: { type: Boolean, default: false },
+    isSensitive: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

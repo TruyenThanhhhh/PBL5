@@ -8,6 +8,9 @@ const jwt = require("jsonwebtoken");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const upload = require("./middleware/upload");
+const { checkHardBan } = require("./utils/moderation");
+const { checkContextualToxicity } = require("./utils/contentModerator");
+const { moderateImage } = require("./utils/imageModerator");
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -71,6 +74,10 @@ io.on("connection", (socket) => {
       if (!conversationId || !senderId) return;
       if (!text && !image && !postId && !sharedPost) return;
 
+      if (text && checkHardBan(text)) {
+        return socket.emit("message_error", { error: "Tin nhắn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." });
+      }
+
       const Message = require("./models/Message");
       const Conversation = require("./models/Conversation");
 
@@ -120,6 +127,8 @@ io.on("connection", (socket) => {
           messageType: populated.messageType,
           sharedPost: populated.sharedPost || null,
           readBy: populated.readBy || [],
+          isRevoked: populated.isRevoked || false,
+          isSensitive: populated.isSensitive || false,
           sender: populated.sender || {
             _id: senderId,
             username: senderName,
@@ -130,6 +139,9 @@ io.on("connection", (socket) => {
         conv.participants.forEach((p) => {
           io.to(String(p)).emit("receive_message", messageData);
         });
+
+        // Run AI moderation in background
+        runAsyncAIModeration(io, conversationId, populated, payload.text, payload.image);
       }
     } catch (error) {
       console.error("❌ Socket send_message error:", error.message);
@@ -172,6 +184,67 @@ io.on("connection", (socket) => {
     console.log(`🔌 Socket disconnected: ${socket.id}`);
   });
 });
+
+const runAsyncAIModeration = async (io, conversationId, messageDoc, text, imageUrl) => {
+  try {
+    const Message = require("./models/Message");
+    // 1. Text Moderation
+    if (text) {
+      const toxicity = await checkContextualToxicity(text);
+      if (toxicity.action === "block") {
+        console.log(`🚫 Thu hồi tin nhắn [${messageDoc._id}] vì điểm Toxicity: ${toxicity.score}`);
+        await Message.findByIdAndUpdate(messageDoc._id, { 
+          isRevoked: true, 
+          text: "Tin nhắn đã bị thu hồi do vi phạm tiêu chuẩn cộng đồng." 
+        });
+        io.to(String(conversationId)).emit("revoke_message", {
+          messageId: messageDoc._id,
+          reason: "Vi phạm tiêu chuẩn cộng đồng",
+          newText: "Tin nhắn đã bị thu hồi do vi phạm tiêu chuẩn cộng đồng."
+        });
+        return;
+      }
+    }
+    // 2. Image Moderation
+    if (imageUrl) {
+      const imgUrlString = Array.isArray(imageUrl) ? imageUrl[0] : imageUrl;
+      console.log(`🖼️ [Image Moderation] Bắt đầu xử lý ảnh chat URL: ${imgUrlString}`);
+      if (typeof imgUrlString === 'string' && imgUrlString.startsWith('http')) {
+        const response = await fetch(imgUrlString);
+        if (response.ok) {
+          const buffer = await response.arrayBuffer();
+          let contentType = response.headers.get("content-type");
+          console.log(`🖼️ [Image Moderation] Tải ảnh thành công, Content-Type: ${contentType}`);
+          
+          // Mặc định ép kiểu thành image/jpeg nếu không lấy được content type rõ ràng
+          if (!contentType || contentType === 'application/octet-stream' || contentType.includes('binary')) {
+             contentType = "image/jpeg";
+          }
+
+          if (contentType.startsWith("image/")) {
+            const isSafe = await moderateImage(Buffer.from(buffer), contentType);
+            if (!isSafe) {
+              console.log(`⚠️ Đánh dấu ảnh nhạy cảm cho tin nhắn [${messageDoc._id}]`);
+              await Message.findByIdAndUpdate(messageDoc._id, { isSensitive: true });
+              io.to(String(conversationId)).emit("mark_image_sensitive", {
+                messageId: messageDoc._id,
+                isSensitive: true
+              });
+            }
+          } else {
+             console.log(`⚠️ [Image Moderation] Bỏ qua kiểm duyệt do không phải định dạng ảnh: ${contentType}`);
+          }
+        } else {
+          console.error(`❌ [Image Moderation] Lỗi tải URL ảnh từ chat. Status: ${response.status}`);
+        }
+      } else {
+        console.warn(`⚠️ [Image Moderation] URL không hợp lệ: ${imgUrlString}`);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Lỗi luồng AI chạy ngầm:", err.message);
+  }
+};
 
 app.set('io', io);
 global.io = io;

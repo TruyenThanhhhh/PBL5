@@ -4,7 +4,91 @@ const Message = require("../models/Message");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Post = require("../models/Post");
-const { checkTextModeration } = require("../utils/contentModerator");
+const { checkHardBan } = require("../utils/moderation");
+const { checkContextualToxicity } = require("../utils/contentModerator");
+const { moderateImage } = require("../utils/imageModerator");
+
+const runAsyncAIModeration = async (io, conversationId, messageDoc, text, imageUrl) => {
+  try {
+    // 1. Text Moderation
+    if (text) {
+      const toxicity = await checkContextualToxicity(text);
+      if (toxicity.action === "block") {
+        console.log(`🚫 Thu hồi tin nhắn [${messageDoc._id}] vì điểm Toxicity: ${toxicity.score}`);
+        await Message.findByIdAndUpdate(messageDoc._id, { 
+          isRevoked: true, 
+          text: "Tin nhắn đã bị thu hồi do vi phạm tiêu chuẩn cộng đồng." 
+        });
+        io.to(String(conversationId)).emit("revoke_message", {
+          messageId: messageDoc._id,
+          reason: "Vi phạm tiêu chuẩn cộng đồng",
+          newText: "Tin nhắn đã bị thu hồi do vi phạm tiêu chuẩn cộng đồng."
+        });
+        return;
+      }
+    }
+    // 2. Image Moderation
+    if (imageUrl) {
+      const imgUrlString = Array.isArray(imageUrl) ? imageUrl[0] : imageUrl;
+      console.log(`🖼️ [Image Moderation] Bắt đầu xử lý ảnh chat URL: ${imgUrlString}`);
+      if (typeof imgUrlString === 'string' && imgUrlString.startsWith('http')) {
+        const response = await fetch(imgUrlString);
+        if (response.ok) {
+          const buffer = await response.arrayBuffer();
+          let contentType = response.headers.get("content-type");
+          console.log(`🖼️ [Image Moderation] Tải ảnh thành công, Content-Type: ${contentType}`);
+          
+          if (!contentType || contentType === 'application/octet-stream' || contentType.includes('binary')) {
+             contentType = "image/jpeg";
+          }
+
+          if (contentType.startsWith("image/")) {
+            const isSafe = await moderateImage(Buffer.from(buffer), contentType);
+            if (!isSafe) {
+              console.log(`⚠️ Đánh dấu ảnh nhạy cảm cho tin nhắn [${messageDoc._id}]`);
+              await Message.findByIdAndUpdate(messageDoc._id, { isSensitive: true });
+              io.to(String(conversationId)).emit("mark_image_sensitive", {
+                messageId: messageDoc._id,
+                isSensitive: true
+              });
+
+              // Gửi báo cáo cho Admin
+              const Report = require("../models/Report");
+              await Report.create({
+                reporter: null, // System AI
+                targetType: "message",
+                targetMessage: messageDoc._id,
+                targetUser: messageDoc.sender, // Người gửi
+                reason: "Hệ thống AI phát hiện ảnh nhạy cảm/bạo lực",
+                details: "Hình ảnh trong tin nhắn có chứa yếu tố bạo lực, máu me hoặc nhạy cảm.",
+                status: "pending"
+              });
+
+              // Báo cho Admin qua Socket nếu cần update UI realtime
+              const User = require("../models/User");
+              const admins = await User.find({ role: "admin" });
+              for (const admin of admins) {
+                io.emit(`notification_${admin._id}`, {
+                  type: "system",
+                  content: "Có một báo cáo vi phạm mới từ hệ thống AI.",
+                  link: "/admin/reports" 
+                });
+              }
+            }
+          } else {
+             console.log(`⚠️ [Image Moderation] Bỏ qua kiểm duyệt do không phải định dạng ảnh: ${contentType}`);
+          }
+        } else {
+          console.error(`❌ [Image Moderation] Lỗi tải URL ảnh từ chat. Status: ${response.status}`);
+        }
+      } else {
+        console.warn(`⚠️ [Image Moderation] URL không hợp lệ: ${imgUrlString}`);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Lỗi luồng AI chạy ngầm:", err.message);
+  }
+};
 
 const messagePopulate = [
   { path: "sender", select: "username displayName avatar" },
@@ -185,8 +269,7 @@ exports.sendMessage = async (req, res) => {
 
     // --- KIỂM DUYỆT AI: Khi gửi tin nhắn ---
     if (text && text.trim()) {
-      const isSafe = await checkTextModeration(text.trim());
-      if (!isSafe) {
+      if (checkHardBan(text.trim())) {
         return res.status(400).json({ 
           message: "Tin nhắn của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
         });
@@ -282,6 +365,12 @@ exports.sendMessage = async (req, res) => {
 
     const populated = await Message.findById(message._id).populate(messagePopulate);
     res.status(201).json(populated);
+
+    // Call async moderation AFTER sending response
+    const io_instance = req.app.get('io');
+    if (io_instance) {
+      runAsyncAIModeration(io_instance, conversationId, message, text, image);
+    }
   } catch (error) {
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }

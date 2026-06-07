@@ -2,7 +2,25 @@ const Comment = require("../models/Comment");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
-const { checkTextModeration } = require("../utils/contentModerator");
+const { checkHardBan } = require("../utils/moderation");
+const { checkContextualToxicity } = require("../utils/contentModerator");
+
+const runAsyncCommentModeration = async (commentDoc, content) => {
+  try {
+    if (content) {
+      const toxicity = await checkContextualToxicity(content);
+      if (toxicity.action === "block") {
+        console.log(`🚫 Thu hồi bình luận [${commentDoc._id}] vì điểm Toxicity: ${toxicity.score}`);
+        await Comment.findByIdAndUpdate(commentDoc._id, { 
+          isRevoked: true, 
+          content: "Bình luận đã bị thu hồi do vi phạm tiêu chuẩn cộng đồng." 
+        });
+      }
+    }
+  } catch (err) {
+    console.error("❌ Lỗi luồng AI chạy ngầm kiểm duyệt bình luận:", err.message);
+  }
+};
 
 // ➕ THÊM COMMENT / REVIEW
 exports.addComment = async (req, res) => {
@@ -12,8 +30,7 @@ exports.addComment = async (req, res) => {
 
     // --- KIỂM DUYỆT AI: Khi thêm bình luận mới ---
     if (content && content.trim()) {
-      const isSafe = await checkTextModeration(content.trim());
-      if (!isSafe) {
+      if (checkHardBan(content.trim())) {
         return res.status(400).json({ 
           message: "Bình luận của bạn chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
         });
@@ -56,6 +73,9 @@ exports.addComment = async (req, res) => {
     }
 
     res.status(201).json(populated);
+
+    // Chạy AI ngầm cho bình luận
+    runAsyncCommentModeration(comment, content.trim());
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -109,8 +129,7 @@ exports.updateComment = async (req, res) => {
 
     // --- KIỂM DUYỆT AI: Khi cập nhật bình luận ---
     if (content && content.trim() && content.trim() !== comment.content) {
-      const isSafe = await checkTextModeration(content.trim());
-      if (!isSafe) {
+      if (checkHardBan(content.trim())) {
         return res.status(400).json({ 
           message: "Nội dung bình luận sửa đổi chứa từ ngữ vi phạm tiêu chuẩn cộng đồng." 
         });
@@ -126,6 +145,11 @@ exports.updateComment = async (req, res) => {
     }
 
     res.json(comment);
+
+    // Chạy AI ngầm cho bình luận update
+    if (content && content.trim()) {
+      runAsyncCommentModeration(comment, content.trim());
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

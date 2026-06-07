@@ -5,11 +5,11 @@ const reportSchema = new mongoose.Schema(
     reporter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false, // Cho phép null nếu do hệ thống AI tự động tạo
     },
     targetType: {
       type: String,
-      enum: ["post", "user"],
+      enum: ["post", "user", "message", "comment"],
       required: true,
     },
     targetPost: {
@@ -20,6 +20,16 @@ const reportSchema = new mongoose.Schema(
     targetUser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+    },
+    targetMessage: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
+    targetComment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Comment",
       default: null,
     },
     reason: {

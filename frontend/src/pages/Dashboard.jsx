@@ -685,7 +685,9 @@ function DashboardContent() {
 
   const fetchTrendingPosts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/posts/trending');
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('http://localhost:5000/api/posts/trending', { headers });
       if (res.ok) {
         const data = await res.json();
         setTrendingPosts(Array.isArray(data) ? data : []);
@@ -697,7 +699,9 @@ function DashboardContent() {
 
   const fetchPosts = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/posts');
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('http://localhost:5000/api/posts', { headers });
       if (res.ok) {
         const data = await res.json();
         setPosts(Array.isArray(data) ? data : []);
@@ -1086,9 +1090,16 @@ function DashboardContent() {
         body: postFormData
       });
       if (res.ok) {
+        const data = await res.json();
         setNewPost({ title: '', description: '', category: 'General' });
         setPickedCoords(null); setShowMapPicker(false); setSelectedFiles([]); setPreviewUrls([]);
-        fetchPosts(); showToast('success', 'Đăng bài viết thành công!');
+        fetchPosts(); 
+        
+        if (data.flagged) {
+          showToast('info', data.message || 'Bài đăng của bạn đang chờ quản trị viên phê duyệt.');
+        } else {
+          showToast('success', data.message || 'Đăng bài viết thành công!');
+        }
       } else {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || 'Lỗi server khi đăng bài');

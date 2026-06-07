@@ -28,6 +28,10 @@ const commentSchema = new mongoose.Schema(
       ref: "Comment",
       default: null, // null = comment gốc, có giá trị = reply
     },
+    isRevoked: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 );

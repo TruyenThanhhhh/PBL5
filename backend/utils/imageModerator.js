@@ -115,7 +115,7 @@ const checkGroqVision = async (imageBuffer, mimeType = "image/jpeg") => {
             content: [
               { 
                 type: "text", 
-                text: "Bạn là một AI kiểm duyệt hình ảnh du lịch. Hãy phân tích bức ảnh này xem có chứa các nội dung không phù hợp bao gồm: bạo lực, máu me, kinh dị, vũ khí nguy hiểm, hình ảnh nhạy cảm khiêu dâm (porn/hentai/sexy quá đà) hoặc hoạt động cấm hay không. Chỉ trả về duy nhất từ 'unsafe' nếu phát hiện yếu tố không phù hợp, hoặc 'safe' nếu ảnh hoàn toàn sạch và an toàn cho mạng xã hội. Tuyệt đối không viết thêm bất kỳ từ nào ngoài 2 từ trên." 
+                text: "Bạn là một AI kiểm duyệt hình ảnh. Bạn phải phân tích bức ảnh này xem có chứa: bạo lực, máu me, kinh dị, xác chết, vũ khí sát thương, hình ảnh nhạy cảm khiêu dâm, hoặc hoạt động cấm hay không. Nếu có bất kỳ yếu tố máu me, bạo lực, hay không an toàn nào, hãy trả về CHÍNH XÁC một từ: 'unsafe'. Nếu ảnh hoàn toàn sạch sẽ và an toàn, trả về CHÍNH XÁC một từ: 'safe'." 
               },
               { 
                 type: "image_url", 
@@ -125,18 +125,28 @@ const checkGroqVision = async (imageBuffer, mimeType = "image/jpeg") => {
           }
         ],
         temperature: 0.1,
-        max_tokens: 10
+        max_completion_tokens: 10
       }),
     });
 
     if (!response.ok) {
+      const errText = await response.text();
+      console.error("❌ Groq API error:", errText);
       throw new Error(`Groq Vision API trả về lỗi: ${response.status}`);
     }
 
     const data = await response.json();
     const result = data.choices[0]?.message?.content?.trim().toLowerCase() || "safe";
     console.log(`📊 [Image Moderation] Kết quả Groq Vision: [${result}]`);
-    return !result.includes("unsafe");
+    
+    // Nếu kết quả có từ 'unsafe' hoặc AI từ chối trả lời (chứa các từ chối điển hình) thì coi là không an toàn
+    const isUnsafe = result.includes("unsafe") || 
+                     result.includes("sorry") || 
+                     result.includes("cannot") || 
+                     result.includes("apologize") ||
+                     result.includes("i can't");
+
+    return !isUnsafe;
   } catch (error) {
     console.error("❌ [Image Moderation] Lỗi khi gọi Groq Vision:", error.message);
     return true; // Fail-open để tránh nghẽn luồng đăng bài của người dùng
