@@ -9,12 +9,34 @@ import {
 } from 'lucide-react';
 import AccountMenu from '../components/AccountMenu';
 import { useLanguage } from '../contexts/LanguageContext';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API = 'http://localhost:5000/api';
 const token = () => localStorage.getItem('token');
 const authHeader = () => ({ 'Authorization': `Bearer ${token()}`, 'Content-Type': 'application/json' });
 
 // ─── Helpers ────────────────────────────────────────────────────
+const removeVietnameseTones = (str) => {
+  if (!str) return '';
+  str = String(str);
+  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+  str = str.replace(/đ/g, "d");
+  str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+  str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+  str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+  str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+  str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+  str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+  str = str.replace(/Đ/g, "D");
+  return str;
+};
 const normalizeRole = (role) => (String(role || '').trim().toLowerCase() === 'admin' ? 'admin' : 'user');
 const fmt = (d, locale = 'vi-VN') => d ? new Date(d).toLocaleDateString(locale) : '—';
 const roleColor = (isDark, role) => {
@@ -1176,6 +1198,237 @@ function DashboardTab({
     })
     .slice(0, 5);
 
+  // Export Handlers
+  const handleExportExcel = () => {
+    try {
+      showToast('success', language === 'en' ? 'Exporting to Excel...' : 'Đang xuất file Excel...');
+      const wb = XLSX.utils.book_new();
+      
+      const adminName = "Admin"; // DashboardTab doesn't have profile directly, fallback
+      const exportDate = new Date().toLocaleString('vi-VN');
+      
+      // Sheet 1: Tổng quan (Overview)
+      const overviewData = [
+        ['BÁO CÁO TỔNG QUAN NỀN TẢNG THE WANDERER'],
+        ['Ngày xuất báo cáo:', exportDate],
+        ['Người xuất:', adminName],
+        [],
+        ['CHỈ SỐ GỐC', 'GIÁ TRỊ'],
+        ['Tổng bài viết', stats.totalPosts || 0],
+        ['Bài viết đang hiện', stats.visiblePosts || 0],
+        ['Bài viết bị ẩn', stats.hiddenPosts || 0],
+        [],
+        ['TÀI KHOẢN', 'GIÁ TRỊ'],
+        ['Tổng User', stats.totalUsers || 0],
+        ['Số lượng Admin', stats.adminUsers || 0],
+        ['Số user thường', stats.userUsers || 0],
+        ['Số tài khoản bị khóa', Math.max(0, (stats.totalUsers || 0) - (stats.adminUsers || 0) - (stats.userUsers || 0))],
+        [],
+        ['BÁO CÁO VI PHẠM', 'GIÁ TRỊ'],
+        ['Tổng số báo cáo', reports.length || 0],
+        ['Số đang chờ duyệt', pendingReportsCount || 0],
+        ['Số đã xử lý/bỏ qua', Math.max(0, reports.length - pendingReportsCount)]
+      ];
+      const wsOverview = XLSX.utils.aoa_to_sheet(overviewData);
+      XLSX.utils.book_append_sheet(wb, wsOverview, 'Tong Quan');
+      
+      // Sheet 2: Top Tương tác & Xu hướng
+      const trendsData = [
+        ['Vị trí', 'Tiêu đề bài viết', 'Tác giả', 'Địa điểm', 'Thể loại', 'Lượt Thích', 'Đánh giá', 'Điểm Hotness']
+      ];
+      
+      const combinedTopMap = new Map();
+      [...topInteractions].forEach(p => combinedTopMap.set(p._id, p));
+      [...trendingDestinations].forEach(td => {
+        if (!combinedTopMap.has(td.id)) {
+          const post = posts.find(p => p._id === td.id);
+          if (post) combinedTopMap.set(post._id, post);
+        }
+      });
+      const combinedTop = Array.from(combinedTopMap.values());
+      
+      const getHotnessScore = (p) => Math.min(100, Math.round((p.likes?.length || 0) * 12 + (p.totalReviews || 0) * 8 + (p.averageRating || 0) * 15));
+      combinedTop.sort((a, b) => getHotnessScore(b) - getHotnessScore(a));
+      
+      combinedTop.forEach((p, idx) => {
+        trendsData.push([
+          idx + 1, 
+          p.title || 'Không có tiêu đề', 
+          p.author?.username || 'Ẩn danh', 
+          p.location || 'Việt Nam', 
+          p.category || 'Du lịch', 
+          p.likes?.length || 0, 
+          p.totalReviews || 0, 
+          getHotnessScore(p)
+        ]);
+      });
+      const wsTrends = XLSX.utils.aoa_to_sheet(trendsData);
+      XLSX.utils.book_append_sheet(wb, wsTrends, 'Top Tuong tac & Xu huong');
+      
+      // Sheet 3: Thống kê Khu vực & Thể loại
+      const geoCategoryData = [
+        ['THỐNG KÊ THEO TỈNH/THÀNH PHỐ'],
+        ['Tên Tỉnh/Thành phố', 'Số lượng bài viết']
+      ];
+      cityData.forEach(c => {
+        geoCategoryData.push([c[0], c[1]]);
+      });
+      geoCategoryData.push([]);
+      geoCategoryData.push(['THỐNG KÊ THEO THỂ LOẠI']);
+      geoCategoryData.push(['Tên Thể loại', 'Số lượng bài viết']);
+      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]).forEach(cat => {
+        geoCategoryData.push([cat[0], cat[1]]);
+      });
+      const wsGeoCat = XLSX.utils.aoa_to_sheet(geoCategoryData);
+      XLSX.utils.book_append_sheet(wb, wsGeoCat, 'Khu Vuc & The Loai');
+      
+      // Sheet 4: Tình hình Vi phạm
+      const reportsData = [
+        ['THỐNG KÊ LÝ DO VI PHẠM'],
+        ['Lý do vi phạm', 'Số lượng vụ việc']
+      ];
+      reportReasonData.forEach(r => {
+        reportsData.push([r[0], r[1]]);
+      });
+      reportsData.push([]);
+      reportsData.push(['DANH SÁCH CHỜ XỬ LÝ GẤP (PENDING)']);
+      reportsData.push(['Mã Report', 'Đối tượng bị tố cáo', 'Người tố cáo', 'Lý do chi tiết', 'Trạng thái']);
+      pendingReportsList.forEach(r => {
+        const isPost = r.targetType === 'post';
+        const targetObj = isPost ? r.targetPost : r.targetUser;
+        const targetName = isPost ? (targetObj?.title || 'Bài viết') : (targetObj?.username || 'Người dùng');
+        const reporterName = r.reporter?.username || 'Ẩn danh';
+        reportsData.push([r._id, targetName, reporterName, r.reason || 'Khác', r.status]);
+      });
+      const wsReports = XLSX.utils.aoa_to_sheet(reportsData);
+      XLSX.utils.book_append_sheet(wb, wsReports, 'Tinh Hinh Vi Pham');
+      
+      XLSX.writeFile(wb, `Bao_Cao_Nen_Tang_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'Lỗi xuất Excel');
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      showToast('success', language === 'en' ? 'Exporting to PDF...' : 'Đang xuất file PDF...');
+      const doc = new jsPDF();
+      const exportDate = new Date().toLocaleString('vi-VN');
+      const adminName = "Admin";
+      
+      const pdfText = (text) => removeVietnameseTones(text);
+      
+      // Header
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfText('BÁO CÁO HOẠT ĐỘNG NỀN TẢNG THE WANDERER'), 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(pdfText(`Thời gian xuất: ${exportDate}`), 14, 28);
+      doc.text(pdfText(`Người lập báo cáo: ${adminName}`), 14, 34);
+      
+      // Phần 1: Tóm tắt Chỉ số Sức khỏe Nền tảng
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfText('Phần 1: Tóm tắt Chỉ số Sức khỏe Nền tảng'), 14, 45);
+      
+      autoTable(doc, {
+        startY: 50,
+        head: [[pdfText('Bài viết'), pdfText('Tài khoản'), pdfText('Báo cáo vi phạm')]],
+        body: [
+          [
+            pdfText(`${stats.totalPosts || 0} Tổng số\n${stats.visiblePosts || 0} Đang hoạt động\n${stats.hiddenPosts || 0} Bị ẩn`),
+            pdfText(`${stats.totalUsers || 0} Tổng User\n${Math.max(0, (stats.totalUsers || 0) - (stats.adminUsers || 0) - (stats.userUsers || 0))} Bị khóa`),
+            pdfText(`${pendingReportsCount || 0} Yêu cầu đang chờ duyệt gấp`)
+          ]
+        ],
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 4, valign: 'middle' },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+      });
+      
+      // Phần 2: Nội dung nổi bật & Xu hướng
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfText('Phần 2: Nội dung nổi bật & Xu hướng'), 14, doc.lastAutoTable.finalY + 15);
+      
+      doc.setFontSize(10);
+      doc.text(pdfText('Bảng 1: Top 5 Điểm đến Xu hướng (AI Analytics)'), 14, doc.lastAutoTable.finalY + 23);
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 26,
+        head: [[pdfText('Tên địa điểm'), pdfText('Khu vực'), pdfText('Thể loại'), pdfText('Điểm tiềm năng (%)')]],
+        body: trendingDestinations.slice(0, 5).map(td => [
+          pdfText(td.title),
+          pdfText(td.location),
+          pdfText(td.category),
+          pdfText(td.hotness.toString())
+        ]),
+        theme: 'striped',
+        styles: { fontSize: 9 }
+      });
+      
+      doc.setFontSize(10);
+      doc.text(pdfText('Bảng 2: Top 5 Bài viết tương tác cao nhất'), 14, doc.lastAutoTable.finalY + 10);
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 13,
+        head: [[pdfText('Tiêu đề'), pdfText('Tác giả'), pdfText('Lượt Thích'), pdfText('Lượt Đánh giá')]],
+        body: topInteractions.slice(0, 5).map(p => [
+          pdfText((p.title || '').substring(0, 40)),
+          pdfText(p.author?.username || 'Ẩn danh'),
+          pdfText((p.likes?.length || 0).toString()),
+          pdfText((p.totalReviews || 0).toString())
+        ]),
+        theme: 'striped',
+        styles: { fontSize: 9 }
+      });
+      
+      // Phần 3: Cảnh báo Sức khỏe Cộng đồng
+      let finalY = doc.lastAutoTable.finalY + 15;
+      if (finalY > 250) {
+        doc.addPage();
+        finalY = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfText('Phần 3: Cảnh báo Sức khỏe Cộng đồng'), 14, finalY);
+      
+      const topReason = reportReasonData.length > 0 ? reportReasonData[0] : ['Không có', 0];
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(pdfText(`Phần lớn báo cáo trong tuần thuộc về hành vi: ${topReason[0]} (${topReason[1]} vụ).`), 14, finalY + 8);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfText('Danh sách Top 3 báo cáo nghiêm trọng đang chờ duyệt:'), 14, finalY + 16);
+      
+      autoTable(doc, {
+        startY: finalY + 19,
+        head: [[pdfText('Mã Report'), pdfText('Đối tượng'), pdfText('Lý do chi tiết'), pdfText('Trạng thái')]],
+        body: pendingReportsList.slice(0, 3).map(r => {
+          const isPost = r.targetType === 'post';
+          const targetName = isPost ? (r.targetPost?.title || 'Bài viết') : (r.targetUser?.username || 'Người dùng');
+          return [
+            pdfText(r._id.slice(-5).toUpperCase()),
+            pdfText(targetName.substring(0, 30)),
+            pdfText(r.reason || 'Khác'),
+            pdfText(r.status)
+          ];
+        }),
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [231, 76, 60], textColor: 255 }
+      });
+      
+      doc.save(`Bao_Cao_Hoat_Dong_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error(error);
+      showToast('error', 'Lỗi xuất PDF');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* HEADER STRIP */}
@@ -1188,11 +1441,11 @@ function DashboardTab({
           <button onClick={() => onOpenTab('dashboard')} className="px-4 py-2 text-[12px] font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-lg cursor-pointer">
             Tổng hợp
           </button>
-          <button onClick={() => showToast('success', language === 'en' ? 'Exporting to Excel...' : 'Đang xuất file Excel...')} className={`px-4 py-2 text-[12px] font-bold rounded-xl transition-colors cursor-pointer border
+          <button onClick={handleExportExcel} className={`px-4 py-2 text-[12px] font-bold rounded-xl transition-colors cursor-pointer border
             ${isDarkMode ? 'text-[#10b981] bg-[#10b981]/10 border-[#10b981]/30 hover:bg-[#10b981]/25' : 'text-[#10b981] bg-[#10b981]/5 border-[#10b981]/20 hover:bg-[#10b981]/15'}`}>
             Xuất Excel
           </button>
-          <button onClick={() => showToast('success', language === 'en' ? 'Exporting to PDF...' : 'Đang xuất file PDF...')} className={`px-4 py-2 text-[12px] font-bold rounded-xl transition-colors cursor-pointer border
+          <button onClick={handleExportPDF} className={`px-4 py-2 text-[12px] font-bold rounded-xl transition-colors cursor-pointer border
             ${isDarkMode ? 'text-red-400 bg-red-950/30 border-red-900/30 hover:bg-red-950/50' : 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100'}`}>
             Xuất PDF
           </button>
