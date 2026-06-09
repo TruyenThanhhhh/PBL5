@@ -39,6 +39,12 @@ export default function AccountMenu({ avatar, username }) {
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
+  useEffect(() => {
+    const handleCloseLocal = () => setOpen(false);
+    window.addEventListener('closeLocalDropdowns', handleCloseLocal);
+    return () => window.removeEventListener('closeLocalDropdowns', handleCloseLocal);
+  }, []);
+
   const go = (path) => {
     setOpen(false);
     navigate(path);
@@ -67,7 +73,10 @@ export default function AccountMenu({ avatar, username }) {
     <div className="relative" ref={wrapRef}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => !prev);
+          window.dispatchEvent(new CustomEvent('closeGlobalDropdowns'));
+        }}
         className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:border-gray-300 hover:bg-gray-50 transition"
         aria-expanded={open}
         aria-haspopup="true"
@@ -131,10 +140,6 @@ export default function AccountMenu({ avatar, username }) {
           <button type="button" onClick={() => go('/trending')} className={btnRow}>
             <TrendingUp size={18} className="shrink-0 opacity-80" />
             {t.trending}
-          </button>
-          <button type="button" onClick={() => go('/upload')} className={btnRow}>
-            <Upload size={18} className="shrink-0 opacity-80" />
-            {t.newPost}
           </button>
 
           {role === 'admin' && (

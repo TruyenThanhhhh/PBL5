@@ -846,6 +846,7 @@ export default function GlobalChatNotification() {
         setSelectedChatUser(null);
         setSelectedGroup(null);
         setCurrentConversationId(null);
+        window.dispatchEvent(new CustomEvent('closeLocalDropdowns'));
         return true;
       });
       setIsNotificationOpen(false);
@@ -855,6 +856,7 @@ export default function GlobalChatNotification() {
       if (!isNotificationOpen) {
         setIsNotificationOpen(true);
         setIsUserChatOpen(false);
+        window.dispatchEvent(new CustomEvent('closeLocalDropdowns'));
         const fetched = await fetchNotifications();
         if (fetched && fetched.some(n => !n.isRead)) {
           await handleMarkAllAsRead();
@@ -872,12 +874,20 @@ export default function GlobalChatNotification() {
       setIsNotificationOpen(false);
     };
 
+    const handleCloseGlobalDropdowns = () => {
+      setIsNotificationOpen(false);
+      setIsUserChatOpen(false);
+    };
+
     window.addEventListener('openChat', handleOpenChat);
     window.addEventListener('openNotifications', handleOpenNotifications);
     window.addEventListener('sharePost', handleSharePost);
+    window.addEventListener('closeGlobalDropdowns', handleCloseGlobalDropdowns);
     return () => {
       window.removeEventListener('openChat', handleOpenChat);
       window.removeEventListener('openNotifications', handleOpenNotifications);
+      window.removeEventListener('sharePost', handleSharePost);
+      window.removeEventListener('closeGlobalDropdowns', handleCloseGlobalDropdowns);
       window.removeEventListener('sharePost', handleSharePost);
     };
   }, [fetchNotifications, openConversationWithUser, fetchUserById, fetchConversations, fetchFriends, isNotificationOpen, handleMarkAllAsRead]);

@@ -427,6 +427,15 @@ function DashboardContent() {
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [isAvatarMenuOpen]);
 
+  useEffect(() => {
+    const handleCloseLocal = () => {
+      setIsFriendDropdownOpen(false);
+      setIsAvatarMenuOpen(false);
+    };
+    window.addEventListener('closeLocalDropdowns', handleCloseLocal);
+    return () => window.removeEventListener('closeLocalDropdowns', handleCloseLocal);
+  }, []);
+
   const handleAvatarMenuNavigate = (path, state) => {
     setIsAvatarMenuOpen(false);
     if (state) navigate(path, { state });
@@ -1692,6 +1701,7 @@ function DashboardContent() {
               onClick={() => {
                 setIsFriendDropdownOpen(!isFriendDropdownOpen);
                 setIsAvatarMenuOpen(false);
+                window.dispatchEvent(new CustomEvent('closeGlobalDropdowns'));
                 if (!isFriendDropdownOpen) fetchFriendData(); 
               }} 
               className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${isFriendDropdownOpen ? 'text-[#f44336]' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
@@ -1836,6 +1846,7 @@ function DashboardContent() {
               onClick={() => {
                 setIsAvatarMenuOpen((v) => !v);
                 setIsFriendDropdownOpen(false);
+                window.dispatchEvent(new CustomEvent('closeGlobalDropdowns'));
               }}
               className={`inline-flex h-10 items-center gap-0.5 rounded-full border overflow-hidden pl-0.5 pr-1 transition-opacity hover:opacity-95 ${
                 isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-200 bg-gray-50'
@@ -1965,16 +1976,6 @@ function DashboardContent() {
                 >
                   <TrendingUp size={18} className="shrink-0 opacity-80" />
                   {menuT.trending}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAvatarMenuNavigate('/upload')}
-                  className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition-colors ${
-                    isDarkMode ? 'text-gray-100 hover:bg-gray-800' : 'text-gray-800 hover:bg-gray-50'
-                  }`}
-                >
-                  <Upload size={18} className="shrink-0 opacity-80" />
-                  {menuT.newPost}
                 </button>
 
                 {currentUser.role === 'admin' && (

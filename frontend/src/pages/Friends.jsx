@@ -252,11 +252,12 @@ export default function Friends() {
 
   // Filter suggestions
   const filteredSuggestions = suggestions.filter(u => {
-    // Không phải là bạn, không nằm trong list request, và chưa được gửi request
+    // Không phải là bạn, không nằm trong list request, chưa được gửi request, và KHÔNG PHẢI ADMIN
     const isFriend = friendsList.some(f => f._id === u._id);
     const hasRequestedMe = friendRequests.some(f => f._id === u._id);
     const iRequestedThem = u.friendRequests?.includes(currentUser?.id);
-    return !isFriend && !hasRequestedMe && !iRequestedThem;
+    const isAdmin = String(u.role || '').trim().toLowerCase() === 'admin';
+    return !isFriend && !hasRequestedMe && !iRequestedThem && !isAdmin;
   });
 
   const getRelationshipStatus = (user) => {
